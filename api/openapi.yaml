@@ -1,0 +1,951 @@
+openapi: 3.0.3
+info:
+  title: Zavozik Cashflow API
+  version: 0.1.0
+  description: |
+    Контракт фронт ↔ Go-бэкенд. Источник правды: из него генерируются
+    хендлеры на Go (oapi-codegen) и клиент на фронте.
+    Суммы — в рублях, number с двумя знаками. Даты — YYYY-MM-DD.
+servers:
+  - url: http://localhost:8080
+security:
+  - bearerAuth: []
+
+tags:
+  - name: system
+  - name: auth
+  - name: companies
+  - name: sources
+  - name: operations
+  - name: forecast
+  - name: events
+  - name: scenarios
+  - name: alerts
+
+paths:
+  /healthz:
+    get:
+      tags: [system]
+      operationId: getHealth
+      security: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Health" }
+
+  /v1/models:
+    get:
+      tags: [forecast]
+      operationId: listModels
+      summary: Доступные прогнозные модели (из ML-сервиса + встроенный фолбэк)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ModelInfo" }
+
+  /v1/models/quality:
+    get:
+      tags: [forecast]
+      operationId: getModelQuality
+      summary: Метрики бэктеста для страницы «Как мы считаем»
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ModelQuality" }
+
+  /v1/auth/register:
+    post:
+      tags: [auth]
+      operationId: register
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/Credentials" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Token" }
+        "409": { $ref: "#/components/responses/Error" }
+
+  /v1/auth/login:
+    post:
+      tags: [auth]
+      operationId: login
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/Credentials" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Token" }
+        "401": { $ref: "#/components/responses/Error" }
+
+  /v1/companies:
+    get:
+      tags: [companies]
+      operationId: listCompanies
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Company" }
+    post:
+      tags: [companies]
+      operationId: createCompany
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CompanyCreate" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Company" }
+
+  /v1/companies/{companyId}/sources:
+    parameters: [{ $ref: "#/components/parameters/CompanyId" }]
+    get:
+      tags: [sources]
+      operationId: listSources
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Source" }
+    post:
+      tags: [sources]
+      operationId: createSource
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SourceCreate" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Source" }
+
+  /v1/sources/{sourceId}/sync:
+    parameters:
+      - name: sourceId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [sources]
+      operationId: syncSource
+      responses:
+        "202":
+          description: Синхронизация поставлена в очередь
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Job" }
+
+  /v1/companies/{companyId}/uploads:
+    parameters: [{ $ref: "#/components/parameters/CompanyId" }]
+    post:
+      tags: [sources]
+      operationId: uploadStatement
+      summary: Загрузка выписки (1CClientBankExchange, Excel, CSV)
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: { type: string, format: binary }
+      responses:
+        "202":
+          description: Обработка поставлена в очередь
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Job" }
+
+  /v1/jobs/{jobId}:
+    parameters:
+      - name: jobId
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      tags: [sources]
+      operationId: getJob
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Job" }
+
+  /v1/companies/{companyId}/operations:
+    parameters: [{ $ref: "#/components/parameters/CompanyId" }]
+    get:
+      tags: [operations]
+      operationId: listOperations
+      parameters:
+        - { name: category, in: query, schema: { $ref: "#/components/schemas/Category" } }
+        - { name: from, in: query, schema: { type: string, format: date } }
+        - { name: to, in: query, schema: { type: string, format: date } }
+        - { name: limit, in: query, schema: { type: integer, default: 100, maximum: 1000 } }
+        - { name: cursor, in: query, schema: { type: string } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OperationPage" }
+
+  /v1/operations/{operationId}:
+    parameters:
+      - name: operationId
+        in: path
+        required: true
+        schema: { type: string }
+    patch:
+      tags: [operations]
+      operationId: updateOperation
+      summary: Пользователь меняет категорию
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [category]
+              properties:
+                category: { $ref: "#/components/schemas/Category" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Operation" }
+
+  /v1/companies/{companyId}/recurring:
+    parameters: [{ $ref: "#/components/parameters/CompanyId" }]
+    get:
+      tags: [operations]
+      operationId: listRecurring
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/RecurringPattern" }
+
+  /v1/recurring/{patternId}:
+    parameters:
+      - name: patternId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    patch:
+      tags: [operations]
+      operationId: updateRecurring
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [confirmed]
+              properties:
+                confirmed: { type: boolean }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RecurringPattern" }
+
+  /v1/companies/{companyId}/counterparties:
+    parameters: [{ $ref: "#/components/parameters/CompanyId" }]
+    get:
+      tags: [operations]
+      operationId: listCounterparties
+      summary: Контрагенты с рейтингом платёжной дисциплины
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Counterparty" }
+
+  /v1/companies/{companyId}/forecast:
+    parameters: [{ $ref: "#/components/parameters/CompanyId" }]
+    get:
+      tags: [forecast]
+      operationId: getForecast
+      parameters:
+        - { name: horizon, in: query, schema: { type: integer, default: 30, minimum: 7, maximum: 90 } }
+        - { name: model, in: query, schema: { type: string, default: auto } }
+        - { name: scenario, in: query, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Forecast" }
+
+  /v1/companies/{companyId}/gaps/{gapId}:
+    parameters:
+      - { $ref: "#/components/parameters/CompanyId" }
+      - name: gapId
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      tags: [forecast]
+      operationId: getGap
+      summary: Разрыв с причинами и рекомендациями
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/GapDetail" }
+
+  /v1/companies/{companyId}/retro:
+    parameters: [{ $ref: "#/components/parameters/CompanyId" }]
+    get:
+      tags: [forecast]
+      operationId: getRetro
+      summary: «Мы бы вас предупредили» — прошлые разрывы и как рано мы бы их увидели
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Retro" }
+
+  /v1/companies/{companyId}/plan-fact:
+    parameters: [{ $ref: "#/components/parameters/CompanyId" }]
+    get:
+      tags: [forecast]
+      operationId: getPlanFact
+      parameters:
+        - name: granularity
+          in: query
+          schema: { type: string, enum: [day, week], default: day }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/PlanFactPoint" }
+
+  /v1/companies/{companyId}/events:
+    parameters: [{ $ref: "#/components/parameters/CompanyId" }]
+    get:
+      tags: [events]
+      operationId: listEvents
+      parameters:
+        - { name: from, in: query, schema: { type: string, format: date } }
+        - { name: to, in: query, schema: { type: string, format: date } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/PlannedEvent" }
+    post:
+      tags: [events]
+      operationId: createEvent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PlannedEventCreate" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlannedEvent" }
+
+  /v1/companies/{companyId}/events/parse:
+    parameters: [{ $ref: "#/components/parameters/CompanyId" }]
+    post:
+      tags: [events]
+      operationId: parseEvent
+      summary: Разбор фразы «клиент обещал 300к 20-го» в черновик события
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [text]
+              properties:
+                text: { type: string, maxLength: 500 }
+      responses:
+        "200":
+          description: Черновик, пользователь подтверждает через createEvent
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlannedEventCreate" }
+
+  /v1/events/{eventId}:
+    parameters:
+      - name: eventId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    patch:
+      tags: [events]
+      operationId: updateEvent
+      summary: Изменение события (перенос даты drag&drop, сумма)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PlannedEventUpdate" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlannedEvent" }
+    delete:
+      tags: [events]
+      operationId: deleteEvent
+      responses:
+        "204": { description: Deleted }
+
+  /v1/companies/{companyId}/scenarios:
+    parameters: [{ $ref: "#/components/parameters/CompanyId" }]
+    get:
+      tags: [scenarios]
+      operationId: listScenarios
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Scenario" }
+    post:
+      tags: [scenarios]
+      operationId: createScenario
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ScenarioCreate" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Scenario" }
+
+  /v1/companies/{companyId}/scenarios/{scenarioId}/compare:
+    parameters:
+      - { $ref: "#/components/parameters/CompanyId" }
+      - name: scenarioId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [scenarios]
+      operationId: compareScenario
+      responses:
+        "200":
+          description: Базовый и сценарный прогноз на одном графике
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ScenarioComparison" }
+
+  /v1/companies/{companyId}/alerts:
+    parameters: [{ $ref: "#/components/parameters/CompanyId" }]
+    get:
+      tags: [alerts]
+      operationId: listAlerts
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Alert" }
+
+  /v1/me/telegram/link:
+    post:
+      tags: [alerts]
+      operationId: createTelegramLink
+      summary: Одноразовая ссылка на бота для привязки чата
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [url, expires_at]
+                properties:
+                  url: { type: string }
+                  expires_at: { type: string, format: date-time }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    CompanyId:
+      name: companyId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+
+  responses:
+    Error:
+      description: Ошибка
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+
+  schemas:
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code: { type: string }
+        message: { type: string, description: Текст для пользователя }
+
+    Health:
+      type: object
+      required: [status, ml]
+      properties:
+        status: { type: string, enum: [ok] }
+        ml: { type: string, enum: [ok, unavailable], description: Без ML работает встроенный фолбэк }
+
+    Credentials:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, minLength: 8 }
+
+    Token:
+      type: object
+      required: [access_token, expires_at]
+      properties:
+        access_token: { type: string }
+        expires_at: { type: string, format: date-time }
+
+    Company:
+      type: object
+      required: [id, name, industry, legal_form]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        inn: { type: string, pattern: "^[0-9]{10}([0-9]{2})?$" }
+        legal_form: { type: string, enum: [ООО, ИП] }
+        industry: { type: string }
+        tax_regime: { $ref: "#/components/schemas/TaxRegime" }
+        reserve: { type: number, description: Порог «неснижаемого остатка», руб. }
+
+    CompanyCreate:
+      type: object
+      required: [name, legal_form, industry]
+      properties:
+        name: { type: string }
+        inn: { type: string, pattern: "^[0-9]{10}([0-9]{2})?$" }
+        legal_form: { type: string, enum: [ООО, ИП] }
+        industry: { type: string }
+        tax_regime: { $ref: "#/components/schemas/TaxRegime" }
+
+    TaxRegime:
+      type: string
+      enum: [usn6, usn15, osno, eshn, unknown]
+
+    SourceKind:
+      type: string
+      enum: [upload, onec_bank_file, excel, gsheets, onec_odata, fns, manual]
+
+    Source:
+      type: object
+      required: [id, kind, status]
+      properties:
+        id: { type: string, format: uuid }
+        kind: { $ref: "#/components/schemas/SourceKind" }
+        title: { type: string }
+        status: { type: string, enum: [ok, syncing, error, disabled] }
+        last_synced_at: { type: string, format: date-time }
+        error: { type: string }
+
+    SourceCreate:
+      type: object
+      required: [kind]
+      properties:
+        kind: { $ref: "#/components/schemas/SourceKind" }
+        title: { type: string }
+        config:
+          type: object
+          additionalProperties: true
+          description: Например, spreadsheet_id для gsheets. Секреты здесь не возвращаются.
+
+    Job:
+      type: object
+      required: [id, status]
+      properties:
+        id: { type: string }
+        status: { type: string, enum: [queued, running, done, failed] }
+        error: { type: string }
+
+    Category:
+      type: string
+      description: Категория операции
+      enum:
+        - revenue_acquiring
+        - revenue_sbp
+        - revenue_cash
+        - revenue_b2b
+        - revenue_marketplace
+        - supplier
+        - salary
+        - tax
+        - rent
+        - utilities
+        - loan_payment
+        - leasing
+        - bank_fee
+        - marketing
+        - services
+        - own_transfer
+        - owner_loan
+        - refund
+        - enforcement
+        - other
+
+    Direction:
+      type: string
+      enum: [in, out]
+
+    Operation:
+      type: object
+      required: [id, date, amount, direction, category, source]
+      properties:
+        id: { type: string }
+        date: { type: string, format: date }
+        amount: { type: number }
+        direction: { $ref: "#/components/schemas/Direction" }
+        counterparty_name: { type: string }
+        counterparty_inn: { type: string }
+        purpose: { type: string }
+        category: { $ref: "#/components/schemas/Category" }
+        category_method: { type: string, enum: [rule, ml, llm, user] }
+        is_internal: { type: boolean, description: Свои переводы и займы учредителя — не выручка }
+        source: { $ref: "#/components/schemas/SourceKind" }
+
+    OperationPage:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/Operation" }
+        next_cursor: { type: string }
+
+    RecurringPattern:
+      type: object
+      required: [id, title, category, period, amount, next_date, confirmed]
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string, description: «Зарплата (аванс)», «Аренда — АО Арендодатель» }
+        category: { $ref: "#/components/schemas/Category" }
+        direction: { $ref: "#/components/schemas/Direction" }
+        counterparty_name: { type: string }
+        period: { type: string, enum: [weekly, biweekly, monthly, quarterly] }
+        day_of_month: { type: integer }
+        amount: { type: number }
+        amount_spread: { type: number, description: Типичное отклонение суммы }
+        next_date: { type: string, format: date }
+        confirmed: { type: boolean }
+
+    Counterparty:
+      type: object
+      required: [name, total_in, total_out]
+      properties:
+        name: { type: string }
+        inn: { type: string }
+        total_in: { type: number }
+        total_out: { type: number }
+        avg_payment_delay_days: { type: number, description: От даты УПД до оплаты }
+        discipline_score: { type: number, minimum: 0, maximum: 100 }
+        overdue_amount: { type: number }
+
+    ModelInfo:
+      type: object
+      required: [name, description, is_default]
+      properties:
+        name: { type: string }
+        description: { type: string }
+        is_default: { type: boolean }
+
+    ModelQuality:
+      type: object
+      required: [model]
+      properties:
+        model: { type: string }
+        mae_7: { type: number }
+        mae_14: { type: number }
+        mae_30: { type: number }
+        wape_30: { type: number }
+        gap_precision: { type: number }
+        gap_recall: { type: number }
+        gap_lead_days: { type: number, description: За сколько дней в среднем предупредили }
+
+    ForecastComponent:
+      type: object
+      required: [key, title, amount]
+      properties:
+        key: { type: string, description: "Например: salary, tax, rent, event:<id>, stochastic" }
+        title: { type: string }
+        amount: { type: number, description: Со знаком; минус — списание }
+        source: { $ref: "#/components/schemas/SourceKind" }
+
+    ForecastPoint:
+      type: object
+      required: [date, p10, p50, p90]
+      properties:
+        date: { type: string, format: date }
+        p10: { type: number }
+        p50: { type: number }
+        p90: { type: number }
+        components:
+          type: array
+          items: { $ref: "#/components/schemas/ForecastComponent" }
+
+    Gap:
+      type: object
+      required: [id, date, shortfall, probability]
+      properties:
+        id: { type: string }
+        date: { type: string, format: date, description: Первый день, когда остаток ниже резерва }
+        shortfall: { type: number, description: Сколько не хватит (медиана), руб. }
+        shortfall_p90: { type: number, description: Пессимистичная оценка }
+        probability: { type: number, minimum: 0, maximum: 1 }
+        headline: { type: string, description: «28 ноября не хватит ~340 000 ₽ на ЕНП и зарплату» }
+
+    Forecast:
+      type: object
+      required: [as_of, horizon, model_used, opening_balance, safe_to_spend, headline, points, gaps]
+      properties:
+        as_of: { type: string, format: date }
+        horizon: { type: integer }
+        model_used: { type: string }
+        low_confidence: { type: boolean }
+        opening_balance: { type: number }
+        safe_to_spend: { type: number, description: Можно потратить сегодня без риска уйти ниже резерва }
+        headline: { type: string }
+        status: { type: string, enum: [ok, warning, danger] }
+        points:
+          type: array
+          items: { $ref: "#/components/schemas/ForecastPoint" }
+        gaps:
+          type: array
+          items: { $ref: "#/components/schemas/Gap" }
+
+    Cause:
+      type: object
+      required: [title, amount]
+      properties:
+        title: { type: string }
+        amount: { type: number, description: Вклад в разрыв, со знаком }
+        component_key: { type: string }
+
+    Action:
+      type: object
+      required: [id, kind, title, effect]
+      properties:
+        id: { type: string }
+        kind: { type: string, enum: [remind_client, shift_supplier_payment, overdraft, split_payment, cut_expense] }
+        title: { type: string }
+        description: { type: string }
+        cost: { type: number, description: Стоимость действия, например проценты }
+        effect:
+          type: object
+          required: [closes_gap, new_probability]
+          properties:
+            closes_gap: { type: boolean }
+            new_probability: { type: number }
+            new_shortfall: { type: number }
+        draft_message: { type: string, description: Готовый текст напоминания клиенту }
+
+    GapDetail:
+      allOf:
+        - $ref: "#/components/schemas/Gap"
+        - type: object
+          required: [causes, actions]
+          properties:
+            causes:
+              type: array
+              items: { $ref: "#/components/schemas/Cause" }
+            actions:
+              type: array
+              items: { $ref: "#/components/schemas/Action" }
+
+    Retro:
+      type: object
+      required: [events, detected, avg_lead_days, owner_injections_total]
+      properties:
+        events: { type: integer, description: Сколько прошлых разрывов найдено }
+        detected: { type: integer, description: О скольких мы бы предупредили }
+        avg_lead_days: { type: number }
+        owner_injections_total: { type: number, description: Сколько владелец докладывал своих денег }
+        items:
+          type: array
+          items:
+            type: object
+            required: [date, amount, kind]
+            properties:
+              date: { type: string, format: date }
+              amount: { type: number }
+              kind: { type: string, enum: [owner_loan, own_transfer, overdraft, below_reserve] }
+              warned_days_before: { type: integer, nullable: true }
+
+    PlanFactPoint:
+      type: object
+      required: [period, plan_in, plan_out, fact_in, fact_out]
+      properties:
+        period: { type: string, format: date }
+        plan_in: { type: number }
+        plan_out: { type: number }
+        fact_in: { type: number }
+        fact_out: { type: number }
+        missed_events:
+          type: array
+          items: { $ref: "#/components/schemas/PlannedEvent" }
+
+    PlannedEvent:
+      type: object
+      required: [id, date, amount, direction, title, source, status]
+      properties:
+        id: { type: string, format: uuid }
+        date: { type: string, format: date }
+        amount: { type: number }
+        direction: { $ref: "#/components/schemas/Direction" }
+        title: { type: string }
+        category: { $ref: "#/components/schemas/Category" }
+        counterparty_name: { type: string }
+        probability: { type: number, minimum: 0, maximum: 1, default: 1 }
+        source: { $ref: "#/components/schemas/SourceKind" }
+        status: { type: string, enum: [expected, received, missed, cancelled] }
+
+    PlannedEventCreate:
+      type: object
+      required: [date, amount, direction, title]
+      properties:
+        date: { type: string, format: date }
+        amount: { type: number, minimum: 0 }
+        direction: { $ref: "#/components/schemas/Direction" }
+        title: { type: string }
+        category: { $ref: "#/components/schemas/Category" }
+        counterparty_name: { type: string }
+        probability: { type: number, minimum: 0, maximum: 1 }
+
+    PlannedEventUpdate:
+      type: object
+      properties:
+        date: { type: string, format: date }
+        amount: { type: number, minimum: 0 }
+        probability: { type: number, minimum: 0, maximum: 1 }
+        status: { type: string, enum: [expected, received, missed, cancelled] }
+
+    ScenarioStep:
+      type: object
+      required: [kind]
+      properties:
+        kind:
+          type: string
+          enum: [delay_counterparty, scale_revenue, add_expense, scale_fixed_costs, move_event]
+        counterparty_name: { type: string }
+        delay_days: { type: integer }
+        factor: { type: number, description: "0.8 = −20%" }
+        amount: { type: number }
+        date: { type: string, format: date }
+        event_id: { type: string, format: uuid }
+
+    Scenario:
+      type: object
+      required: [id, title, steps]
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        preset: { type: boolean }
+        steps:
+          type: array
+          items: { $ref: "#/components/schemas/ScenarioStep" }
+
+    ScenarioCreate:
+      type: object
+      required: [title, steps]
+      properties:
+        title: { type: string }
+        steps:
+          type: array
+          items: { $ref: "#/components/schemas/ScenarioStep" }
+
+    ScenarioComparison:
+      type: object
+      required: [base, scenario]
+      properties:
+        base: { $ref: "#/components/schemas/Forecast" }
+        scenario: { $ref: "#/components/schemas/Forecast" }
+
+    Alert:
+      type: object
+      required: [id, created_at, severity, title]
+      properties:
+        id: { type: string }
+        created_at: { type: string, format: date-time }
+        severity: { type: string, enum: [info, warning, danger] }
+        title: { type: string }
+        body: { type: string }
+        gap_id: { type: string }
+        read: { type: boolean }
