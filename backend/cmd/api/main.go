@@ -40,18 +40,34 @@ func main() {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	serveErr := make(chan error, 1)
 	go func() {
 		log.Info("api listening", "addr", cfg.HTTPAddr, "ml_addr", cfg.MLAddr)
-		if err := httpSrv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Error("listen", "err", err)
-			stop()
-		}
+		serveErr <- httpSrv.ListenAndServe()
 	}()
-	<-ctx.Done()
+
+	// Отказ ListenAndServe — это провал старта: после очистки выходим
+	// ненулевым кодом, чтобы супервизор и smoke-тесты его заметили.
+	var runErr error
+	select {
+	case <-ctx.Done():
+	case err := <-serveErr:
+		if !errors.Is(err, http.ErrServerClosed) {
+			log.Error("listen", "err", err)
+			runErr = err
+		}
+	}
+	stop()
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	_ = httpSrv.Shutdown(shutdownCtx)
+	if err := httpSrv.Shutdown(shutdownCtx); err != nil && runErr == nil {
+		runErr = err
+	}
+	if runErr != nil {
+		log.Error("api failed", "err", runErr)
+		os.Exit(1)
+	}
 	log.Info("api stopped")
 }
 
