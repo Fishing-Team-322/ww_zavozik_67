@@ -27,6 +27,8 @@ import lightgbm as lgb
 import numpy as np
 import pandas as pd
 
+from zavozik_ml import calendar as cal
+
 from .base import Forecaster, History, NotTrainedError, Paths, register
 from .naive import MIN_CONFIDENT_DAYS, SeasonalNaive
 
@@ -40,20 +42,26 @@ CAL_DAYS = 60
 TARGET_COVERAGE = 0.8
 SPREAD_GRID = np.round(np.arange(1.0, 4.01, 0.25), 2)
 
+# Сильная регуляризация: подобрана кросс-валидацией по компаниям (все
+# компании — новые для модели); более сложные деревья лучше на «своих»
+# компаниях, но хуже переносятся на новые данные.
 PARAMS = {
     "objective": "tweedie",
     "tweedie_variance_power": 1.3,
-    "learning_rate": 0.05,
-    "num_leaves": 63,
-    "min_data_in_leaf": 100,
-    "feature_fraction": 0.8,
+    "learning_rate": 0.03,
+    "num_leaves": 15,
+    "min_data_in_leaf": 600,
+    "feature_fraction": 0.6,
     "bagging_fraction": 0.8,
     "bagging_freq": 1,
-    "lambda_l2": 1.0,
+    "lambda_l2": 10.0,
     "verbose": -1,
     "num_threads": 0,
+    "seed": 42,
 }
 NUM_ROUNDS = 400
+# Признаки, которые не подаём в модель (эксперименты с устойчивостью).
+DROP_FEATURES: list[str] = []
 
 
 class _Series:
@@ -87,7 +95,8 @@ class _Series:
 
 def _features(s: _Series, t0: np.ndarray, h: np.ndarray, industry_code: int) -> pd.DataFrame:
     t = t0 + h
-    target = pd.DatetimeIndex(s.d0 + t.astype("timedelta64[D]"))
+    target_d = s.d0 + t.astype("timedelta64[D]")
+    target = pd.DatetimeIndex(target_d)
     scale = s.wmean("in", t0, 91) + s.wmean("out", t0, 91) + 1.0
     f = {
         "h": h,
@@ -116,6 +125,12 @@ def _features(s: _Series, t0: np.ndarray, h: np.ndarray, industry_code: int) -> 
     f["in_wd_8w"] = (s.inflow[idx_c] * ok).sum(axis=1) / cnt / scale
     f["out_wd_8w"] = (s.outflow[idx_c] * ok).sum(axis=1) / cnt / scale
     f["active_wd_8w"] = (s.active[idx_c] * ok).sum(axis=1) / cnt
+    # Точные значения в тот же день недели неделю и две назад (последние известные).
+    for lag, col in ((0, "1w"), (1, "2w")):
+        li = idx[:, lag]
+        good = (li >= 0) & (s.valid[np.clip(li, 0, s.n - 1)] > 0)
+        f[f"in_wd_{col}"] = np.where(good, s.inflow[np.clip(li, 0, s.n - 1)], np.nan) / scale
+        f[f"out_wd_{col}"] = np.where(good, s.outflow[np.clip(li, 0, s.n - 1)], np.nan) / scale
 
     # То же число месяц/два/три назад, окно ±2 дня.
     for m in (1, 2, 3):
@@ -124,7 +139,22 @@ def _features(s: _Series, t0: np.ndarray, h: np.ndarray, industry_code: int) -> 
         hi = np.minimum(bi + 2, t0)
         for key in ("in", "out", "reg"):
             f[f"{key}_dom_m{m}"] = s.wsum_abs(key, bi - 2, hi) / scale
-    return pd.DataFrame(f), scale
+    # Производственный календарь: рабочий ли день, сколько выходных перед ним,
+    # перенесённые 28-е (ЕНП) и дни зарплаты.
+    f.update(cal.features(target_d, s.d0 + t0.astype("timedelta64[D]")))
+
+    # Год назад (364 дня — тот же день недели): окно ±3 дня вокруг целевого дня
+    # и как менялись потоки в следующий месяц год назад (сезонный тренд).
+    ly = t - 364
+    lo0 = t0 - 364
+    for key in ("in", "out", "reg"):
+        f[f"{key}_ly"] = s.wsum_abs(key, ly - 3, ly + 3) / scale
+        ahead = s.wsum_abs(key, lo0 + 1, lo0 + MAX_HORIZON) / MAX_HORIZON
+        before = s.wsum_abs(key, lo0 - 59, lo0) / 60
+        f[f"{key}_ly_ratio"] = ahead / (before + 1.0)
+        f[f"{key}_ly_ahead"] = ahead / scale
+    X = pd.DataFrame(f)
+    return X.drop(columns=[c for c in DROP_FEATURES if c in X]), scale
 
 
 @register
@@ -178,7 +208,8 @@ class GBMGlobal(Forecaster):
         X = pd.concat(frames, ignore_index=True)
         models = {}
         for key, y in (("in", np.concatenate(y_in)), ("out", np.concatenate(y_out))):
-            ds = lgb.Dataset(X, y, categorical_feature=["industry"], free_raw_data=True)
+            cats = ["industry"] if "industry" in X else []
+            ds = lgb.Dataset(X, y, categorical_feature=cats, free_raw_data=True)
             models[key] = lgb.train(PARAMS, ds, NUM_ROUNDS)
         return models
 
@@ -230,7 +261,8 @@ class GBMGlobal(Forecaster):
 
     def _predict(self, s: _Series, t0: np.ndarray, h: np.ndarray, industry: str) -> tuple[np.ndarray, np.ndarray]:
         X, scale = _features(s, t0, h, self._industry_code(industry))
-        return self.models["in"].predict(X) * scale, self.models["out"].predict(X) * scale
+        work = cal.is_workday(s.d0 + (t0 + h).astype("timedelta64[D]")).astype(float)  # в нерабочий день операций нет
+        return self.models["in"].predict(X) * scale * work, self.models["out"].predict(X) * scale * work
 
     def _components(self, history: History, horizon: int):
         """Точечный прогноз и блоки остатков (в долях масштаба) или None."""
@@ -259,8 +291,17 @@ class GBMGlobal(Forecaster):
     def forecast(self, history: History, horizon: int, n_paths: int, rng: np.random.Generator) -> Paths:
         if not self.ready:
             raise NotTrainedError("gbm_global is not trained: run training or load artifacts")
-        if horizon > MAX_HORIZON or len(history) < MIN_HISTORY:
+        if len(history) < MIN_HISTORY:
             return SeasonalNaive().forecast(history, horizon, n_paths, rng)
+        if horizon > MAX_HORIZON:
+            # Дальше обученного горизонта: первые дни — бустинг, хвост — naive.
+            head = self.forecast(history, MAX_HORIZON, n_paths, rng)
+            tail = SeasonalNaive().forecast(history, horizon, n_paths, rng)
+            return Paths(
+                np.concatenate([head.inflow, tail.inflow[:, MAX_HORIZON:]], axis=1),
+                np.concatenate([head.outflow, tail.outflow[:, MAX_HORIZON:]], axis=1),
+                low_confidence=head.low_confidence or tail.low_confidence,
+            )
         c = self._components(history, horizon)
         if c is None:
             # Мало истории для блоков: уровень от модели, разброс от naive.
@@ -273,7 +314,8 @@ class GBMGlobal(Forecaster):
         mu_in, mu_out, r_in, r_out, scale = c
         k = rng.integers(len(r_in), size=n_paths)
         inflow, outflow = _nonneg(mu_in + self.spread * r_in[k] * scale, mu_out + self.spread * r_out[k] * scale)
-        return Paths(inflow, outflow, low_confidence=history.valid_days < MIN_CONFIDENT_DAYS)
+        work = cal.is_workday(np.datetime64(history.dates[-1], "D") + np.arange(1, horizon + 1))
+        return Paths(inflow * work, outflow * work, low_confidence=history.valid_days < MIN_CONFIDENT_DAYS)
 
 
 def _nonneg(inflow: np.ndarray, outflow: np.ndarray) -> tuple[np.ndarray, np.ndarray]:

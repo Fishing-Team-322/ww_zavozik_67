@@ -12,6 +12,8 @@ import warnings
 import numpy as np
 from statsmodels.tsa.holtwinters import ExponentialSmoothing
 
+from zavozik_ml import calendar as cal
+
 from .base import Forecaster, History, Paths, register
 from .naive import MIN_CONFIDENT_DAYS, SeasonalNaive
 
@@ -42,7 +44,8 @@ class ETS(Forecaster):
         for series in (history.inflow[tail], history.outflow[tail]):
             y = _fill_missing(series, missing, weekdays)
             out.append(self._simulate(y, horizon, n_paths, rng))
-        return Paths(out[0], out[1], low_confidence=history.valid_days < MIN_CONFIDENT_DAYS)
+        work = cal.is_workday(np.datetime64(history.dates[-1], "D") + np.arange(1, horizon + 1))
+        return Paths(out[0] * work, out[1] * work, low_confidence=history.valid_days < MIN_CONFIDENT_DAYS)
 
     @staticmethod
     def _simulate(y: np.ndarray, horizon: int, n_paths: int, rng: np.random.Generator) -> np.ndarray:

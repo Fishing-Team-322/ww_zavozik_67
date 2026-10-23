@@ -220,14 +220,27 @@ def _auc(score: np.ndarray, label: np.ndarray) -> float:
     return float((ranks[label].sum() - pos * (pos + 1) / 2) / (pos * neg))
 
 
+def folds(companies: list[Company], k: int, seed: int) -> list[set[str]]:
+    ids = np.array(sorted(c.id for c in companies))
+    np.random.default_rng(seed).shuffle(ids)
+    return [set(part) for part in np.array_split(ids, k)]
+
+
 def run(
-    model_names: list[str], flows: Path, cfg: Config, artifacts: Path | None, rolling: bool = True
+    model_names: list[str], flows: Path, cfg: Config, artifacts: Path | None, rolling: bool = True, cv: int = 0
 ) -> tuple[pd.DataFrame, list[dict]]:
+    """cv > 0 — кросс-валидация по компаниям: каждая группа по очереди отложена,
+    глобальные модели учатся без неё и оцениваются только на ней — все
+    компании оказываются «новыми», как в проверке экспертов на своём наборе."""
     companies = load_companies(flows)
     origins, cutoffs, holdout = split(companies, cfg)
     if not rolling:
         cutoffs = cutoffs[:1]
-    print(f"companies: {len(companies)}, origins: {len(origins)}, retrain dates: {[str(c) for c in cutoffs]}, holdout: {len(holdout)}")
+    groups = folds(companies, cv, cfg.seed) if cv else [holdout]
+    if cv:
+        holdout = {c.id for c in companies}
+    print(f"companies: {len(companies)}, origins: {len(origins)}, retrain dates: {[str(c) for c in cutoffs]}, "
+          f"{'cv folds: ' + str(cv) if cv else 'holdout: ' + str(len(holdout))}")
     models = [forecasters.get(n) for n in model_names]
     timing = {m.name: [0.0, 0.0] for m in models}
     rngs = {m.name: np.random.default_rng(cfg.seed) for m in models}
@@ -235,22 +248,24 @@ def run(
     # Снаружи — даты переобучения: на каждой сначала обучаем глобальные модели
     # только на прошлом, затем все модели (в т.ч. ансамбли поверх глобальных)
     # прогнозируют точки старта до следующей даты.
-    for i, cutoff in enumerate(cutoffs):
-        nxt = cutoffs[i + 1] if i + 1 < len(cutoffs) else date.max
-        batch = [o for o in origins if (i == 0 or o.as_of >= cutoff) and o.as_of < nxt]
-        if not batch:
-            continue
-        train = None
-        for m in models:
-            if m.is_global:
+    for excluded in groups:
+        scope = [o for o in origins if o.company.id in excluded] if cv else origins
+        for i, cutoff in enumerate(cutoffs):
+            nxt = cutoffs[i + 1] if i + 1 < len(cutoffs) else date.max
+            batch = [o for o in scope if (i == 0 or o.as_of >= cutoff) and o.as_of < nxt]
+            if not batch:
+                continue
+            train = None
+            for m in models:
+                if m.is_global:
+                    t0 = time.perf_counter()
+                    train = train or train_histories(companies, cutoff, excluded)
+                    m.fit(train)
+                    timing[m.name][0] += time.perf_counter() - t0
+            for m in models:
                 t0 = time.perf_counter()
-                train = train or train_histories(companies, cutoff, holdout)
-                m.fit(train)
-                timing[m.name][0] += time.perf_counter() - t0
-        for m in models:
-            t0 = time.perf_counter()
-            results.extend(evaluate_origin(m, org, cfg, rngs[m.name]) for org in batch)
-            timing[m.name][1] += time.perf_counter() - t0
+                results.extend(evaluate_origin(m, org, cfg, rngs[m.name]) for org in batch)
+                timing[m.name][1] += time.perf_counter() - t0
     for m in models:
         if m.is_global and artifacts:
             m.save(artifacts / m.name)
@@ -266,10 +281,11 @@ def main() -> None:
     p.add_argument("--artifacts", type=Path, default=None, help="сохранить обученные глобальные модели сюда")
     p.add_argument("--paths", type=int, default=Config.n_paths)
     p.add_argument("--once", action="store_true", help="обучить глобальные модели один раз на первой дате (без переобучения)")
+    p.add_argument("--cv", type=int, default=0, help="кросс-валидация по компаниям на K групп (все компании — новые)")
     args = p.parse_args()
 
     cfg = Config(n_paths=args.paths)
-    summary, results = run(args.models.split(","), args.flows, cfg, args.artifacts, rolling=not args.once)
+    summary, results = run(args.models.split(","), args.flows, cfg, args.artifacts, rolling=not args.once, cv=args.cv)
     pd.set_option("display.width", 250)
     pd.set_option("display.max_columns", 30)
     cols = ["model", "companies", "runs", *[f"wape_{h}" for h in REPORT_HORIZONS], "coverage",
