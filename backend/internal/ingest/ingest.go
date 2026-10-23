@@ -45,6 +45,12 @@ func DailyFlows(ops []domain.Operation, from, to time.Time, keep func(domain.Ope
 			b := *op.BalanceEOD
 			out[i].Balance = &b
 		}
+		if op.Category != domain.CatUnknown {
+			if out[i].ByCategory == nil {
+				out[i].ByCategory = map[domain.Category]domain.Money{}
+			}
+			out[i].ByCategory[op.Category] += op.Signed()
+		}
 		if keep != nil && !keep(op) {
 			continue
 		}

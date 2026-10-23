@@ -20,6 +20,10 @@ message DailyFlow {
   double inflow = 2; // >= 0
   double outflow = 3; // >= 0
   bool missing = 4; // в выписке пропуск: значения не использовать
+  // Сумма за день по категориям со знаком (+ приход, − расход), ключ — Category
+  // из api/openapi.yaml. Включает внутренние (own_transfer, owner_loan),
+  // которые не входят в inflow/outflow.
+  map<string, double> by_category = 5;
 }
 
 message ForecastRequest {

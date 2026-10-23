@@ -59,6 +59,13 @@ func (m *MLClient) Forecast(ctx context.Context, req StochasticRequest) (Stochas
 			Outflow: f.Outflow.Float(),
 			Missing: f.Missing,
 		}
+		if len(f.ByCategory) > 0 {
+			m := make(map[string]float64, len(f.ByCategory))
+			for c, v := range f.ByCategory {
+				m[string(c)] = v.Float()
+			}
+			pb.History[i].ByCategory = m
+		}
 	}
 	resp, err := m.c.Forecast(ctx, pb)
 	if err != nil {
