@@ -17,14 +17,16 @@ class Ensemble(Forecaster):
     name = "ensemble"
     description = "Смесь путей LightGBM и seasonal naive (50/50)"
     members = ("gbm_global", "seasonal_naive")
+    share = 0.5  # доля путей от бустинга
 
     @property
     def ready(self) -> bool:
         return all(get(m).ready for m in self.members)
 
     def forecast(self, history: History, horizon: int, n_paths: int, rng: np.random.Generator) -> Paths:
-        sizes = [n_paths // 2, n_paths - n_paths // 2]
-        parts = [get(m).forecast(history, horizon, k, rng) for m, k in zip(self.members, sizes)]
+        first = int(round(n_paths * self.share))
+        sizes = [first, n_paths - first]
+        parts = [get(m).forecast(history, horizon, k, rng) for m, k in zip(self.members, sizes) if k > 0]
         return Paths(
             np.concatenate([p.inflow for p in parts]),
             np.concatenate([p.outflow for p in parts]),

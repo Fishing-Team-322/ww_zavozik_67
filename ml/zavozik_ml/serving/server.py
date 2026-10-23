@@ -33,17 +33,25 @@ def to_history(req: pb.ForecastRequest) -> forecasters.History:
     h = req.history
     return forecasters.History(
         dates=[date.fromisoformat(f.date) for f in h],
-        inflow=np.fromiter((f.inflow for f in h), dtype=float, count=len(h)),
-        outflow=np.fromiter((f.outflow for f in h), dtype=float, count=len(h)),
+        inflow=_clean(np.fromiter((f.inflow for f in h), dtype=float, count=len(h))),
+        outflow=_clean(np.fromiter((f.outflow for f in h), dtype=float, count=len(h))),
         missing=np.fromiter((f.missing for f in h), dtype=bool, count=len(h)),
         industry=req.industry,
         categories=categories_from(h),
     )
 
 
+def _clean(x: np.ndarray) -> np.ndarray:
+    """Потоки из чужих выгрузок: NaN/inf → 0, отрицательные → модуль."""
+    return np.abs(np.nan_to_num(x, nan=0.0, posinf=0.0, neginf=0.0))
+
+
 def categories_from(h) -> dict[str, np.ndarray]:
     names = sorted({k for f in h for k in f.by_category})
-    return {c: np.fromiter((f.by_category.get(c, 0.0) for f in h), dtype=float, count=len(h)) for c in names}
+    return {
+        c: np.nan_to_num(np.fromiter((f.by_category.get(c, 0.0) for f in h), dtype=float, count=len(h)))
+        for c in names
+    }
 
 
 def net_quantiles(dates: list[str], paths: forecasters.Paths) -> list[pb.NetQuantiles]:
@@ -71,6 +79,8 @@ class ForecasterService(pb_grpc.ForecasterServiceServicer):
         try:
             model = forecasters.get(request.model)
             history = to_history(request)
+            if any((b - a).days != 1 for a, b in zip(history.dates, history.dates[1:])):
+                raise ValueError("history must contain consecutive calendar days")
         except (KeyError, ValueError) as e:
             context.abort(grpc.StatusCode.INVALID_ARGUMENT, str(e))
 
