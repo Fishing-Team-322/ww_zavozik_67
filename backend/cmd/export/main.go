@@ -12,7 +12,6 @@ package main
 
 import (
 	"context"
-	"encoding/csv"
 	"flag"
 	"fmt"
 	"os"
@@ -21,6 +20,7 @@ import (
 	"strings"
 
 	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/categorize"
+	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/csvout"
 	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/dataset"
 	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/domain"
 	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/ingest"
@@ -48,10 +48,8 @@ func main() {
 	if err != nil {
 		fail(err)
 	}
-	defer out.Close()
-	w := csv.NewWriter(out)
-	defer w.Flush()
-	_ = w.Write([]string{"company_id", "date", "inflow", "outflow", "missing", "balance"})
+	w := csvout.New(out)
+	w.Write([]string{"company_id", "date", "inflow", "outflow", "missing", "balance"})
 
 	cat := categorize.Chain{Steps: []categorize.Categorizer{categorize.DefaultRules}, Threshold: 0.5}
 	rows := 0
@@ -70,10 +68,13 @@ func main() {
 			if fl.Balance != nil {
 				bal = fl.Balance.String()
 			}
-			_ = w.Write([]string{c.ID, fl.Date.Format(domain.DateLayout), fl.Inflow.String(),
+			w.Write([]string{c.ID, fl.Date.Format(domain.DateLayout), fl.Inflow.String(),
 				fl.Outflow.String(), strconv.FormatBool(fl.Missing), bal})
 			rows++
 		}
+	}
+	if err := w.Close(); err != nil {
+		fail(fmt.Errorf("write output %s: %w", *outPath, err))
 	}
 	fmt.Printf("companies: %d, rows: %d, out: %s\n", len(files), rows, *outPath)
 }
