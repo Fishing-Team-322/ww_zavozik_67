@@ -7,16 +7,25 @@ from typing import ClassVar as _ClassVar, Optional as _Optional, Union as _Union
 DESCRIPTOR: _descriptor.FileDescriptor
 
 class DailyFlow(_message.Message):
-    __slots__ = ("date", "inflow", "outflow", "missing")
+    __slots__ = ("date", "inflow", "outflow", "missing", "by_category")
+    class ByCategoryEntry(_message.Message):
+        __slots__ = ("key", "value")
+        KEY_FIELD_NUMBER: _ClassVar[int]
+        VALUE_FIELD_NUMBER: _ClassVar[int]
+        key: str
+        value: float
+        def __init__(self, key: _Optional[str] = ..., value: _Optional[float] = ...) -> None: ...
     DATE_FIELD_NUMBER: _ClassVar[int]
     INFLOW_FIELD_NUMBER: _ClassVar[int]
     OUTFLOW_FIELD_NUMBER: _ClassVar[int]
     MISSING_FIELD_NUMBER: _ClassVar[int]
+    BY_CATEGORY_FIELD_NUMBER: _ClassVar[int]
     date: str
     inflow: float
     outflow: float
     missing: bool
-    def __init__(self, date: _Optional[str] = ..., inflow: _Optional[float] = ..., outflow: _Optional[float] = ..., missing: _Optional[bool] = ...) -> None: ...
+    by_category: _containers.ScalarMap[str, float]
+    def __init__(self, date: _Optional[str] = ..., inflow: _Optional[float] = ..., outflow: _Optional[float] = ..., missing: _Optional[bool] = ..., by_category: _Optional[_Mapping[str, float]] = ...) -> None: ...
 
 class ForecastRequest(_message.Message):
     __slots__ = ("model", "company_id", "industry", "history", "horizon_days", "n_paths", "seed")

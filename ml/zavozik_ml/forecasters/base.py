@@ -9,31 +9,65 @@
         def forecast(self, history, horizon, n_paths, rng): ...
 
 После этого модель доступна через gRPC ListModels/Forecast, в бэктесте
-(`cmd/backtest -model chronos`) и на странице «Как мы считаем».
+(`python -m zavozik_ml.eval.backtest --models chronos`) и на странице
+«Как мы считаем». Глобальные модели (одна на все компании) переопределяют
+fit/save/load; артефакты лежат в ml/artifacts/<name>/.
 """
 
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date
+from pathlib import Path
 
 import numpy as np
+
+# Внутренние движения владельца: не выручка и не расход бизнеса.
+INTERNAL_CATEGORIES = ("own_transfer", "owner_loan")
+# Регулярные обязательные платежи — главный календарный сигнал.
+REGULAR_OUT_CATEGORIES = ("salary", "tax", "rent", "utilities", "loan_payment", "leasing", "bank_fee")
 
 
 @dataclass(frozen=True)
 class History:
-    """Дневные потоки стохастической части, каждый календарный день подряд."""
+    """Дневные потоки компании, каждый календарный день подряд."""
 
     dates: list[date]
-    inflow: np.ndarray  # shape (n,), >= 0
-    outflow: np.ndarray  # shape (n,), >= 0
+    inflow: np.ndarray  # shape (n,), >= 0, без внутренних переводов
+    outflow: np.ndarray  # shape (n,), >= 0, без внутренних переводов
     missing: np.ndarray  # shape (n,), bool — день в пропуске выписки
     industry: str = ""
+    # Сумма за день по категории со знаком (+ приход, − расход); может быть пустым.
+    categories: dict[str, np.ndarray] = field(default_factory=dict)
+
+    def __len__(self) -> int:
+        return len(self.dates)
 
     @property
     def valid_days(self) -> int:
         return int((~self.missing).sum())
+
+    def category(self, name: str) -> np.ndarray:
+        return self.categories.get(name, np.zeros(len(self.dates)))
+
+    def regular_outflow(self) -> np.ndarray:
+        """Регулярные обязательные списания за день (>= 0)."""
+        total = np.zeros(len(self.dates))
+        for c in REGULAR_OUT_CATEGORIES:
+            total -= np.minimum(self.category(c), 0)
+        return total
+
+    def head(self, n: int) -> History:
+        """Первые n дней — история на момент n-1."""
+        return History(
+            dates=self.dates[:n],
+            inflow=self.inflow[:n],
+            outflow=self.outflow[:n],
+            missing=self.missing[:n],
+            industry=self.industry,
+            categories={k: v[:n] for k, v in self.categories.items()},
+        )
 
 
 @dataclass(frozen=True)
@@ -45,16 +79,37 @@ class Paths:
     low_confidence: bool = False
 
 
+class NotTrainedError(RuntimeError):
+    pass
+
+
 class Forecaster(ABC):
     name: str
     description: str
+    # Глобальная модель: учится на всех компаниях, требует fit или load.
+    is_global: bool = False
 
     @abstractmethod
     def forecast(self, history: History, horizon: int, n_paths: int, rng: np.random.Generator) -> Paths: ...
 
+    def fit(self, histories: list[History]) -> None:  # noqa: B027 — по умолчанию модели без обучения
+        pass
+
+    def save(self, directory: Path) -> None:  # noqa: B027
+        pass
+
+    def load(self, directory: Path) -> bool:
+        """Загрузить артефакт; False — артефакта нет."""
+        return True
+
+    @property
+    def ready(self) -> bool:
+        return True
+
 
 _REGISTRY: dict[str, Forecaster] = {}
-DEFAULT_MODEL = "seasonal_naive"
+# Что выбирается при model="auto": лучшая обученная модель по бэктесту.
+AUTO_PREFERENCE = ("ensemble", "gbm_global", "seasonal_naive")
 
 
 def register(cls: type[Forecaster]) -> type[Forecaster]:
@@ -64,9 +119,17 @@ def register(cls: type[Forecaster]) -> type[Forecaster]:
     return cls
 
 
+def default_model() -> str:
+    for name in AUTO_PREFERENCE:
+        m = _REGISTRY.get(name)
+        if m is not None and m.ready:
+            return name
+    return "seasonal_naive"
+
+
 def get(name: str) -> Forecaster:
     if name in ("", "auto"):
-        name = DEFAULT_MODEL
+        name = default_model()
     try:
         return _REGISTRY[name]
     except KeyError:

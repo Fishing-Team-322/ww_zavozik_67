@@ -170,6 +170,9 @@ type DailyFlow struct {
 	Outflow Money
 	Balance *Money
 	Missing bool
+	// ByCategory — сумма за день по категориям со знаком, включая внутренние
+	// переводы, которые не попадают в Inflow/Outflow.
+	ByCategory map[Category]Money
 }
 
 // Day — дата без времени (полночь UTC), единый формат дат в домене.
@@ -179,3 +182,11 @@ func Day(t time.Time) time.Time {
 }
 
 const DateLayout = "2006-01-02"
+
+// AllCategories — все категории в стабильном порядке (колонки выгрузок).
+var AllCategories = []Category{
+	CatRevenueAcquiring, CatRevenueSBP, CatRevenueCash, CatRevenueB2B, CatRevenueMarketplace,
+	CatSupplier, CatSalary, CatTax, CatRent, CatUtilities, CatLoanPayment, CatLeasing,
+	CatBankFee, CatMarketing, CatServices, CatOwnTransfer, CatOwnerLoan, CatRefund,
+	CatEnforcement, CatOther,
+}

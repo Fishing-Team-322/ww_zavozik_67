@@ -2,7 +2,7 @@ COMPOSE := docker compose -f infra/docker-compose.yml
 DATA    ?= cashflow_dataset_participants/statements
 PY      := ml/.venv/bin/python
 
-.PHONY: help gen gen-proto gen-api test test-go test-ml lint up up-bot down logs ml-venv ml-serve backtest export
+.PHONY: help gen gen-proto gen-api test test-go test-ml lint up up-bot down logs ml-venv ml-serve backtest export ml-backtest ml-train
 
 help:
 	@echo "gen        — код из proto/ и api/openapi.yaml"
@@ -13,6 +13,8 @@ help:
 	@echo "ml-serve   — ML-сервис локально на :50051"
 	@echo "backtest   — бэктест на датасете кейса (ML=localhost:50051 — через ML-сервис)"
 	@echo "export     — дневные потоки для обучения в ml/data/flows.csv"
+	@echo "ml-backtest — сравнение моделей в Python (MODELS=seasonal_naive,ets,gbm_global)"
+	@echo "ml-train   — обучить глобальные модели на всех данных → ml/artifacts"
 
 gen: gen-proto gen-api
 
@@ -61,3 +63,11 @@ backtest:
 
 export:
 	cd backend && go run ./cmd/export -data ../$(DATA) -out ../ml/data/flows.csv
+
+MODELS ?= seasonal_naive,ets,gbm_global
+
+ml-backtest: export
+	cd ml && PYTHONPATH=gen .venv/bin/python -m zavozik_ml.eval.backtest --models $(MODELS)
+
+ml-train: export
+	cd ml && PYTHONPATH=gen .venv/bin/python -m zavozik_ml.train

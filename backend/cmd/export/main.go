@@ -3,11 +3,11 @@
 //
 //	go run ./cmd/export -data ../cashflow_dataset_participants/statements -out ../ml/data/flows.csv
 //
-// Колонки: company_id, date, inflow, outflow (без внутренних переводов),
-// missing (день в пропуске выписки), balance (остаток на конец дня).
-//
-// TODO(Бэк 1): колонки по категориям и стохастическая часть
-// (потоки минус регулярные платежи), Parquet.
+// Колонки: company_id, industry, date,
+// inflow, outflow — потоки бизнеса (без своих переводов и займов учредителя),
+// missing — день в пропуске выписки, balance — остаток на конец дня,
+// cat_<категория> — сумма за день по категории со знаком (+ приход, − расход),
+// включая внутренние (cat_own_transfer, cat_owner_loan).
 package main
 
 import (
@@ -15,6 +15,7 @@ import (
 	"encoding/csv"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -28,10 +29,19 @@ import (
 
 func main() {
 	dataDir := flag.String("data", "../cashflow_dataset_participants/statements", "каталог statements/*.csv")
+	companiesPath := flag.String("companies-file", "", "companies.csv для колонки industry (по умолчанию ../companies.csv рядом с -data)")
 	companies := flag.String("companies", "", "список id через запятую (пусто — все)")
 	outPath := flag.String("out", "flows.csv", "куда писать")
 	flag.Parse()
 	ctx := context.Background()
+
+	if *companiesPath == "" {
+		*companiesPath = filepath.Join(filepath.Dir(filepath.Clean(*dataDir)), "companies.csv")
+	}
+	industries, err := loadIndustries(*companiesPath)
+	if err != nil {
+		fail(err)
+	}
 
 	var ids []string
 	if *companies != "" {
@@ -51,7 +61,12 @@ func main() {
 	defer out.Close()
 	w := csv.NewWriter(out)
 	defer w.Flush()
-	_ = w.Write([]string{"company_id", "date", "inflow", "outflow", "missing", "balance"})
+
+	header := []string{"company_id", "industry", "date", "inflow", "outflow", "missing", "balance"}
+	for _, c := range domain.AllCategories {
+		header = append(header, "cat_"+string(c))
+	}
+	_ = w.Write(header)
 
 	cat := categorize.Chain{Steps: []categorize.Categorizer{categorize.DefaultRules}, Threshold: 0.5}
 	rows := 0
@@ -63,19 +78,63 @@ func main() {
 		if len(c.Ops) == 0 {
 			continue
 		}
-		flows := ingest.DailyFlows(c.Ops, c.Ops[0].Date, c.Ops[len(c.Ops)-1].Date, dataset.NotInternal)
+		first, last := c.Ops[0].Date, c.Ops[len(c.Ops)-1].Date
+		flows := ingest.DailyFlows(c.Ops, first, last, dataset.NotInternal)
 		dataset.FillBalance(flows)
+
 		for _, fl := range flows {
 			bal := ""
 			if fl.Balance != nil {
 				bal = fl.Balance.String()
 			}
-			_ = w.Write([]string{c.ID, fl.Date.Format(domain.DateLayout), fl.Inflow.String(),
-				fl.Outflow.String(), strconv.FormatBool(fl.Missing), bal})
+			rec := []string{c.ID, industries[c.ID], fl.Date.Format(domain.DateLayout), fl.Inflow.String(),
+				fl.Outflow.String(), strconv.FormatBool(fl.Missing), bal}
+			for _, c := range domain.AllCategories {
+				rec = append(rec, fl.ByCategory[c].String())
+			}
+			_ = w.Write(rec)
 			rows++
 		}
 	}
 	fmt.Printf("companies: %d, rows: %d, out: %s\n", len(files), rows, *outPath)
+}
+
+// loadIndustries читает companies.csv датасета кейса: company_id → industry.
+func loadIndustries(path string) (map[string]string, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	r := csv.NewReader(f)
+	r.Comma = ';'
+	head, err := r.Read()
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", path, err)
+	}
+	idCol, indCol := -1, -1
+	for i, h := range head {
+		switch strings.TrimPrefix(h, "\uFEFF") {
+		case "company_id":
+			idCol = i
+		case "industry":
+			indCol = i
+		}
+	}
+	if idCol < 0 || indCol < 0 {
+		return nil, fmt.Errorf("%s: no company_id/industry columns", path)
+	}
+	out := map[string]string{}
+	for {
+		rec, err := r.Read()
+		if err == io.EOF {
+			return out, nil
+		}
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", path, err)
+		}
+		out[rec[idCol]] = rec[indCol]
+	}
 }
 
 func fail(err error) {
