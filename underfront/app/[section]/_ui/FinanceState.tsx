@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Button } from "@/src/shared/ui/button";
 import type { Forecast } from "@/src/shared/api";
+import { fallbackNotice } from "@/src/entities/forecast";
 
 export function FinanceState({
   loading,
@@ -52,7 +53,7 @@ export function ForecastNotice({ forecast }: { forecast: Forecast | null }) {
       </p>
       {forecast.fallback_used && (
         <p role="status">
-          Основная модель недоступна. Показан упрощённый прогноз.
+          {fallbackNotice(forecast.warnings)}
         </p>
       )}
       {forecast.low_confidence && (

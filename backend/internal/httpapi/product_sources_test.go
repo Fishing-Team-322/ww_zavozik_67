@@ -53,6 +53,25 @@ func TestProductSourceAdaptersAndRecovery(t *testing.T) {
 	if emptyCompany["forecast"] != nil {
 		t.Fatal("empty company has a forecast")
 	}
+	registryCompany := call("POST", "/v1/companies", product.Doc{"name": "Registry fixture", "legal_form": "ООО", "industry": "tests", "inn": "7707083893"}, 201)
+	registrySource := call("POST", "/v1/companies/"+registryCompany["id"].(string)+"/sources", product.Doc{"kind": "fns", "title": "Registry fixture", "config": product.Doc{}}, 201)
+	registryPath := "/v1/sources/" + registrySource["id"].(string)
+	call("POST", registryPath+"/test", nil, 503)
+	if state := call("GET", registryPath, nil, 200); state["status"] != "error" {
+		t.Fatal("failed registry test must persist error status", state)
+	}
+	service.DaDataToken = "fixture-token"
+	service.HTTP = &http.Client{Transport: sourceFixtureTransport(func(r *http.Request) (*http.Response, error) {
+		if r.URL.Host != "suggestions.dadata.ru" {
+			t.Fatal("unexpected provider destination")
+		}
+		return &http.Response{StatusCode: 200, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(`{"suggestions":[{"data":{"inn":"7707083893","ogrn":"1027700132195","type":"LEGAL","name":{"short_with_opf":"Registry fixture"},"state":{"status":"ACTIVE"}}}]}`))}, nil
+	})}
+	call("POST", registryPath+"/test", nil, 200)
+	if state := call("GET", registryPath, nil, 200); state["status"] != "ok" || state["error"] != nil {
+		t.Fatal("successful registry retry must clear error status", state)
+	}
+	service.DaDataToken, service.HTTP = "", nil
 	upload := func(name string, data []byte, want int) product.Doc {
 		t.Helper()
 		buf := &bytes.Buffer{}
@@ -93,6 +112,35 @@ func TestProductSourceAdaptersAndRecovery(t *testing.T) {
 		}
 		return d
 	}
+	// Google Sheets uses the same queue and importer, with a deterministic API fixture.
+	denySheet := false
+	service.HTTP = &http.Client{Transport: sourceFixtureTransport(func(r *http.Request) (*http.Response, error) {
+		if r.URL.Host != "sheets.googleapis.com" || r.URL.Path != "/v4/spreadsheets/e2e-sheet/values/A1:Z10001" || r.Header.Get("X-Goog-Api-Key") != "fixture-key" {
+			t.Fatal("unexpected Google Sheets request")
+		}
+		code, body := 200, `{"values":[["date","amount","direction","counterparty"],["2026-10-19","85","in","Sheet fixture"]]}`
+		if denySheet {
+			code, body = 403, `{}`
+		}
+		return &http.Response{StatusCode: code, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(body))}, nil
+	})}
+	sheet := call("POST", base+"/sources", product.Doc{"kind": "gsheets", "title": "Sheet fixture", "config": product.Doc{"spreadsheet_id": "e2e-sheet", "api_key": "fixture-key"}}, 201)
+	sheetPath := "/v1/sources/" + sheet["id"].(string)
+	call("POST", sheetPath+"/test", nil, 200)
+	firstSheet := done(call("POST", sheetPath+"/sync", nil, 202))
+	if result := firstSheet["result"].(map[string]any); result["added"] != float64(1) {
+		t.Fatal("sheet import", result)
+	}
+	repeatSheet := done(call("POST", sheetPath+"/sync", nil, 202))
+	if result := repeatSheet["result"].(map[string]any); result["added"] != float64(0) || result["duplicates"] != float64(1) {
+		t.Fatal("sheet repeat", result)
+	}
+	denySheet = true
+	call("POST", sheetPath+"/test", nil, 502)
+	if state := call("GET", sheetPath, nil, 200); state["status"] != "error" {
+		t.Fatal("sheet failure status", state)
+	}
+	service.HTTP = nil
 	// Unknown headers require an owner-confirmed mapping, then use the same importer.
 	u := upload("unknown.csv", []byte("When,Value,Side,Who\n2026-10-20,100,in,Client\n"), 200)
 	uid := u["upload_id"].(string)
@@ -239,3 +287,7 @@ func TestProductSourceAdaptersAndRecovery(t *testing.T) {
 	}
 	call("PATCH", "/v1/alerts/"+cid, product.Doc{"read": true}, 200)
 }
+
+type sourceFixtureTransport func(*http.Request) (*http.Response, error)
+
+func (f sourceFixtureTransport) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }

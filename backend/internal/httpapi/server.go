@@ -37,6 +37,9 @@ func (s *Server) Handler() http.Handler {
 			writeError(w, http.StatusBadRequest, "bad_request", err.Error())
 		},
 		ResponseErrorHandlerFunc: func(w http.ResponseWriter, r *http.Request, err error) {
+			if writeContextError(w, r.Context().Err()) || writeContextError(w, err) {
+				return
+			}
 			var pe *platform.Error
 			if errors.As(err, &pe) {
 				s.platformError(w, err)
@@ -77,6 +80,18 @@ func (s *Server) Handler() http.Handler {
 		}
 		generated.ServeHTTP(w, r)
 	}))
+}
+
+func writeContextError(w http.ResponseWriter, err error) bool {
+	if errors.Is(err, context.Canceled) {
+		writeError(w, 499, "request_cancelled", "Запрос отменён клиентом")
+		return true
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		writeError(w, http.StatusGatewayTimeout, "request_timeout", "Время ожидания запроса истекло")
+		return true
+	}
+	return false
 }
 
 func writeError(w http.ResponseWriter, status int, code, msg string) {

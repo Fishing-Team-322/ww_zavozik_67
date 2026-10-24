@@ -61,8 +61,8 @@ export function CashGapInspectorDemo() {
   }, []);
 
   useEffect(() => {
-    void load("ready");
-    return () => request.current?.abort();
+    const timer = window.setTimeout(() => { void load("ready"); }, 0);
+    return () => { window.clearTimeout(timer); request.current?.abort(); };
   }, [load]);
 
   async function recalculate(actionIds: string[]) {

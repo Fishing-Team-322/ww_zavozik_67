@@ -99,7 +99,7 @@ export function ScenariosScreen() {
           compare.refresh(); savedCompare.refresh(); scenarios.refresh(); presets.refresh(); events.refresh();
         }}
       />
-      <div className="grid items-start gap-4 xl:grid-cols-[330px_minmax(0,1fr)]">
+      <div className="grid min-w-0 grid-cols-1 items-start gap-4 xl:grid-cols-[330px_minmax(0,1fr)]">
         <div className="space-y-4">
           <Select label="Сохранённый сценарий" value={selectedId} options={[{ value: "", label: "Новый сценарий" }, ...(scenarios.data ?? []).map(s => ({ value: s.id, label: s.title }))]} onChange={e => { const scenario = scenarios.data?.find(s => s.id === e.target.value); setSelectedId(scenario?.id ?? ""); setCustomSteps(scenario?.steps ?? null); setTitle(scenario?.title ?? "Мой сценарий"); setDirty(false); setSaved(null); }} />
           <Select label="Добавить условие из пресета" value="" options={[{ value: "", label: "Выберите условие" }, ...(presets.data ?? []).map(p => ({ value: p.kind, label: p.title }))]} onChange={e => { const kind = e.target.value as Schemas["ScenarioStep"]["kind"]; if (!kind) return; setCustomSteps([...steps, kind === "scale_revenue" ? { kind, factor: 0.8 } : kind === "scale_fixed_costs" ? { kind, factor: 1.1 } : kind === "delay_counterparty" ? { kind, delay_days: 7, counterparty_id: clients[0]?.value } : { kind, amount: 0, date: forecast.data?.points[0]?.date ?? "" }]); setDirty(true); }} />
@@ -173,7 +173,7 @@ export function ScenariosScreen() {
             </p>
           )}
         </div>
-        <SectionCard className="p-5">
+        <SectionCard className="min-w-0 p-5">
           <h2 className="mb-4 text-lg font-semibold">
             Базовый и негативный прогноз
           </h2>

@@ -72,8 +72,11 @@ export function SidebarShell({children, navItems = defaultCabinetNav, appTitle =
   const profileRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const saved = document.documentElement.getAttribute("data-theme");
-    if (saved === "light" || saved === "dark") setTheme(saved);
+    const timer = window.setTimeout(() => {
+      const saved = document.documentElement.getAttribute("data-theme");
+      if (saved === "light" || saved === "dark") setTheme(saved);
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, []);
   useEffect(() => {
     if (!mobileOpen) return;

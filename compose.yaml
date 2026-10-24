@@ -3,6 +3,7 @@ name: zavozik
 services:
   postgres:
     image: postgres:17-alpine
+    restart: unless-stopped
     environment:
       POSTGRES_DB: zavozik
       POSTGRES_USER: zavozik
@@ -16,6 +17,7 @@ services:
 
   ml:
     build: ./ml
+    restart: unless-stopped
     environment:
       ML_LISTEN: 0.0.0.0:50051
       LOG_LEVEL: info
@@ -31,6 +33,7 @@ services:
       postgres: { condition: service_healthy }
 
   api:
+    restart: unless-stopped
     build:
       context: .
       dockerfile: backend/Dockerfile
@@ -66,6 +69,7 @@ services:
       migrate: { condition: service_completed_successfully }
 
   worker:
+    restart: unless-stopped
     build:
       context: .
       dockerfile: backend/Dockerfile
@@ -77,6 +81,7 @@ services:
       migrate: { condition: service_completed_successfully }
 
   frontend:
+    restart: unless-stopped
     build:
       context: ./underfront
       dockerfile: Dockerfile

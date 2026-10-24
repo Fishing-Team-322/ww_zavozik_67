@@ -21,7 +21,7 @@ interface PaymentEventPanelProps {
 export function PaymentEventPanel({ event, editing, draft, onDraftChange, onClose, onEdit, onCancelEdit, onSave, onDelete }: PaymentEventPanelProps) {
   const panelRef = useRef<HTMLElement>(null);
   const onCloseRef = useRef(onClose);
-  onCloseRef.current = onClose;
+  useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
   const eventId = event?.id;
   useEffect(() => {
     if (!eventId) return;

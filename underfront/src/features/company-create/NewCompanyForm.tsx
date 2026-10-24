@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { companyApi, type LegalForm, type TaxRegime } from "@/src/entities/company";
 import { useCompany } from "@/src/features/company-context/CompanyProvider";
 import { Button } from "@/src/shared/ui/button";
@@ -43,7 +44,7 @@ export function NewCompanyForm() {
   }
 
   useEffect(() => {
-    if (inn.length !== 10 && inn.length !== 12) { setLookupState("idle"); return; }
+    if (inn.length !== 10 && inn.length !== 12) return;
     const controller = new AbortController();
     const timer = window.setTimeout(async () => {
       setLookupState("searching");
@@ -86,7 +87,7 @@ export function NewCompanyForm() {
 
   return <section className="w-full max-w-[560px] text-[color:var(--text-primary)]">
     <header className="border-b border-[color:var(--border)] pb-5"><h1 className="text-[20px] font-semibold tracking-tight">Новая компания</h1><p className="mt-1 text-[13px] text-[color:var(--text-secondary)]">Добавьте реквизиты, чтобы подключить банковские данные и источники.</p></header>
-    {status === "unauthorized" && <p className="mt-5 rounded-[5px] border border-[color:var(--border)] p-3 text-[13px]">Для создания компании нужно <a href="/login" className="font-medium text-[color:var(--accent)] underline">войти в аккаунт</a>.</p>}
+    {status === "unauthorized" && <p className="mt-5 rounded-[5px] border border-[color:var(--border)] p-3 text-[13px]">Для создания компании нужно <Link href="/login" className="font-medium text-[color:var(--accent)] underline">войти в аккаунт</Link>.</p>}
     <form onSubmit={submit} className="mt-5 space-y-5">
       <div><Input label="ИНН" inputMode="numeric" autoComplete="off" maxLength={12} value={inn} onChange={event => changeInn(event.target.value)} placeholder="10 или 12 цифр" className="h-9"/><p className="mt-1 text-[12px] text-[color:var(--text-secondary)]" role="status">{lookupState === "searching" ? "Ищем сведения по ИНН…" : lookupState === "found" || lookupState === "unavailable" ? `${lookupMessage} Форму можно заполнить вручную.` : "После ввода ИНН попробуем заполнить реквизиты автоматически."}</p></div>
       <Input label="Название компании" required maxLength={300} value={name} onChange={event => setName(event.target.value)} className="h-9"/>

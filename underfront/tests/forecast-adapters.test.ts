@@ -1,7 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { chartDays, calendarEvent } from "../src/entities/forecast";
+import { chartDays, calendarEvent, fallbackNotice } from "../src/entities/forecast";
 import type { Forecast, PlannedEvent } from "../src/shared/api";
+
+test("fallback notice distinguishes data support from a service outage", () => {
+  assert.match(fallbackNotice(["out_of_domain_naive_fallback"]), /характер операций/);
+  assert.doesNotMatch(fallbackNotice(["out_of_domain_naive_fallback"]), /недоступна/);
+  assert.match(fallbackNotice(["ml_service_fallback"]), /недоступна/);
+});
 
 test("chart keeps unknown history and missing scenario points as unknown", () => {
   const forecast = {

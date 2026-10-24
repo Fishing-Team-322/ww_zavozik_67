@@ -2,9 +2,11 @@ package product
 
 import (
 	"context"
+	"encoding/base64"
 	"math"
 	"net/http"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -63,6 +65,44 @@ func (s *Service) operationRows(ctx context.Context, uid, cid string, r *http.Re
 	}
 	return out, nil
 }
+
+// Operation cursors include the date so pagination keeps newest transactions first.
+func pageOperations(rows []Doc, r *http.Request) (Doc, error) {
+	limit := 100
+	if raw := r.URL.Query().Get("limit"); raw != "" {
+		n, err := strconv.Atoi(raw)
+		if err != nil || n < 1 || n > 1000 {
+			return nil, bad("limit должен быть от 1 до 1000")
+		}
+		limit = n
+	}
+	key := func(row Doc) string { return text(row, "date") + "|" + text(row, "id") }
+	sort.Slice(rows, func(i, j int) bool { return key(rows[i]) > key(rows[j]) })
+	start := 0
+	if cursor := r.URL.Query().Get("cursor"); cursor != "" {
+		decoded, err := base64.RawURLEncoding.DecodeString(cursor)
+		if err != nil || len(decoded) > 256 {
+			return nil, bad("Некорректный cursor")
+		}
+		for start < len(rows) && key(rows[start]) != string(decoded) {
+			start++
+		}
+		if start == len(rows) {
+			return nil, bad("Некорректный cursor")
+		}
+		start++
+	}
+	end := start + limit
+	if end > len(rows) {
+		end = len(rows)
+	}
+	var next any
+	if end < len(rows) {
+		next = base64.RawURLEncoding.EncodeToString([]byte(key(rows[end-1])))
+	}
+	return Doc{"items": rows[start:end], "next_cursor": next}, nil
+}
+
 func (s *Service) operations(ctx context.Context, op, uid, cid string, r *http.Request, b Doc) (Result, error) {
 	rows, e := s.operationRows(ctx, uid, cid, r)
 	if e != nil {
@@ -74,7 +114,7 @@ func (s *Service) operations(ctx context.Context, op, uid, cid string, r *http.R
 		for _, d := range rows {
 			out = append(out, view("operation", d))
 		}
-		p, e := page(out, r)
+		p, e := pageOperations(out, r)
 		return Result{Status: 200, Body: p}, e
 	case "summarizeOperations":
 		totalIn, totalOut, internal := float64(0), float64(0), float64(0)

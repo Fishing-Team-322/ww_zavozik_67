@@ -10,6 +10,7 @@
     "gen:api": "openapi-typescript ../api/openapi.yaml -o src/shared/api/schema.gen.ts",
     "typecheck": "tsc --noEmit",
     "test": "tsx --test tests/*.test.ts",
+    "test:e2e": "playwright test",
     "lint:api": "eslint src/shared/api/client.ts src/shared/api/use-api-resource.ts src/features/auth \"app/[section]/_ui\" app/auth \"app/(auth)\" src/entities/forecast src/widgets/puls-overview/ui/PulsOverviewHome.tsx src/widgets/cabinet-shell/ui/SidebarShell.tsx src/widgets/cabinet-shell/ui/CabinetShell.tsx src/widgets/finance-panels/ui/RiskCard.tsx src/widgets/finance-panels/ui/CashflowForecastChart.tsx"
   },
   "dependencies": {
@@ -22,6 +23,7 @@
     "recharts": "^2.15.4"
   },
   "devDependencies": {
+    "@playwright/test": "^1.64.1",
     "@tailwindcss/postcss": "^4.3.3",
     "@types/node": "^20",
     "@types/react": "^19",

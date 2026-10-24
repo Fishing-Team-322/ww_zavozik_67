@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { fallbackNotice } from "@/src/entities/forecast";
 import PulsOverview, { type PulsOverviewData } from "./PulsOverview";
 import { AccountGate, useSession } from "@/src/features/auth";
 import { useApiResource } from "@/src/shared/api/use-api-resource";
@@ -10,14 +11,13 @@ import type { Schemas } from "@/src/shared/api";
 export function PulsOverviewHome() {
   const router = useRouter();
   const { company } = useSession();
-  const resource = useApiResource<Schemas["Dashboard"]>(
-    company ? `/v1/companies/${company.id}/dashboard` : null,
-  );
   const [horizon, setHorizon] = useState<30 | 60 | 90>(30);
-  const extended = useApiResource<Schemas["Forecast"]>(company && horizon !== 30 ? `/v1/companies/${company.id}/forecast?horizon=${horizon}` : null);
+  const resource = useApiResource<Schemas["Dashboard"]>(
+    company ? `/v1/companies/${company.id}/dashboard?horizon=${horizon}` : null,
+  );
   const dashboard = resource.data;
-  const forecast = horizon === 30 ? dashboard?.forecast : extended.data;
-  const start = forecast?.points[0]?.date;
+  const forecast = dashboard?.forecast;
+  const start = forecast?.as_of;
   const data: PulsOverviewData | null =
     forecast && dashboard && dashboard.balance_now !== null
       ? {
@@ -28,14 +28,16 @@ export function PulsOverviewHome() {
           serverStatus: forecast.status,
           headline: forecast.headline,
           horizon,
-          history: forecast.history.filter((p): p is { date: string; balance: number } => p.balance !== null).map(p => ({ date: p.date, actual: p.balance })),
+          history: forecast.history.filter(point => point.date < forecast.as_of).map(point => ({ date: point.date, actual: point.balance })),
           isDemo: false,
           updatedAt: dashboard.data_as_of || undefined,
-          forecast: forecast.points.map((point) => ({
+          forecast: [{ date: forecast.as_of, base: dashboard.balance_now, actual: dashboard.balance_now, p10: dashboard.balance_now, p50: dashboard.balance_now, p90: dashboard.balance_now }, ...forecast.points.map((point) => ({
             date: point.date,
             base: point.p50,
-            p10: point.p10, p50: point.p50, p90: point.p90,
-          })),
+            p10: point.p10,
+            p50: point.p50,
+            p90: point.p90,
+          }))],
           shortfallProbability: forecast.gaps[0]?.probability ?? null,
           events: [...dashboard.upcoming_in, ...dashboard.upcoming_out].map(
             (event) => ({
@@ -66,15 +68,15 @@ export function PulsOverviewHome() {
 
   return (
     <AccountGate>
-      {(resource.loading || extended.loading) && (
+      {resource.loading && (
         <p role="status" className="mb-4 text-sm">
           Загружаем прогноз…
         </p>
       )}
-      {(resource.error || extended.error) && (
+      {resource.error && (
         <p role="alert" className="mb-4 text-sm text-[color:var(--danger)]">
-          {resource.error || extended.error}{" "}
-          <button className="underline" onClick={() => { resource.refresh(); extended.refresh(); }}>
+          {resource.error}{" "}
+          <button className="underline" onClick={resource.refresh}>
             Повторить
           </button>
         </p>
@@ -85,18 +87,18 @@ export function PulsOverviewHome() {
           className="mb-4 text-sm text-[color:var(--text-secondary)]"
         >
           {forecast.fallback_used
-            ? "Используется упрощённый прогноз: основная модель временно недоступна."
+            ? fallbackNotice(forecast.warnings)
             : "Надёжность прогноза ограничена. Проверьте полноту истории."}
         </p>
       )}
-      {!resource.loading && !extended.loading && !resource.error && !extended.error && <PulsOverview
+      {!resource.loading && !resource.error && <PulsOverview
+        data={data}
         horizon={horizon}
         onChangeHorizon={setHorizon}
-        onOpenGap={forecast?.gaps[0] ? () => router.push(`/risks?gap=${encodeURIComponent(forecast.gaps[0].id)}&horizon=${horizon}`) : undefined}
-        data={data}
         onAddSource={() => router.push("/sources")}
         onOpenForecast={() => router.push(`/forecast?horizon=${horizon}`)}
         onOpenEvent={id => router.push(`/calendar?event=${encodeURIComponent(id)}`)}
+        onOpenGap={forecast?.gaps[0] ? () => router.push(`/risks?gap=${encodeURIComponent(forecast.gaps[0].id)}&horizon=${horizon}`) : undefined}
         onOpenCalendar={() => router.push("/calendar")}
         onOpenScenarios={() => router.push("/scenarios")}
       />}

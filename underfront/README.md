@@ -70,6 +70,10 @@ npm run lint:api
 npm run build
 ```
 
+Браузерные проверки: `npm run test:e2e`. Они создают новые тестовые аккаунты и компании на локальном API, поэтому запускать их следует с отдельной E2E-базой. На Windows используется установленный Edge; на Linux сначала выполнить `npx playwright install chromium`. Адреса переопределяются через `E2E_BASE_URL` и `E2E_API_URL`.
+
+Отдельный live smoke включается только при заданных `LIVE_ONEC_URL`, `LIVE_ONEC_INN`, `LIVE_ONEC_ACCOUNT` и использует учебную копию из аудита (15 операций, 7 счетов). Без них тест 1С пропускается. Другие тесты используют синтетические данные; выписка генерируется в памяти. Скриншоты сохраняются в `docs/e2e-screenshots`, диагностические traces — в игнорируемый `test-results/`. Подробности — в `docs/FULL_PLATFORM_E2E_REPORT.md` и `docs/SERVER_DEPLOYMENT.md` из корня проекта.
+
 `lint:api` проверяет подключённые к API компоненты; общий `npm run lint` также
 включает старые демонстрационные страницы. Проверки выполняются в CI.
 Сквозной сценарий и ограничения — в [FRONTEND_INTEGRATION.md](../docs/FRONTEND_INTEGRATION.md).

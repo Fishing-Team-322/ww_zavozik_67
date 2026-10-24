@@ -29,8 +29,8 @@ export function ForecastScreen() {
         error={resource.error}
         retry={resource.refresh}
       />
-      <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_330px]">
-        <SectionCard className="p-5">
+      <div className="grid min-w-0 grid-cols-1 items-start gap-4 xl:grid-cols-[minmax(0,1fr)_330px]">
+        <SectionCard className="min-w-0 p-5">
           <div className="mb-4 flex items-center justify-between gap-4">
             <h2 className="text-lg font-semibold">Денежный остаток</h2>
             <Select

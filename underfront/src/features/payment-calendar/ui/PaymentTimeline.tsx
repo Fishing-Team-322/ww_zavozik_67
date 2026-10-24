@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Button } from "@/src/shared/ui/button";
 import { formatMoney, parseDate } from "@/src/entities/payment";
 import { PaymentEventCard } from "./PaymentEventCard";
@@ -19,18 +19,15 @@ const PERIOD_LENGTH = 7;
 
 export function PaymentTimeline({ days, selectedDate, today, onSelectDate, onOpenEvent, onMoveEvent }: PaymentTimelineProps) {
   const lastStart = Math.max(0, days.length - PERIOD_LENGTH);
-  const [startIndex, setStartIndex] = useState(() => {
+  const [requestedStart, setStartIndex] = useState(() => {
     const index = Math.max(0, days.findIndex((day) => day.date === selectedDate));
     return Math.min(Math.floor(index / PERIOD_LENGTH) * PERIOD_LENGTH, lastStart);
   });
 
-  useEffect(() => {
-    const index = days.findIndex((day) => day.date === selectedDate);
-    if (index < 0) return;
-    setStartIndex((current) => index >= current && index < current + PERIOD_LENGTH
-      ? current
-      : Math.min(Math.floor(index / PERIOD_LENGTH) * PERIOD_LENGTH, lastStart));
-  }, [days, selectedDate, lastStart]);
+  const selectedIndex = days.findIndex(day => day.date === selectedDate);
+  const startIndex = selectedIndex < 0 || selectedIndex >= requestedStart && selectedIndex < requestedStart + PERIOD_LENGTH
+    ? Math.min(requestedStart, lastStart)
+    : Math.min(Math.floor(selectedIndex / PERIOD_LENGTH) * PERIOD_LENGTH, lastStart);
 
   const visibleDays = days.slice(startIndex, startIndex + PERIOD_LENGTH);
   const periodLabel = visibleDays.length
