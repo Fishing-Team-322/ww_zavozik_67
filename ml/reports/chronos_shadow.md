@@ -11,6 +11,7 @@
 | short_28 | chronos_tiny | 320 | 0.288 | 0.223 | 0.130 | 0.741 | 0.408 | 0.107 |
 | short_28 | seasonal_naive | 320 | 0.362 | 0.689 | 0.122 | 0.287 | 0.939 | 0.144 |
 | standard | auto | 320 | 0.294 | 0.869 | 0.101 | 0.324 | 0.959 | 0.104 |
+| standard | chronos_small | 320 | 0.292 | 0.273 | 0.130 | 0.667 | 0.408 | 0.104 |
 | standard | chronos_tiny | 320 | 0.295 | 0.265 | 0.131 | 0.675 | 0.551 | 0.091 |
 | standard | seasonal_naive | 320 | 0.331 | 0.791 | 0.110 | 0.314 | 0.980 | 0.122 |
 
@@ -18,11 +19,18 @@ Path WAPE и pinball должны уменьшаться; целевое пок�
 
 Текущий auto и Tiny используют 600 путей, Small — 200 для ограничения памяти. Это влияет на Monte Carlo точность оценки квантилей и риска. Все варианты Chronos моделируют чистый бизнес-поток; положительная/отрицательная части не являются валовыми поступлениями и списаниями. Поэтому существующий контракт gRPC ими автоматически не заменён.
 
+## Решение по применимости
+
+Raw Tiny и Small не подходят для текущего расчёта риска: покрытие их интервалов на стандартной истории около 27% при целевых 80%, а доля найденных разрывов ниже текущего auto. Небольшая разница WAPE у Small не компенсирует эту проблему. Размер модели сам по себе не исправил неопределённость. Оба варианта остаются исследовательскими; ни веса, ни правила выбора serving-модели не заменены.
+
 Скачаны публичные веса Small/Tiny; сами выписки обрабатывались локально. Лицензия моделей Apache 2.0; источники: [Tiny](https://huggingface.co/amazon/chronos-t5-tiny), [Small](https://huggingface.co/amazon/chronos-t5-small), [реализация](https://github.com/amazon-science/chronos-forecasting).
 
 ## Время и воспроизводимость
 
 - `amazon/chronos-t5-tiny`, revision `29d808298f1a62493e7b9a5e08529d0d930fa189`: 600 путей, p50 1.71 с, p95 4.30 с на локальном CPU. SHA256 весов `eed458758bd8165d80f496a90bcd2cfed9f1bf7d7b08677acd64e0f7d72bdcf2`.
+  Package fingerprint менялся во время запуска. Classifier training and report formatting changed while the process ran; captured forecast, calendar, data and evaluation files were unchanged.
+- `amazon/chronos-t5-small`, revision `a971ba21945c4f1796b17a91fe69214b5f4ad472`: 200 путей, p50 2.87 с, p95 3.42 с на локальном CPU. SHA256 весов `9c8b6fde5300f72b01c173153bf9288fa0a200614275bf0585071ad71a6a3d43`.
+  Package fingerprint менялся во время запуска. During Small inference, backtest CLI/run gained v2 split selection. Chronos uses its own saved v1 origin list and unchanged evaluate_origin/summarize functions, loaded before this edit. No prediction arithmetic or input changed.
 
 ## Калибровка по завершённым прогнозам других компаний
 
@@ -43,8 +51,6 @@ Path WAPE и pinball должны уменьшаться; целевое пок�
 | standard | chronos_tiny_residual_calibrated | 205 | 0.298 | 0.769 | 0.109 | 0.236 | 0.897 | 0.093 |
 | standard | seasonal_naive | 205 | 0.338 | 0.795 | 0.112 | 0.269 | 0.966 | 0.131 |
 
-На короткой истории это улучшает медиану и неопределённость относительно auto на том же подмножестве, но покрытие всё ещё ниже 80%, ложные сигналы остаются, а общая история не даёт однозначной замены. Калибровка исследована после просмотра Tiny development; новый независимый audit не проводился. Артефакт не подключён к production.
-
-Ещё выполняется: chronos_small. Не сравнивать неполный checkpoint с полным набором.
+При 14 днях истории это улучшает медиану, покрытие и pinball относительно auto на том же подмножестве. При 28 днях медиана лучше, но покрытие и pinball уступают auto. Покрытие всё ещё ниже 80%, ложные сигналы остаются, а общая история не даёт однозначной замены. Калибровка исследована после просмотра Tiny development; новый независимый audit не проводился. Артефакт не подключён к production.
 
 Команды и отдельное окружение описаны в `ml/experiments/README.md`. Метаданные и полные численные сравнения сохранены рядом в `metrics/chronos_comparison.*`. Настройки production-прогноза по результатам audit не менялись.

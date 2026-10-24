@@ -30,7 +30,7 @@ import hashlib
 import json
 import time
 from dataclasses import dataclass, replace
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 import numpy as np
@@ -325,6 +325,27 @@ def folds(companies: list[Company], k: int, seed: int) -> list[set[str]]:
     return [set(part) for part in np.array_split(ids, k)]
 
 
+def protocol_origins(origins: list[Origin], cfg: Config, protocol: str, spec: dict) -> list[Origin]:
+    """Versioned time boundary; v1 is retained solely for historical reproducibility.
+
+    In v2 every development target must precede audit_start, not merely its
+    forecast origin. Company membership and audit selection are unchanged.
+    """
+    version = spec.get("version")
+    if version not in (1, 2):
+        raise ValueError(f"unsupported evaluation split version: {version}")
+    if version == 2 and spec.get("development_target_policy") != "all_target_dates_before_audit_start":
+        raise ValueError("unsupported development target policy for split v2")
+    boundary = date.fromisoformat(spec["audit_start"])
+    holdout = set(spec["audit_companies"])
+    if protocol == "audit":
+        return [o for o in origins if o.company.id in holdout and o.as_of >= boundary]
+    if protocol != "development":
+        raise ValueError(f"unsupported evaluation protocol: {protocol}")
+    return [o for o in origins if o.company.id not in holdout and
+            o.as_of + timedelta(days=cfg.horizon if version == 2 else 0) < boundary]
+
+
 def run(
     model_names: list[str], flows: Path, cfg: Config, artifacts: Path | None, rolling: bool = True, cv: int = 0,
     protocol: str = "exploratory", split_path: Path | None = None,
@@ -337,11 +358,7 @@ def run(
     if protocol != "exploratory":
         spec = json.loads(split_path.read_text())
         holdout = set(spec["audit_companies"])
-        boundary = date.fromisoformat(spec["audit_start"])
-        if protocol == "audit":
-            origins = [o for o in origins if o.company.id in holdout and o.as_of >= boundary]
-        else:
-            origins = [o for o in origins if o.company.id not in holdout and o.as_of < boundary]
+        origins = protocol_origins(origins, cfg, protocol, spec)
         # Ни в разработке, ни в итоговой оценке аудит-компании не участвуют в fit.
         companies = [c for c in companies if c.id not in holdout]
         cutoffs = sorted({o.as_of.replace(day=1) for o in origins})
@@ -406,7 +423,8 @@ def main() -> None:
     p.add_argument("--once", action="store_true", help="обучить глобальные модели один раз на первой дате (без переобучения)")
     p.add_argument("--cv", type=int, default=3, help="кросс-валидация по компаниям; в audit выключена")
     p.add_argument("--protocol", choices=["development", "audit", "exploratory"], default="development")
-    p.add_argument("--split", type=Path, default=Path(__file__).resolve().parents[2] / "eval" / "split_v1.json")
+    p.add_argument("--split", type=Path, default=Path(__file__).resolve().parents[2] / "eval" / "split_v2.json",
+                   help="v2 purges development targets crossing audit_start; v1 is historical only")
     p.add_argument("--gap-threshold", type=float, default=0.1)
     p.add_argument("--scenarios", default="standard", help="comma-separated: standard,short_14,short_28,short_56,gap_14,missing_30pct")
     p.add_argument("--ensemble-shares", default="", help="development-only comparison of additional GBM path shares, e.g. .25,.75,.9")
