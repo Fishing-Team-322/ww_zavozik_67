@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"math"
 	"sort"
 	"time"
 
@@ -96,8 +97,14 @@ type Assembler struct {
 }
 
 func (a Assembler) Build(ctx context.Context, in Input) (Result, error) {
-	if in.Stochastic.Horizon <= 0 || in.Stochastic.NPaths <= 0 {
-		return Result{}, errors.New("forecast: horizon and n_paths must be positive")
+	if err := validateRequest(in.Stochastic); err != nil {
+		return Result{}, err
+	}
+	if !domain.Day(in.AsOf).Equal(domain.Day(in.Stochastic.History[len(in.Stochastic.History)-1].Date)) {
+		return Result{}, status.Error(codes.InvalidArgument, "forecast: as_of must match the last history date")
+	}
+	if math.IsNaN(in.OpeningBalance.Float()) || math.IsInf(in.OpeningBalance.Float(), 0) {
+		return Result{}, status.Error(codes.InvalidArgument, "forecast: opening balance must be finite")
 	}
 	sf, err := a.stochastic(ctx, in.Stochastic)
 	if err != nil {
@@ -112,6 +119,14 @@ func (a Assembler) Build(ctx context.Context, in Input) (Result, error) {
 	res.Dates = make([]time.Time, in.Stochastic.Horizon)
 	for i := range res.Dates {
 		res.Dates[i] = res.AsOf.AddDate(0, 0, i+1)
+	}
+	if len(sf.Dates) != len(res.Dates) {
+		return Result{}, errors.New("forecast: stochastic dates do not match the horizon")
+	}
+	for i, d := range sf.Dates {
+		if !domain.Day(d).Equal(res.Dates[i]) {
+			return Result{}, errors.New("forecast: stochastic dates do not match as_of")
+		}
 	}
 	if err := res.Recompute(); err != nil {
 		return Result{}, err

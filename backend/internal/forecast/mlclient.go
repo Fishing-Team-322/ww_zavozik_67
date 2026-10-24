@@ -47,8 +47,8 @@ func (m *MLClient) Models(ctx context.Context) ([]ModelInfo, error) {
 }
 
 func (m *MLClient) Forecast(ctx context.Context, req StochasticRequest) (StochasticForecast, error) {
-	if req.Horizon < 1 || req.Horizon > 366 || req.NPaths < 1 || req.NPaths > 5000 || req.Horizon*req.NPaths > 1000000 {
-		return StochasticForecast{}, fmt.Errorf("ml: invalid horizon or number of paths")
+	if err := validateRequest(req); err != nil {
+		return StochasticForecast{}, err
 	}
 	pb := &forecastv1.ForecastRequest{
 		Model:       req.Model,
