@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import argparse
 from collections import Counter
-import fcntl
 import json
 import os
 from pathlib import Path
@@ -83,6 +82,9 @@ def teacher_view(side):
 
 
 def annotate(review: Path, partition: str, base: Path, out: Path, limit=40, reuse: Path | None = None):
+    # The MLX runner is Unix-only; parsing its saved responses is portable.
+    import fcntl
+
     if partition not in ("train", "calibration") or limit < 1:
         raise ValueError("only train/calibration research annotation allowed")
     meta = json.loads((review / "manifest.json").read_text())

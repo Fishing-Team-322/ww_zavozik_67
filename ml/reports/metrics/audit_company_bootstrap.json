@@ -1,8 +1,0 @@
-{
-  "seed": 20261024,
-  "replicates": 10000,
-  "unit": "company",
-  "companies": 30,
-  "input_sha256": "3892baa02a0da91bb67d942fb3fd3a70d1dba55cbbe8d4c4c3b9522133cf67b6",
-  "limitation": "Internal synthetic audit. Cluster bootstrap is conditional on these companies; it does not model external distribution shift. No recall interval is claimed from nine observed events."
-}

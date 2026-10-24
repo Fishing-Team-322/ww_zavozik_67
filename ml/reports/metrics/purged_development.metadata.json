@@ -1,9 +1,0 @@
-{
-  "protocol": "posthoc_target_disjoint_diagnostic",
-  "origin_count_before": 320,
-  "origin_count_after": 213,
-  "companies": 104,
-  "last_target_exclusive": "2026-07-01",
-  "source_predictions_sha256": "d3fa654bd2bd6ec69ac16b284878b47e0f366f0339f33396957befd543fbd7c7",
-  "limitation": "Post-hoc stricter calendar diagnostic. No model changes, no new fit, not a new independent audit."
-}

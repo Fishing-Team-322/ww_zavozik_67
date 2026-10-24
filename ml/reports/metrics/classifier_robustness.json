@@ -1,6 +1,0 @@
-{
-  "weights_sha256": "752dbc565e6d9d351825cee6bbd01aaccd92dfe8126ddb7abcff3e66bdfb6e6f",
-  "protocol": "metamorphic_regression_only",
-  "input": "zavozik_ml/classify/novel_test.csv",
-  "limitation": "Already inspected synthetic cases. Counterparty removal may destroy information; amount perturbation is a stress check."
-}
