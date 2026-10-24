@@ -79,6 +79,11 @@ def export(selected: Path, out: Path, prepared: Path, quantize=True, fit_source:
     taxonomy = Taxonomy.load(out / "taxonomy.json")
     rows = [r for r in read_rows(prepared / "calibration.jsonl") if r["label"] in taxonomy.categories]
     texts = [config.get("text_prefix", "") + r["text"] for r in rows]
+    # Purged clean calibration can have fewer than256 deduplicated views.
+    # CPU timing may use other genuine inputs from the SAME known calibration
+    # companies; temperatures/heads still use only the clean selected views.
+    timing_rows = [r for r in read_rows(prepared / "calibration_full.jsonl") if r["label"] in taxonomy.categories] if (prepared / "calibration_full.jsonl").exists() else rows
+    timing_texts = [config.get("text_prefix", "") + r["text"] for r in timing_rows]
     y, h, t = targets(rows, taxonomy)
     with np.load(out / "heads.npz", allow_pickle=False) as f:
         heads = dict(f)
@@ -115,7 +120,7 @@ def export(selected: Path, out: Path, prepared: Path, quantize=True, fit_source:
             baseline_prediction = prediction
         result = {"calibration": calibration, "category_disagreements_vs_torch": int((prediction != baseline_prediction).sum()),
                   "embedding_max_abs_error_vs_torch": float(np.abs(x - all_x["torch-fp32"]).max()),
-                  "latency": benchmark(encoder, texts)}
+                  "latency": benchmark(encoder, timing_texts)}
         report["variants"][name] = result
         print(name, json.dumps(result), flush=True)
     base = report["variants"]["torch-fp32"]["calibration"]

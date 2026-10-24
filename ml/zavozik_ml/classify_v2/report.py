@@ -24,6 +24,9 @@ def acceptance(evaluation: dict, benchmark: dict, novelty: dict | None) -> dict:
         "complete_cpu_batch_256_p95_at_most_1s": benchmark["batch_size"] == 256 and benchmark["distinct_normalized_inputs"] == 256 and benchmark["p95_s"] <= 1,
         "hidden_category_novelty_recall_at_least_80_percent": bool(novelty and novelty["hidden_novel_recall"] is not None and novelty["hidden_novel_recall"] >= .8),
         "known_category_novelty_fpr_at_most_5_percent": bool(novelty and novelty["known_false_positive_rate"] <= .05),
+        "all_taxonomy_categories_observed_in_company_test": bool(
+            company["category"].get("per_category_support")
+            and all(n > 0 for n in company["category"]["per_category_support"].values())),
     }
     return {"all_passed": all(gates.values()), "gates": gates,
             "novelty_evaluated": novelty is not None,
@@ -39,9 +42,14 @@ def render(evaluation: dict, benchmark: dict, novelty: dict | None, selection: d
              "Модель выдаёт фиксированный нормированный embedding, одну категорию и её полное распределение, "
              "один канал и распределение каналов, независимые теги, атрибуты из справочника и novelty score.", "",
              "## Протокол", "",
-             "90 компаний для обучения,30 для калибровки,30 для company test — те же списки, что у linear-v1. "
-             "Для company-сравнения использован сохранённый evaluation-only v1; выпущенный v1 обучался на всех компаниях "
-             "и используется только для authored/regression-сравнения. Статистические weak labels изолированы по partitions.", "",
+             "Исходные компании разделены90/30/30, затем каждому семейству шаблонов назначен один partition. "
+             "Вхождения из компаний других partitions исключены. Маскируются даты/документы/суммы, известные "
+             "слоты товаров/услуг/банков/регионов; близкие строки и немаскированные варианты объединяются. "
+             "Все train-аугментации сохраняют происхождение; пересечения после аугментации и усечения токенов проверены. "
+             "Primary calibration/test содержат только реальные наблюдения. Статистические weak labels пересчитаны после purging.", "",
+             "Для company-сравнения linear-v1 переобучен на ТОЧНО ТОМ ЖЕ очищенном train, с той же calibration. "
+             "Старые company-метрики с пересекающимися шаблонами не являются baseline этого эксперимента. "
+             "Выпущенный v1 используется только для отдельных authored/regression-сравнений.", "",
              "Категории датасета размечены правилами Go и ручными правилами шаблонов, каналы/теги — regex weak labels. "
              "Это не независимая человеческая оценка на настоящих выписках. Новый авторский синтетический набор182 "
              "заморожен до обучения; novel280 ранее изучался и является regression-проверкой. "
@@ -54,6 +62,18 @@ def render(evaluation: dict, benchmark: dict, novelty: dict | None, selection: d
     for key, data in evaluation["datasets"].items():
         c, base = data["category"], data["linear_v1"]
         lines.append(f"| {names[key]} | {c['n']} | {base['accuracy']:.6%} | {c['accuracy']:.6%} | {c['macro_f1']:.6f} | {c['ece']:.6f} |")
+    company = evaluation["datasets"]["company_test"]
+    if support := company["category"].get("per_category_support"):
+        missing = [name for name, n in support.items() if n == 0]
+        lines += ["", f"Company test покрывает {len(support)-len(missing)}/{len(support)} категорий. "
+                  + ("НЕ ПРОВЕРЕНЫ: `" + "`, `".join(missing) + "`." if missing else "Все категории имеют наблюдения."), "",
+                  "| Категория | N test |", "|---|---:|"]
+        lines += [f"| {name} | {n} |" for name, n in support.items()]
+    if "template_macro_accuracy" in company["category"]:
+        lines += ["", f"Равный вес каждого из {company['template_families']} test-семейств: "
+                  f"encoder accuracy {company['category']['template_macro_accuracy']:.4%}, "
+                  f"linear-v1 {company['linear_v1']['template_macro_accuracy']:.4%}. "
+                  "Число повторяющихся операций не увеличивает число независимых семейств."]
     lines += ["", "Порог97.9% проверяется буквально: не менее275/280. Точное значение v1 —274/280=97.8571429%.",
               "", "## Каналы, теги и цифровой рубль", "",
               "| Проверка | Accuracy канала | Micro-F1 тегов | Источник меток |",

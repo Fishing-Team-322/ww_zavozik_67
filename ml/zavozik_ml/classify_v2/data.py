@@ -1,4 +1,4 @@
-"""Company-isolated weak labels and near-template deduplication for v2."""
+"""Company AND template-family isolated weak labels for v2."""
 from __future__ import annotations
 
 import argparse
@@ -16,6 +16,7 @@ from .model import sha256_file
 from .taxonomy import Taxonomy
 from .text import Operation, dedupe_key, encoder_text
 from .weak_labels import annotate
+from .splitting import TemplateRegistry, PROTOCOL, audit, digest, isolate, template_text
 
 ML_DIR = Path(__file__).resolve().parents[2]
 REPO = ML_DIR.parent
@@ -35,7 +36,7 @@ def real_rows(df) -> list[dict]:
                 df.counterparty_name, df.counterparty_inn, df.amount, df.label)]
 
 
-def load_partitions(source: Path, split: Path, rule_cache: Path) -> tuple[dict[str, list[dict]], dict]:
+def load_partitions(source: Path, split: Path, rule_cache: Path, seed: int = 42):
     from zavozik_ml.classify import labels
     spec = json.loads(split.read_text())
     cal = set(spec["calibration_companies"])
@@ -51,12 +52,25 @@ def load_partitions(source: Path, split: Path, rule_cache: Path) -> tuple[dict[s
     go = labels.go_rule_labels(source, REPO, rule_cache)
     subsets = {"train": df[~df.company_id.isin(cal | test)],
                "calibration": df[df.company_id.isin(cal)], "test": df[df.company_id.isin(test)]}
-    parts = labels.teacher_label_partitions(subsets, go)
-    return {k: real_rows(v) for k, v in parts.items()}, {
+    # Provisional weak labels are used for split stratification only. Missing-
+    # purpose majority labels MUST be recomputed on the retained rows below.
+    provisional = labels.teacher_label_partitions(subsets, go)
+    retained, registry, split_audit = isolate({k: real_rows(v) for k, v in provisional.items()}, seed)
+    ids = {k: {r["id"] for r in rows} for k, rows in retained.items()}
+    filtered = {k: part[part.operation_id.isin(ids[k])].copy() for k, part in subsets.items()}
+    final = labels.teacher_label_partitions(filtered, go)
+    parts = {}
+    for name, frame in final.items():
+        lineage = {r["id"]: r for r in retained[name]}
+        parts[name] = [dict(r, **{key: lineage[r["id"]][key] for key in
+                                 ("template_family", "parent_id", "parent_company")}) for r in real_rows(frame)]
+    return parts, {
         "source_sha256": sha256_file(source), "split_sha256": sha256_file(split),
         "train_companies": sorted(companies - cal - test), "calibration_companies": sorted(cal),
         "test_companies": sorted(test), "weak_label_scope": "partition_only_not_human_gold",
-    }
+        "split_protocol": PROTOCOL, "template_purging": split_audit,
+        "statistical_teacher_labels": "recomputed within retained partition after template purging",
+    }, registry
 
 
 def dedupe(rows: list[dict], max_variants: int = 2) -> list[dict]:
@@ -94,16 +108,21 @@ def enrich(rows: list[dict], taxonomy: Taxonomy) -> list[dict]:
 
 
 def training_rows(rows: list[dict], taxonomy: Taxonomy, seed: int = 42,
-                  perturb: int = 24000, synth: int = 1000, dropout: float = .25) -> list[dict]:
+                  perturb: int = 24000, synth: int = 1000, dropout: float = .25,
+                  registry: TemplateRegistry | None = None) -> list[dict]:
     from zavozik_ml.classify import augment
     rng = random.Random(seed)
+    if registry is None or not rows:
+        raise ValueError("training requires nonempty template-isolated parents and a registry")
     unique = dedupe(rows)
     # Existing v1 perturbations/synthetic dictionaries are reused verbatim.
     # Only train-company examples can be sampled here.
     noisy = [dict(augment.perturb(rng.choice(unique), rng), weight=1, source="train_perturb", company="")
              for _ in range(perturb)]
-    synthetic = [dict(r, weight=1, source="v1_synth", company="") for r in augment.synth(rng, synth)]
-    combined = unique + noisy + synthetic
+    synthetic = [dict(r, weight=1, source="v1_synth", company="", parent_company="",
+                      parent_id=f"synthetic-{i}", template_family="synthetic-" + digest(template_text(r["purpose"]))[:20])
+                 for i, r in enumerate(augment.synth(rng, synth))]
+    combined = [r for r in unique + noisy + synthetic if registry.training_safe(r)]
     extra = []
     for r in combined:
         if r.get("purpose", "").strip() and rng.random() < dropout:
@@ -113,13 +132,10 @@ def training_rows(rows: list[dict], taxonomy: Taxonomy, seed: int = 42,
     return enrich(combined + extra, taxonomy)
 
 
-def calibration_views(rows: list[dict], taxonomy: Taxonomy, seed: int = 1042, n: int = 4000) -> list[dict]:
-    from zavozik_ml.classify import augment
-    rng = random.Random(seed)
-    uniq = dedupe(rows)
-    # No synthetic-category templates in the company-based calibration score.
-    noisy = [dict(augment.perturb(rng.choice(uniq), rng), source="calibration_perturb") for _ in range(n)]
-    return enrich(uniq + noisy, taxonomy)
+def calibration_views(rows: list[dict], taxonomy: Taxonomy) -> list[dict]:
+    # Primary model/temperature selection uses real observations only. Noise
+    # belongs to an explicitly separate robustness study, never this score.
+    return enrich(dedupe(rows), taxonomy)
 
 
 def write_rows(path: Path, rows: list[dict]):
@@ -131,23 +147,34 @@ def read_rows(path: Path) -> list[dict]:
 
 
 def prepare(source: Path, out: Path, split: Path, rule_cache: Path, seed=42, perturb=24000, synth=1000):
-    out.mkdir(parents=True, exist_ok=True)
+    if out.exists():
+        raise ValueError("prepared output already exists; never overwrite a frozen split")
+    out.mkdir(parents=True)
     taxonomy = Taxonomy.load()
-    parts, meta = load_partitions(source, split, rule_cache)
-    train = training_rows(parts["train"], taxonomy, seed, perturb, synth)
-    cal = calibration_views(parts["calibration"], taxonomy, seed + 1000)
+    parts, meta, registry = load_partitions(source, split, rule_cache, seed)
+    train = training_rows(parts["train"], taxonomy, seed, perturb, synth, registry=registry)
+    cal = calibration_views(parts["calibration"], taxonomy)
     records = {"train": train, "calibration": cal,
                "calibration_full": enrich(parts["calibration"], taxonomy),
                "test": enrich(parts["test"], taxonomy)}
+    checks = audit(records, registry)
+    registry_path = out / "template_registry.json"
+    registry_path.write_text(json.dumps(registry.document(), ensure_ascii=False, sort_keys=True) + "\n")
+    (out / "split_audit.json").write_text(json.dumps(checks, indent=2) + "\n")
     meta.update(seed=seed, perturb=perturb, synth_per_category=synth, taxonomy_sha256=taxonomy.sha256,
-                description="Train/calibration/test never share company or statistical-label inference")
-    prep_files = [Path(__file__).with_name(name) for name in ("data.py", "text.py", "weak_labels.py", "taxonomy.py", "taxonomy.json")]
+                description="Company and template-family disjoint, augmented train only; statistical labels inferred after purging",
+                template_registry_sha256=sha256_file(registry_path), split_audit=checks,
+                split_audit_sha256=sha256_file(out / "split_audit.json"),
+                train_real_parents=len(parts["train"]), train_real_families=len({r["template_family"] for r in parts["train"]}))
+    prep_files = [Path(__file__).with_name(name) for name in ("data.py", "splitting.py", "text.py", "weak_labels.py", "taxonomy.py", "taxonomy.json")]
     prep_files += [ML_DIR / "zavozik_ml/classify" / name for name in ("labels.py", "augment.py", "text.py")]
     meta["preparation_files_sha256"] = {str(p.relative_to(ML_DIR)): sha256_file(p) for p in prep_files}
     for name, rows in records.items():
         path = out / f"{name}.jsonl"
         write_rows(path, rows)
         meta[name] = {"rows": len(rows), "sha256": sha256_file(path),
+                      "template_families": len({r["template_family"] for r in rows}),
+                      "unique_inputs": len({r["text"] for r in rows}),
                       "categories": dict(Counter(r["label"] for r in rows)),
                       "channels": dict(Counter(r["channel"] for r in rows))}
     (out / "data_manifest.json").write_text(json.dumps(meta, ensure_ascii=False, indent=2) + "\n")

@@ -16,6 +16,10 @@ export PYTHONPATH=ml/gen:ml
 python -m zavozik_ml.classify_v2.fetch_base \
   --model cointegrated/rubert-tiny2 --out ml/data/classifier_v2/base/rubert-tiny2
 python -m zavozik_ml.classify_v2.data --out ml/data/classifier_v2/prepared
+python -m zavozik_ml.classify_v2.token_audit \
+  --prepared ml/data/classifier_v2/prepared \
+  --base ml/data/classifier_v2/base/rubert-tiny2/REVISION --prefix '' \
+  --base ml/data/classifier_v2/base/e5-small/REVISION --prefix 'query: '
 python -m zavozik_ml.classify_v2.train \
   --base ml/data/classifier_v2/base/rubert-tiny2/REVISION \
   --prepared ml/data/classifier_v2/prepared --out ml/data/classifier_v2/run
@@ -30,13 +34,30 @@ SHA-256, требует safetensors; загрузка модели всегда 
 `--text-prefix 'query: '`. Сначала выбирается энкодер по calibration-компаниям,
 затем формат runtime по качеству и скорости на тех же calibration-компаниях.
 
-Разбиение 90/30/30 компаний совпадает с v1. Teacher категории — Go rules и
-ручная доразметка шаблонов v1; каналы и теги — консервативные weak labels.
-Статистические метки пустого назначения выводятся отдельно внутри каждого
-partition. Дедупликация выполняется раздельно внутри разделов; company test
-сохраняет все исходные операции. Слоты даты/суммы маскируются,
-распространённые шаблоны имеют ограниченный вес. Чистые и шумные
-примеры, синтетика v1 и dropout контрагента дают устойчивость к формулировкам.
+Начальное разбиение90/30/30 компаний совпадает с v1. Семейства шаблонов
+строятся ДО аугментации: номера/даты/документы/периоды/суммы и известные
+слоты товаров/услуг/банков/регионов маскируются, близкие строки объединяются
+транзитивно (SequenceMatcher≥.90,3gram Jaccard≥.65). Для опечаток сохраняются
+и немаскированные aliases. Семейство назначается одному partition, остальные
+его вхождения удаляются. Простое объединение компаний по общим шаблонам
+связало бы почти весь датасет в одну компоненту. Потери/coverage раскрываются
+в template_purging/data_manifest, исходные операции не переносятся между компаниями.
+
+Teacher категории — Go rules и ручные правила v1; каналы/теги — weak labels.
+Статистические метки пустого назначения пересчитываются ПОСЛЕ purging внутри
+retained partition. Primary calibration/test содержат только реальные записи,
+никаких4000 perturbations. Аугментация train наследует parent_id/company/family;
+синтетика/искажения, совпавшие с heldout family, исключаются. split_audit
+проверяет lineage, компании, normalised inputs, raw/slot-masked/near templates.
+token_audit дополнительно исключает совпадения реальных128-token входов обоих
+энкодеров. Train отказывается работать без прошедших проверок и совпадающих SHA.
+
+Для честного сравнения refit baseline: `python -m zavozik_ml.classify_v2.baseline
+--prepared ... --out ...`. Он использует ТОЧНО подготовленный train и clean
+calibration, без повторного вызова старой аугментации. Старые company accuracy
+и старый evaluation-only v1 к этому протоколу неприменимы. Отчёт показывает
+также macro accuracy по test-семействам и неподдержанные категории; высокая
+accuracy на weak labels не означает независимое качество на реальных выписках.
 
 Подготовленные файлы и исходники проверяются по хэшам. После изменения
 разметчика/нормализации надо создать новый prepared-каталог. Скрипт обучения

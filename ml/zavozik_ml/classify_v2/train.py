@@ -29,6 +29,8 @@ from .network import MultiTaskEncoder, supervised_contrastive
 from .taxonomy import Taxonomy
 from .text import NORMALIZER_VERSION
 from .artifact import archive_fitting_sources
+from .splitting import PROTOCOL
+from .token_audit import validate as validate_token_audit
 
 
 def targets(rows, taxonomy):
@@ -120,6 +122,13 @@ def main():
     if hidden:
         taxonomy = taxonomy.without(hidden)
     manifest = json.loads((args.prepared / "data_manifest.json").read_text())
+    validate_token_audit(args.prepared, args.base, args.text_prefix, args.max_length)
+    if (manifest.get("split_protocol") != PROTOCOL or not manifest.get("split_audit", {}).get("passed")
+            or any(value for pair in manifest["split_audit"]["pairwise_intersections"].values() for value in pair.values())):
+        raise ValueError("training requires audited company AND template-disjoint data")
+    for filename, key in (("split_audit.json", "split_audit_sha256"), ("template_registry.json", "template_registry_sha256")):
+        if sha256_file(args.prepared / filename) != manifest[key]:
+            raise ValueError(f"frozen split metadata changed: {filename}")
     if not manifest.get("preparation_files_sha256"):
         raise ValueError("preparation provenance missing; regenerate data")
     for path, digest in manifest["preparation_files_sha256"].items():
@@ -185,7 +194,7 @@ def main():
     # Save only the files that determine fitting/calibration. New serving/tests
     # may be written while this run is active without obscuring fit provenance.
     fit_files = [Path(__file__).with_name(name) for name in (
-        "train.py", "network.py", "model.py", "calibration.py", "novelty.py", "data.py", "text.py", "weak_labels.py", "taxonomy.py", "taxonomy.json")]
+        "train.py", "network.py", "model.py", "calibration.py", "novelty.py", "data.py", "splitting.py", "token_audit.py", "text.py", "weak_labels.py", "taxonomy.py", "taxonomy.json")]
     fit_files += [ML_DIR / "zavozik_ml/classify" / name for name in ("augment.py", "labels.py", "text.py")]
     cfg["training_files_sha256"] = {str(p.relative_to(ML_DIR)): sha256_file(p) for p in fit_files}
     for epoch in range(1, args.epochs + 1):

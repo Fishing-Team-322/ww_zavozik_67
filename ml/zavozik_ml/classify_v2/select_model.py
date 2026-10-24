@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 from .model import sha256_file
+from .splitting import PROTOCOL
 
 
 def selection_score(calibration: dict) -> float:
@@ -18,6 +19,8 @@ def select(candidates: list[Path]) -> dict:
         raise ValueError("no candidates")
     records = []
     calibration_signatures = set()
+    train_signatures = set()
+    registry_signatures = set()
     test_splits = set()
     for path in candidates:
         config = json.loads((path / "config.json").read_text())
@@ -27,7 +30,11 @@ def select(candidates: list[Path]) -> dict:
         if calibration.get("source") != "calibration_companies_only" or config.get("hidden_categories"):
             raise ValueError("ineligible calibration/hidden-category experiment")
         manifest = config["data_manifest"]
+        if manifest.get("split_protocol") != PROTOCOL or not manifest.get("split_audit", {}).get("passed"):
+            raise ValueError("candidate does not use audited template-disjoint data")
         calibration_signatures.add(manifest["calibration"]["sha256"])
+        train_signatures.add(manifest["train"]["sha256"])
+        registry_signatures.add(manifest["template_registry_sha256"])
         test_splits.add(tuple(manifest["test_companies"]))
         weights = path / "encoder/model.safetensors"
         records.append({"checkpoint": str(path), "base_model": config["base_source"]["model_id"],
@@ -36,7 +43,7 @@ def select(candidates: list[Path]) -> dict:
                         "encoder_weights_bytes": weights.stat().st_size, "encoder_weights_sha256": sha256_file(weights),
                         "heads_sha256": sha256_file(path / "heads.npz"),
                         "config_sha256": sha256_file(path / "config.json")})
-    if len(calibration_signatures) != 1 or len(test_splits) != 1:
+    if any(len(x) != 1 for x in (calibration_signatures, train_signatures, registry_signatures, test_splits)):
         raise ValueError("candidates must use exactly the same calibration data and company split")
     best = max(r["selection_score"] for r in records)
     tied = [r for r in records if r["selection_score"] >= best - 1e-6]

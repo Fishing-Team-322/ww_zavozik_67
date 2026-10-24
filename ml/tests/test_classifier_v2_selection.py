@@ -3,6 +3,7 @@ import json
 import pytest
 
 from zavozik_ml.classify_v2.select_model import select, selection_score
+from zavozik_ml.classify_v2.splitting import PROTOCOL
 
 
 def candidate(tmp_path, name, accuracy, size=100, signature="same"):
@@ -13,7 +14,9 @@ def candidate(tmp_path, name, accuracy, size=100, signature="same"):
     calibration = {"source": "calibration_companies_only", "category": {"accuracy": accuracy, "macro_f1": .99},
                    "channel": {"accuracy": .99}, "tags": {"micro_f1": .99}}
     config = {"base_source": {"model_id": name, "revision": "0" * 40}, "selected_epoch": 2,
-              "hidden_categories": [], "data_manifest": {"calibration": {"sha256": signature}, "test_companies": ["T1"]}}
+              "hidden_categories": [], "data_manifest": {"calibration": {"sha256": signature}, "test_companies": ["T1"],
+                "train": {"sha256": "same-train"}, "template_registry_sha256": "same-families",
+                "split_protocol": PROTOCOL, "split_audit": {"passed": True}}}
     (path / "config.json").write_text(json.dumps(config))
     (path / "calibration.json").write_text(json.dumps(calibration))
     return path
@@ -52,3 +55,13 @@ def test_intermediate_or_hidden_category_runs_are_not_main_candidates(tmp_path):
     (p / "calibration.json").unlink()
     with pytest.raises(FileNotFoundError):
         select([p])
+
+
+def test_same_calibration_with_different_training_pool_is_not_a_fair_encoder_comparison(tmp_path):
+    a = candidate(tmp_path, "a", .995)
+    b = candidate(tmp_path, "b", .996)
+    cfg = json.loads((b / "config.json").read_text())
+    cfg["data_manifest"]["train"]["sha256"] = "more-training-data"
+    (b / "config.json").write_text(json.dumps(cfg))
+    with pytest.raises(ValueError, match="same calibration"):
+        select([a, b])

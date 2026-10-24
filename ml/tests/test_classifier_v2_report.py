@@ -4,7 +4,8 @@ from zavozik_ml.classify_v2.report import acceptance
 
 
 def examples():
-    category = dict(n=280, accuracy=.999, macro_f1=.99, ece=.01)
+    category = dict(n=280, accuracy=.999, macro_f1=.99, ece=.01,
+                    per_category_support={f"category_{i}": 14 for i in range(20)})
     dataset = dict(category=category, linear_v1=dict(accuracy=.99, macro_f1=.99),
                    channel=dict(accuracy=.97), tags=dict(micro_f1=.95),
                    digital_ruble=dict(n=10, category_correct=10, channel_correct=10, categories_in_taxonomy=True))
@@ -48,3 +49,9 @@ def test_new_holdout_requires_strict_improvement_and_company_delta_is_pp():
     assert not acceptance(ev, bench, nov)["gates"]["company_accuracy_within_0_3pp"]
     ev["datasets"]["authored_holdout"]["category"]["accuracy"] = .99
     assert not acceptance(ev, bench, nov)["gates"]["new_holdout_category_better_than_v1"]
+
+
+def test_unobserved_category_prevents_claiming_full_acceptance():
+    ev, bench, nov = examples()
+    ev["datasets"]["company_test"]["category"]["per_category_support"]["category_19"] = 0
+    assert not acceptance(ev, bench, nov)["all_passed"]

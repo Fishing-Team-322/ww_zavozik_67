@@ -20,6 +20,7 @@ from .calibration import category_scores, binary_scores, expected_calibration_er
 from .data import ML_DIR, read_rows, operation
 from .model import EncoderClassifier, sha256_file
 from .text import Operation
+from .splitting import PROTOCOL
 
 
 def baseline_predictions(classifier, rows):
@@ -58,6 +59,15 @@ def score_rows(classifier, rows, baseline, auxiliary_gold=True):
     result = {"category": category_scores(probabilities, y),
               "linear_v1": label_scores([r["label"] for r in rows], base, t.categories),
               "novel_fraction": float(np.mean([p.is_novel for p in predicted])), "elapsed_s": elapsed}
+    result["category"]["per_category_support"] = {c: int((y == j).sum()) for j, c in enumerate(t.categories)}
+    if all("template_family" in r for r in rows):
+        groups = {}
+        for r, p, bp in zip(rows, predicted, base):
+            group = groups.setdefault(r["template_family"], [])
+            group.append((p.category == r["label"], bp == r["label"]))
+        result["template_families"] = len(groups)
+        result["category"]["template_macro_accuracy"] = float(np.mean([np.mean([x[0] for x in g]) for g in groups.values()]))
+        result["linear_v1"]["template_macro_accuracy"] = float(np.mean([np.mean([x[1] for x in g]) for g in groups.values()]))
     if auxiliary_gold:
         hy = np.array([t.channels.index(r["channel"]) for r in rows])
         hp = np.array([[p.channel_probs[c] for c in t.channels] for p in predicted])
@@ -132,12 +142,23 @@ def main():
     baseline_company = Classifier.load(args.baseline_company)
     baseline_release = Classifier.load(args.baseline_release)
     split = json.loads((args.prepared / "data_manifest.json").read_text())
+    if split.get("split_protocol") != PROTOCOL or not split.get("split_audit", {}).get("passed"):
+        raise ValueError("final evaluation requires audited template-disjoint data")
+    for name in ("train", "calibration", "test"):
+        if sha256_file(args.prepared / (name + ".jsonl")) != split[name]["sha256"]:
+            raise ValueError("frozen prepared data changed")
+        if model.config["data_manifest"][name]["sha256"] != split[name]["sha256"]:
+            raise ValueError("encoder uses a different training/evaluation pool")
+        if baseline_company.meta.get("data_manifest", {}).get(name, {}).get("sha256") != split[name]["sha256"]:
+            raise ValueError("baseline must be refit on exactly the same purged data")
     if set(baseline_company.meta.get("test_companies", [])) != set(split["test_companies"]):
         raise ValueError("baseline company split mismatch")
     if not baseline_company.meta.get("evaluation_only"):
         raise ValueError("company baseline must be evaluation-only; full-data artifact leaks test companies")
     frozen_path = Path(__file__).with_name("heldout_v1.tsv")
     provenance = {"model_version": model.model_version, "taxonomy_version": model.taxonomy.version,
+                  "split_protocol": PROTOCOL, "split_audit": split["split_audit"],
+                  "data_manifest_sha256": sha256_file(args.prepared / "data_manifest.json"),
                   "model_manifest_sha256": sha256_file(args.model / "manifest.json"),
                   "authored_fixture_sha256": sha256_file(frozen_path),
                   "baseline_company_weights_sha256": sha256_file(args.baseline_company / "weights.npz"),

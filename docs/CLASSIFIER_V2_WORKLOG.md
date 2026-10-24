@@ -299,3 +299,56 @@
   Сейчас fit продолжается как сравнительный эксперимент; дополнительные эпохи
   не решают проблему независимости оценки. Никаких новых fit не запускать
   только ради улучшения этих proxy calibration цифр.
+
+## НОВОЕ УКАЗАНИЕ: сначала company+template-disjoint split (17:10 МСК)
+
+- Пользователь прямо потребовал исправить разбиение ДО переобучения. Остановлены
+  E5 PID35854/session83066 и queue35915/session69644; все старые run/queue
+  оставлены историческими, не возобновлять. Heartbeat classifier-v2 обновлён.
+  Старые модели/rubert_run3/любой prepared_v3 не участвуют в новом сравнении.
+- Реализованы splitting.py и новая data.py. Начальные компании90/30/30 сохранены,
+  шаблонные семейства назначаются одному partition; остальные вхождения purge.
+  Группировка не использует model predictions: structural slots dates/docs/
+  sums/periods/payment rails, lexical slots товаров/услуг/банков/регионов из
+  existing v1 augmentation dictionaries; raw aliases для опечаток; transitive
+  near duplicate families SequenceMatcher>=.90 и3gram Jaccard>=.65.
+  Weak-label stratification используется только при назначении семейств;
+  statistical missing-purpose targets ПЕРЕСЧИТЫВАЮТСЯ после purge по retained
+  partition. Тест доказывает, что удалённый контекст не влияет на empty targets.
+- Train augmentations сохраняют parent_id/company/family; synthetic и perturb
+  строки, совпавшие с heldout raw/masked/near family, отбрасываются. Primary
+  calibration/test только case_weak, без4000 calibration perturbations.
+- Prepared_disjoint_v1/v2 были только стадиями разработки группировки, без fit
+  и без model predictions. ОКОНЧАТЕЛЬНЫЙ frozen dataset:
+  ml/data/classifier_v2/prepared_disjoint_v3, protocol company_purged_template_families_v3.
+  train56502rows/47700inputs (после augmentation), real train105803rows/128families;
+  calibration211 clean deduplicated rows/36families, calibration_full2251rows;
+  test5561rows/643inputs/39families. Исходных операций222420, retained113615;
+  purged108805. Нельзя делать вывод о числе независимых наблюдений по rowcount.
+- Post-augmentation audit: ВСЕ pairwise company/family/canonical/raw input/
+  dedupe key/near-template intersections равны0. Для обоих реальных tokenizers
+  дополнительно0 пересечений128-token inputs, включая префикс query E5.
+  Воспроизводимый token_audit.py, SHA+prefix+revision+maxlength guards в train.
+  Команды и ограничения обновлены в classify_v2/README.md.
+- Public aggregate/audit/protocol/coverage (без сырых операций):
+  ml/reports/metrics/classifier_v2_disjoint_split.json. Manifest SHA
+  348227be9e04a473f7ad741199f1c09f7936b6d8128e2eb540be4b339aed31c7,
+  trainSHA a38b7c76aa962271ac30c98af8dcbe0d1e84d7883cfda350925543e5ed7fcba5,
+  calSHA4f58d13423c18f836d4c39cbe853f87a4a2a20d33403c842a35278a09354587f,
+  testSHA273afddb5ccb3a58872dfeac34ff9a05995ef2789d306b91460c3525167ba9a5.
+- Coverage честно ограничено: calibration12/20категорий и2/8канала; test15/20
+  и3/8канала. Не генерировать faux-gold для заполнения пробелов. Report теперь
+  показывает неподдержанные категории и family macro accuracy; отсутствие
+  категорий в company test не позволяет объявить всю приёмку пройденной.
+- baseline.py переобучает linear-v1 на ТОЧНО ТОМ ЖЕ prepared train (без своей
+  дополнительной аугментации), clean cal только для температуры. Released v1
+  не меняется. evaluate/select отказываются смешивать разные training pools,
+  registry или старый протокол. export для timing берёт реальные cal_full
+  inputs: чистых211 меньше256, cal_full362unique; после hide rent/utilities341.
+- Hidden experiment ДО любых новых model predictions зафиксирован как
+  rent,utilities: у них есть≥5 cal discovery и≥5 test rows. Leasing/enforcement
+  не имеют cal-покрытия после purge, симулировать их успешную проверку нельзя.
+  Discovery/test разнесены и по компаниям, и по template families.
+- Tests: splitting9PASS, selection5PASS, token guards2PASS; полный prod290PASS
+  +3SKIP; optional train-env292PASS (без чужого trx), HDBSCAN FutureWarning only.
+  Ни один новый model fit до завершения этих проверок не начат.
