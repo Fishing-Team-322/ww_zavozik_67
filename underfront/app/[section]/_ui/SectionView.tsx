@@ -2,16 +2,18 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { CalendarDays, FileSpreadsheet, Search } from "lucide-react";
+import { Search } from "lucide-react";
 import { PageLayout, SectionCard } from "@/src/widgets/cabinet-shell";
-import { CashflowForecastChart, DEFAULT_SCENARIO, RiskCard, ScenarioControls, type ScenarioParams } from "@/src/widgets/finance-panels";
+import { CashflowForecastChart, RiskCard } from "@/src/widgets/finance-panels";
+import { PaymentCalendarDemo } from "@/src/features/payment-calendar";
+import { ForecastChart, PULS_DEMO_DATA, ScenarioComparison, type ScenarioKey } from "@/src/widgets/puls-overview/ui/PulsOverview";
 import { EmptyState, Input } from "@/src/shared/ui";
 import type { Section } from "@/src/entities/navigation";
 
 export function SectionView({ section }: { section: Section }) {
   const [query, setQuery] = useState("");
-  const [scenario, setScenario] = useState<ScenarioParams>(DEFAULT_SCENARIO);
-  const [filename, setFilename] = useState("");
+  const [scenario, setScenario] = useState<ScenarioKey>("base");
+  const [horizon, setHorizon] = useState<30 | 60 | 90>(30);
   return (
     <PageLayout>
 
@@ -31,9 +33,10 @@ export function SectionView({ section }: { section: Section }) {
       )}
 
       {section === "scenarios" && (
-        <div className="grid items-start gap-4 xl:grid-cols-[330px_minmax(0,1fr)]">
-          <ScenarioControls value={scenario} onChange={setScenario} />
-          <SectionCard className="p-5"><h2 className="mb-1 text-lg font-semibold">Результат сценария</h2><p className="mb-4 text-xs text-[color:var(--text-secondary)]">Выбранные параметры будут отправляться на пересчёт после подключения API.</p><CashflowForecastChart days={[]} /></SectionCard>
+        <div className="puls-overview min-w-0 bg-[color:var(--puls-bg)] pb-6 text-[color:var(--puls-text)]">
+          <p className="text-[12px] text-[color:var(--puls-text-muted)]">Синтетические демо-данные · выберите сценарий в графике или таблице</p>
+          <ForecastChart data={PULS_DEMO_DATA} selected={scenario} horizon={horizon} onChangeHorizon={setHorizon} onChangeScenario={setScenario} />
+          <ScenarioComparison data={PULS_DEMO_DATA} selected={scenario} onChangeScenario={setScenario} />
         </div>
       )}
 
@@ -42,12 +45,10 @@ export function SectionView({ section }: { section: Section }) {
       )}
 
       {section === "calendar" && (
-        <SectionCard className="p-5"><div className="mb-5 flex items-center gap-2"><CalendarDays size={20} aria-hidden="true" /><h2 className="text-lg font-semibold">Платёжный календарь</h2></div><EmptyState title="Платежи не загружены" description="После подключения источников здесь будут плановые поступления и списания по датам." /></SectionCard>
+        <PaymentCalendarDemo />
       )}
 
-      {section === "sources" && (
-        <SectionCard className="p-5"><div className="mb-5 flex items-center gap-2"><FileSpreadsheet size={20} aria-hidden="true" /><h2 className="text-lg font-semibold">Выписка</h2></div><label htmlFor="statement-file" className="mb-2 block text-sm font-medium">Выберите CSV-файл</label><input id="statement-file" type="file" accept=".csv,text/csv" className="block max-w-full text-sm file:mr-4 file:rounded-lg file:border-0 file:bg-[color:var(--accent-soft)] file:px-4 file:py-2 file:font-semibold file:text-[color:var(--accent)]" onChange={(event) => setFilename(event.target.files?.[0]?.name ?? "")} /><p className="mt-3 text-sm text-[color:var(--text-secondary)]">{filename ? `Выбран файл: ${filename}. Загрузка станет доступна после согласования API.` : "Файл пока не отправляется: нужен контракт загрузки и формат выписки."}</p><EmptyState className="mt-5" title="Источники не подключены" description="Список подключений появится после интеграции с сервером." /></SectionCard>
-      )}
+
     </PageLayout>
   );
 }

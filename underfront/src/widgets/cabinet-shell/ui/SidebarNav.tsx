@@ -53,7 +53,7 @@ export const sidebarSectionIcons: Record<string, LucideIcon> = {
 };
 
 export const defaultCabinetNav: SidebarNavItem[] = [
-  { href: "/", label: "Overview", icon: OverviewHomeIcon, section: "Workspace" },
+  { href: "/overview", label: "Overview", icon: OverviewHomeIcon, section: "Workspace" },
   { href: "/transactions", label: "Transactions", icon: TransactionsIcon, section: "Workspace" },
   { href: "/forecast", label: "Forecast", icon: ForecastIcon, section: "Analytics" },
   { href: "/scenarios", label: "Scenarios", icon: SlidersHorizontal, section: "Analytics" },
@@ -163,7 +163,7 @@ export function SidebarNav({ items = defaultCabinetNav, onNavigate }: { items?: 
 export function SidebarBrand({ title = "PULSE", subtitle = "Financial radar", onClose }: { title?: string; subtitle?: string; onClose?: () => void }) {
   return (
     <div className="flex items-center justify-between gap-3 px-4 py-3">
-      <Link href="/" className="flex min-w-0 items-center gap-2.5">
+      <Link href="/overview" className="flex min-w-0 items-center gap-2.5">
         <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[5px] bg-[color:var(--sidebar-active)] text-[color:var(--nav-item-active-text)]"><Activity size={15}/></span>
         <span className="flex min-w-0 flex-col">
           <span className="truncate text-[14px] font-semibold leading-4 text-[color:var(--nav-item-active-text)]">{title}</span>

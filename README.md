@@ -19,24 +19,31 @@
 | `proto/` | контракт бэкенд ↔ ML | gRPC, buf |
 | `backend/` | API, воркер, бот, бэктест, вся бизнес-логика | Go 1.26 |
 | `ml/` | ML-сервис прогноза, обучение, оценка | Python 3.12+ |
-| `web/` | фронтенд | на выбор фронтендера |
-| `infra/` | docker-compose | Postgres 17 |
+| `underfront/` | приложение | Next.js 16, React 19 |
+| `compose.yaml` | запуск приложения | Postgres 17, Go API, worker, ML и Next.js |
 
 ## Быстрый старт
 
 Датасет кейса распаковать в `cashflow_dataset_participants/` (в git не коммитится).
 
+Из корня репозитория:
+
 ```bash
-make up                # postgres + ml + api + worker в Docker, API на :8080
-curl localhost:8080/healthz
-make test              # go test + pytest
-make backtest          # бэктест на датасете → ml/data/backtest.csv
+docker compose up -d --build
 ```
 
-Перед первым `make up` скопировать `.env.example` в `.env`, задать случайный
-`JWT_SECRET` (минимум 32 байта) и пароль Postgres. Compose применяет миграции
-отдельным сервисом `migrate` до старта API. Аккаунты, компании, сессии и облачное
-состояние описаны в [ACCOUNTS_API.md](docs/ACCOUNTS_API.md).
+Приложение: `http://localhost:3000`; API: `http://localhost:8080`.
+
+Перед первым запуском нужен корневой `.env` (для локальной установки он уже
+создан). При развёртывании в другом месте скопировать `.env.example` в `.env` и задать случайный
+`JWT_SECRET` (минимум 32 байта), пароль Postgres и `DATA_ENCRYPTION_KEY` (base64
+от 32 случайных байтов). Корневой `compose.yaml` запускает весь проект одной
+командой; фронтенд внутри Docker обращается к Go API по адресу `http://api:8080`.
+Postgres доступен только внутри сети Compose, порт 5432 на компьютере не занят.
+Миграции выполняет отдельный сервис `migrate` до старта API. `make up` вызывает
+тот же корневой Compose. Остановка: `docker compose down` (данные Postgres в
+томе сохраняются). Аккаунты, компании и сессии описаны в
+[ACCOUNTS_API.md](docs/ACCOUNTS_API.md).
 
 Без Docker:
 

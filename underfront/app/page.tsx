@@ -1,5 +1,5 @@
-import { PulsOverviewHome } from "@/src/widgets/puls-overview";
+import { redirect } from "next/navigation";
 
 export default function Home() {
-  return <PulsOverviewHome />;
+  redirect("/overview");
 }

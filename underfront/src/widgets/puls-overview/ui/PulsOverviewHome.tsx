@@ -13,6 +13,7 @@ export function PulsOverviewHome() {
       onOpenForecast={() => router.push("/forecast")}
       onOpenCalendar={() => router.push("/calendar")}
       onOpenScenarios={() => router.push("/scenarios")}
+      onOpenGap={() => router.push("/test#cash-gap-demo-heading")}
     />
   );
 }
