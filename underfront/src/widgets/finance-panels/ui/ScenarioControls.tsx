@@ -19,6 +19,6 @@ export function ScenarioControls({value, onChange, loading = false}: {value: Sce
       <div className="flex justify-between gap-2 text-xs"><span className="text-[color:var(--text-secondary)]">{f.label}</span><strong className="tabular-nums">{value[f.key].toLocaleString("ru-RU")} {f.suffix}</strong></div>
       <input className="block w-full accent-[var(--accent)]" type="range" disabled={loading} min={f.min} max={f.max} step={f.step} value={value[f.key]} onChange={e=>onChange({...value,[f.key]:Number(e.target.value)})}/>
     </label>)}</div>
-    <p className="mt-5 text-xs text-[color:var(--text-secondary)]">Эти параметры только меняют запрос. Расчёт нового прогноза выполняет ваш бэкенд.</p>
+    <p className="mt-5 text-xs text-[color:var(--text-secondary)]">Изменение условий показывает возможный результат. Базовый план остаётся прежним.</p>
   </div>;
 }

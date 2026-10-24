@@ -75,6 +75,10 @@ export type CashEvent = {
 export type PulsOverviewData = {
   company?: string;
   currentBalance: number;
+  safeToSpend?: number | null;
+  serverStatus?: string;
+  headline?: string;
+  horizon?: 30 | 60 | 90;
   forecast: ForecastDay[];
   history?: HistoryDay[];
   events: CashEvent[];
@@ -89,8 +93,11 @@ export type PulsOverviewData = {
 export type PulsOverviewProps = {
   data?: PulsOverviewData | null;
   onAddSource?: () => void;
+  horizon?: 30 | 60 | 90;
+  onChangeHorizon?: (horizon: 30 | 60 | 90) => void;
   onOpenForecast?: () => void;
   onOpenCalendar?: () => void;
+  onOpenEvent?: (id: string) => void;
   onOpenScenarios?: () => void;
   onOpenGap?: () => void;
 };
@@ -224,17 +231,17 @@ export function KpiSparkline({
 }
 
 export function KpiStrip({ data, selected }: { data: PulsOverviewData; selected: ScenarioKey }) {
-  const period = data.forecast.slice(0, 31);
+  const period = data.forecast.slice(0, data.horizon ?? 31);
   const stats = getForecastStats(period, selected);
   const minimumDay = period.find(p => (p[selected] ?? p.base) === stats.minimum);
-  const spendable = Math.max(0, Math.min(data.currentBalance, stats.minimum - (data.reserve ?? 0)));
+  const spendable = data.isDemo ? Math.max(0, Math.min(data.currentBalance, stats.minimum - (data.reserve ?? 0))) : data.safeToSpend;
   const change = stats.last - data.currentBalance;
   const reserveGap = stats.minimum - (data.reserve ?? 0);
   const items = [
     { title: "Текущий баланс", value: compactMoney(data.currentBalance), detail: `Резерв: ${compactMoney(data.reserve ?? 0)}`, hint: "На счетах сегодня" },
-    { title: "Можно потратить сегодня", value: compactMoney(spendable), detail: `Доступно ${data.currentBalance > 0 ? Math.round(spendable / data.currentBalance * 100) : 0}% текущего баланса`, hint: "С учётом резерва и минимума за 30 дней" },
-    { title: "Минимальный остаток", value: compactMoney(stats.minimum), detail: reserveGap < 0 ? `Ниже резерва на ${compactMoney(-reserveGap)}` : `Выше резерва на ${compactMoney(reserveGap)}`, hint: minimumDay ? `${displayDate(minimumDay.date)} · по выбранному сценарию` : "Нижняя точка за 30 дней" },
-    { title: "Остаток через 30 дней", value: compactMoney(stats.last), detail: `${change > 0 ? "+" : ""}${compactMoney(change)} к сегодняшнему дню`, hint: "По выбранному сценарию" },
+    { title: "Можно потратить сегодня", value: spendable == null ? "Нет оценки" : compactMoney(spendable), detail: "С учётом резерва и неопределённости", hint: data.isDemo ? "Демонстрационная оценка" : "По расчёту сервиса" },
+    { title: "Минимальный остаток", value: compactMoney(stats.minimum), detail: reserveGap < 0 ? `Ниже резерва на ${compactMoney(-reserveGap)}` : `Выше резерва на ${compactMoney(reserveGap)}`, hint: minimumDay ? `${displayDate(minimumDay.date)} · по выбранному сценарию` : "Нижняя точка за выбранный период" },
+    { title: `Остаток через ${data.horizon ?? 30} дней`, value: compactMoney(stats.last), detail: `${change > 0 ? "+" : ""}${compactMoney(change)} к сегодняшнему дню`, hint: "По выбранному сценарию" },
   ];
   return <section aria-label="Ключевые показатели" className="grid grid-cols-2 border border-[color:var(--puls-border)] bg-[color:var(--puls-bg)] xl:grid-cols-4">
     {items.map((item, index) => <div key={item.title} className={`flex min-h-[126px] min-w-0 flex-col border-[color:var(--puls-border)] p-3.5 xl:border-r xl:border-b-0 xl:last:border-r-0 ${index < 2 ? "border-b" : ""} ${index % 2 === 0 ? "border-r" : ""}`}>
@@ -249,21 +256,21 @@ export function KpiStrip({ data, selected }: { data: PulsOverviewData; selected:
 }
 
 function FinancialStatus({ data, onOpenGap }: { data: PulsOverviewData; onOpenGap?: () => void }) {
-  const period = data.forecast.slice(0, 31);
+  const period = data.forecast.slice(0, data.horizon ?? 31);
   const stats = getForecastStats(period, "base");
   const firstGap = stats.firstNegative >= 0 ? period[stats.firstNegative] : null;
   const probability = data.shortfallProbability;
   const riskPercent = probability == null ? null : Math.round(probability * 1000) / 10;
-  const severity = probability == null
+  const severity = data.serverStatus ? (({ ok: "Спокойно", warning: "Внимание", danger: "Опасно" } as Record<string, string>)[data.serverStatus] ?? "Нет оценки") : probability == null
     ? stats.deficit > 0 ? "Опасно" : "Спокойно"
     : probability > 0.4 ? "Опасно" : probability >= 0.1 ? "Внимание" : "Спокойно";
   const accent = severity === "Спокойно" ? "var(--puls-good-text)" : severity === "Внимание" ? "var(--puls-demo-text)" : "var(--puls-chart-zero)";
   return <section aria-label="Финансовое состояние" className="mb-5 flex flex-col gap-3 border-y border-[color:var(--puls-border)] bg-[color:var(--puls-surface-soft)] px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
     <div className="flex min-w-0 items-start gap-3">
-      <span className="mt-1 size-2.5 shrink-0 rounded-full" style={{ backgroundColor: accent }} aria-hidden="true"/>
+      <AlertTriangle size={16} className="mt-1 shrink-0" style={{ color: accent }} aria-hidden="true"/>
       <div className="min-w-0">
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1"><h2 className="text-[16px] font-semibold leading-5" style={{ color: accent }}>{severity}</h2><span className="text-[12px] text-[color:var(--puls-text-secondary)]">{riskPercent == null ? "Вероятность разрыва: нет оценки" : `Вероятность разрыва: ${riskPercent}%${data.isDemo ? " · демо-оценка" : ""}`}</span></div>
-        <p className="mt-1 text-[13px] leading-5 text-[color:var(--puls-text-secondary)]">{firstGap ? `По базовому прогнозу с ${displayDate(firstGap.date)} возможна нехватка; максимальный дефицит — ${formatMoney(stats.deficit)}.` : "Базовый прогнозный остаток остаётся положительным в ближайшие 30 дней."}</p>
+        <p className="mt-1 text-[13px] leading-5 text-[color:var(--puls-text-secondary)]">{data.headline ?? (firstGap ? `По базовому прогнозу с ${displayDate(firstGap.date)} возможна нехватка; максимальный дефицит — ${formatMoney(stats.deficit)}.` : "Базовый прогнозный остаток остаётся положительным в выбранном периоде.")}</p>
       </div>
     </div>
     {onOpenGap && <Button type="button" variant="outline" size="md" onClick={onOpenGap} className="w-fit shrink-0">Что делать <ChevronRight aria-hidden="true"/></Button>}
@@ -379,7 +386,7 @@ export function ForecastChart({ data, selected, horizon, onChangeHorizon, onChan
   </section>;
 }
 
-function NearTermFlows({ data, onOpenCalendar }: { data: PulsOverviewData; onOpenCalendar?: () => void }) {
+function NearTermFlows({ data, onOpenCalendar, onOpenEvent }: { data: PulsOverviewData; onOpenCalendar?: () => void; onOpenEvent?: (id: string) => void }) {
   const events = data.events.filter(event => event.day >= 0 && event.day <= 14 && data.forecast[event.day]).sort((a, b) => a.day - b.day);
   const groups = [
     { title: "Ближайшие платежи", items: events.filter(event => event.amount < 0), color: "var(--puls-text-strong)" },
@@ -390,7 +397,7 @@ function NearTermFlows({ data, onOpenCalendar }: { data: PulsOverviewData; onOpe
       <header className="flex items-center justify-between gap-3 py-3"><div><h2 className="text-[16px] font-semibold text-[color:var(--puls-text)]">{group.title}</h2><p className="mt-0.5 text-[12px] text-[color:var(--puls-text-muted)]">На ближайшие 14 дней</p></div>{onOpenCalendar && <Button type="button" variant="ghost" size="sm" onClick={onOpenCalendar}>Календарь <ChevronRight aria-hidden="true"/></Button>}</header>
       <div className="border-y border-[color:var(--puls-border)]">{group.items.length ? group.items.map(event => <div key={event.id} className="grid grid-cols-[55px_minmax(0,1fr)_auto] items-center gap-2 border-b border-[color:var(--puls-border)] px-1 py-2.5 text-[13px] last:border-b-0 hover:bg-[color:var(--puls-surface-soft)] sm:gap-3">
         <span className="text-[12px] text-[color:var(--puls-text-muted)]">{displayDate(data.forecast[event.day].date)}</span>
-        <span className="min-w-0"><span className="block truncate font-medium text-[color:var(--puls-text)]">{event.title}</span><span className="block truncate text-[12px] text-[color:var(--puls-text-secondary)]">{event.counterparty ?? "Контрагент не указан"}</span><span className="block truncate text-[11px] text-[color:var(--puls-text-muted)]" title={event.amount < 0 ? event.source ?? "Источник не указан" : event.paymentDiscipline ?? "Истории оплат пока нет"}>{event.amount < 0 ? `Источник: ${event.source ?? "не указан"}` : `Дисциплина: ${event.paymentDiscipline ?? "истории оплат нет"}`}</span></span>
+        <span className="min-w-0"><span className="block truncate font-medium text-[color:var(--puls-text)]">{onOpenEvent ? <button type="button" className="max-w-full truncate text-left underline underline-offset-2" onClick={() => onOpenEvent(event.id)}>{event.title}</button> : event.title}</span><span className="block truncate text-[12px] text-[color:var(--puls-text-secondary)]">{event.counterparty ?? "Контрагент не указан"}</span><span className="block truncate text-[11px] text-[color:var(--puls-text-muted)]" title={event.amount < 0 ? event.source ?? "Источник не указан" : event.paymentDiscipline ?? "Истории оплат пока нет"}>{event.amount < 0 ? `Источник: ${event.source ?? "не указан"}` : `Дисциплина: ${event.paymentDiscipline ?? "истории оплат нет"}`}</span></span>
         <strong className="whitespace-nowrap text-right font-medium tabular-nums" style={{ color: group.color }}>{event.amount > 0 ? "+" : ""}{formatMoney(event.amount)}</strong>
       </div>) : <p className="px-1 py-4 text-[12px] text-[color:var(--puls-text-secondary)]">Событий на ближайшие 14 дней нет.</p>}</div>
     </section>)}
@@ -398,7 +405,7 @@ function NearTermFlows({ data, onOpenCalendar }: { data: PulsOverviewData; onOpe
 }
 
 function OverviewWarnings({ data, selected, onOpenGap, onOpenCalendar }: { data: PulsOverviewData; selected: ScenarioKey; onOpenGap?: () => void; onOpenCalendar?: () => void }) {
-  const period = data.forecast.slice(0, 31);
+  const period = data.forecast.slice(0, data.horizon ?? 31);
   const stats = getForecastStats(period, selected);
   const firstGap = stats.firstNegative >= 0 ? period[stats.firstNegative] : null;
   const unusual = data.events.filter(event => data.unusualExpenseIds?.includes(event.id) && event.amount < 0);
@@ -424,14 +431,14 @@ function OverviewPreviews({ data, selected, onChangeScenario, onOpenCalendar, on
   const near = data.events.filter(event => event.day >= 0 && event.day <= 14);
   const incoming = near.reduce((total, event) => total + Math.max(0, event.amount), 0);
   const outgoing = near.reduce((total, event) => total + Math.max(0, -event.amount), 0);
-  const period = data.forecast.slice(0, 31);
+  const period = data.forecast.slice(0, data.horizon ?? 31);
   return <div className="mt-9 grid min-w-0 gap-5 lg:grid-cols-2 lg:gap-7">
     <section aria-label="Превью платёжного календаря" className="min-w-0 border-t border-[color:var(--puls-border)]">
       <header className="flex items-center justify-between gap-3 py-3"><div><h2 className="text-[16px] font-semibold text-[color:var(--puls-text)]">Платёжный календарь</h2><p className="mt-0.5 text-[12px] text-[color:var(--puls-text-muted)]">План на ближайшие 14 дней</p></div>{onOpenCalendar && <Button type="button" variant="ghost" size="sm" onClick={onOpenCalendar}>Открыть <ChevronRight aria-hidden="true"/></Button>}</header>
       <div className="grid grid-cols-3 gap-2 border-t border-[color:var(--puls-border)] py-3 text-[12px]"><div><span className="block text-[color:var(--puls-text-muted)]">Событий</span><strong className="mt-1 block text-[15px] font-semibold tabular-nums text-[color:var(--puls-text)]">{near.length}</strong></div><div><span className="block text-[color:var(--puls-text-muted)]">Поступления</span><strong className="mt-1 block text-[15px] font-semibold tabular-nums text-[color:var(--puls-positive-text)]">{compactMoney(incoming)}</strong></div><div><span className="block text-[color:var(--puls-text-muted)]">Списания</span><strong className="mt-1 block text-[15px] font-semibold tabular-nums text-[color:var(--puls-text)]">{compactMoney(outgoing)}</strong></div></div>
     </section>
     <section aria-label="Превью сравнения сценариев" className="min-w-0 border-t border-[color:var(--puls-border)]">
-      <header className="flex items-center justify-between gap-3 py-3"><div><h2 className="text-[16px] font-semibold text-[color:var(--puls-text)]">Сценарии</h2><p className="mt-0.5 text-[12px] text-[color:var(--puls-text-muted)]">Остаток через 30 дней</p></div>{onOpenScenarios && <Button type="button" variant="ghost" size="sm" onClick={onOpenScenarios}>Сравнить <ChevronRight aria-hidden="true"/></Button>}</header>
+      <header className="flex items-center justify-between gap-3 py-3"><div><h2 className="text-[16px] font-semibold text-[color:var(--puls-text)]">Сценарии</h2><p className="mt-0.5 text-[12px] text-[color:var(--puls-text-muted)]">Остаток в конце периода</p></div>{onOpenScenarios && <Button type="button" variant="ghost" size="sm" onClick={onOpenScenarios}>Сравнить <ChevronRight aria-hidden="true"/></Button>}</header>
       <div className="divide-y divide-[color:var(--puls-border)] border-t border-[color:var(--puls-border)]">{SCENARIOS.filter(scenario => scenarioSupported(data, scenario.key)).map(scenario => {
         const stats = getForecastStats(period, scenario.key);
         return <button key={scenario.key} type="button" aria-pressed={selected === scenario.key} onClick={() => onChangeScenario(scenario.key)} className={`flex w-full items-center justify-between gap-3 px-1 py-1.5 text-left text-[12px] transition-colors hover:bg-[color:var(--puls-surface-soft)] focus-visible:outline-2 focus-visible:outline-[color:var(--puls-chart-primary)] ${selected === scenario.key ? "bg-[color:var(--puls-surface-muted)] text-[color:var(--puls-text)]" : "text-[color:var(--puls-text-secondary)]"}`}><span className="min-w-0 truncate">{scenario.label}</span><strong className="shrink-0 font-medium tabular-nums text-[color:var(--puls-text-strong)]">{compactMoney(stats.last)}</strong></button>;
@@ -484,7 +491,7 @@ export function PaymentTimeline({ data, onOpenCalendar }: { data: PulsOverviewDa
 export function ScenarioComparison({ data, selected, onChangeScenario, onOpenScenarios }: {
   data: PulsOverviewData; selected: ScenarioKey; onChangeScenario: (key: ScenarioKey) => void; onOpenScenarios?: () => void;
 }) {
-  const period = data.forecast.slice(0, 31);
+  const period = data.forecast.slice(0, data.horizon ?? 31);
   const stats = SCENARIOS.map(s => getForecastStats(period, s.key));
   const current = stats[SCENARIOS.findIndex(s => s.key === selected)]!;
   const cells = [
@@ -534,9 +541,11 @@ export function PulsEmptyState({ onAddSource }: { onAddSource?: () => void }) {
   </section>;
 }
 
-export default function PulsOverview({ data = PULS_DEMO_DATA, onAddSource, onOpenForecast, onOpenCalendar, onOpenScenarios, onOpenGap }: PulsOverviewProps) {
+export default function PulsOverview({ data = PULS_DEMO_DATA, onAddSource, onOpenForecast, onOpenCalendar, onOpenEvent, onOpenScenarios, onOpenGap, horizon: controlledHorizon, onChangeHorizon }: PulsOverviewProps) {
   const [requested, setRequested] = useState<ScenarioKey>("base");
-  const [horizon, setHorizon] = useState<30 | 60 | 90>(30);
+  const [localHorizon, setLocalHorizon] = useState<30 | 60 | 90>(30);
+  const horizon = controlledHorizon ?? localHorizon;
+  const setHorizon = onChangeHorizon ?? setLocalHorizon;
   const prepared = useMemo(() => data && data.forecast.length > 0 ? data : null, [data]);
   const selected = prepared && scenarioSupported(prepared, requested) ? requested : "base";
   return <div className="puls-overview min-w-0 w-full bg-[color:var(--puls-bg)] pb-10 text-[color:var(--puls-text)] tabular-nums">
@@ -548,7 +557,7 @@ export default function PulsOverview({ data = PULS_DEMO_DATA, onAddSource, onOpe
       <FinancialStatus data={prepared} onOpenGap={onOpenGap}/>
       <KpiStrip data={prepared} selected={selected}/>
       <ForecastChart data={prepared} selected={selected} horizon={horizon} onChangeHorizon={setHorizon} onChangeScenario={setRequested} onOpenForecast={onOpenForecast}/>
-      <NearTermFlows data={prepared} onOpenCalendar={onOpenCalendar}/>
+      <NearTermFlows data={prepared} onOpenCalendar={onOpenCalendar} onOpenEvent={onOpenEvent}/>
       <OverviewWarnings data={prepared} selected={selected} onOpenGap={onOpenGap} onOpenCalendar={onOpenCalendar}/>
       <OverviewPreviews data={prepared} selected={selected} onChangeScenario={setRequested} onOpenCalendar={onOpenCalendar} onOpenScenarios={onOpenScenarios}/>
       <p className="mt-6 text-[10px] leading-[18px] text-[color:var(--puls-text-faint)]">{prepared.isDemo ? "Синтетические демонстрационные данные. Числа не являются прогнозом реальной компании." : "Прогноз построен на загруженных данных; точность зависит от полноты информации и качества модели."}</p>

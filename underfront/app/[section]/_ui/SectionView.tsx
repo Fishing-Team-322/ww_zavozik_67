@@ -7,7 +7,13 @@ import { TransactionsScreen } from "./TransactionsScreen";
 import { ForecastScreen } from "./ForecastScreen";
 import { ScenariosScreen } from "./ScenariosScreen";
 import { CalendarScreen } from "./CalendarScreen";
-import { SourcesScreen } from "./SourcesScreen";
+import { RecurringScreen } from "./RecurringScreen";
+import { DocumentsScreen } from "./DocumentsScreen";
+import { PlanFactScreen } from "./PlanFactScreen";
+import { CounterpartiesScreen } from "./CounterpartiesScreen";
+import { NotificationsScreen } from "@/src/features/notifications";
+import { SettingsScreen } from "./SettingsScreen";
+import { MethodologyScreen } from "./MethodologyScreen";
 import { RisksScreen } from "./RisksScreen";
 
 const screens = {
@@ -15,7 +21,13 @@ const screens = {
   forecast: ForecastScreen,
   scenarios: ScenariosScreen,
   calendar: CalendarScreen,
-  sources: SourcesScreen,
+  recurring: RecurringScreen,
+  documents: DocumentsScreen,
+  "plan-fact": PlanFactScreen,
+  counterparties: CounterpartiesScreen,
+  notifications: NotificationsScreen,
+  settings: SettingsScreen,
+  methodology: MethodologyScreen,
   risks: RisksScreen,
 };
 export function SectionView({ section }: { section: Section }) {

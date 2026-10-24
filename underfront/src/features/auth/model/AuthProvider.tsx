@@ -25,10 +25,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const [sessionExpired, setSessionExpired] = useState(false);
   const hadSession = useRef(false);
+  const profileRevision = useRef(0);
 
   const refreshProfile = useCallback(async () => {
+    const revision = ++profileRevision.current;
     try {
       const profile = await authApi.me();
+      if (revision !== profileRevision.current) return profile;
       setUser(profile);
       hadSession.current = true;
       setStatus("authenticated");
@@ -36,6 +39,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSessionExpired(false);
       return profile;
     } catch (cause) {
+      if (revision !== profileRevision.current) throw cause;
       setUser(null);
       if (cause instanceof ApiError && cause.status === 401) {
         setStatus("guest");
@@ -55,6 +59,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [refreshProfile]);
 
   useEffect(() => onAuthLost(() => {
+    profileRevision.current++;
     setSessionExpired(hadSession.current);
     hadSession.current = false;
     setUser(null);
@@ -63,10 +68,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }), []);
 
   const signIn = useCallback(async (email: string, password: string) => {
+    profileRevision.current++;
     await login(email, password);
     return refreshProfile();
   }, [refreshProfile]);
   const signUp = useCallback(async (email: string, password: string) => {
+    profileRevision.current++;
     await register(email, password);
     return refreshProfile();
   }, [refreshProfile]);

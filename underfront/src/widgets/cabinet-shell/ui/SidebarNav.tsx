@@ -53,13 +53,20 @@ export const sidebarSectionIcons: Record<string, LucideIcon> = {
 };
 
 export const defaultCabinetNav: SidebarNavItem[] = [
-  { href: "/overview", label: "Overview", icon: OverviewHomeIcon, section: "Workspace" },
-  { href: "/transactions", label: "Transactions", icon: TransactionsIcon, section: "Workspace" },
-  { href: "/forecast", label: "Forecast", icon: ForecastIcon, section: "Analytics" },
-  { href: "/scenarios", label: "Scenarios", icon: SlidersHorizontal, section: "Analytics" },
-  { href: "/risks", label: "Cash shortfalls", icon: CashShortfallsIcon, section: "Analytics" },
-  { href: "/calendar", label: "Payment calendar", icon: PaymentCalendarIcon, section: "Planning" },
-  { href: "/sources", label: "Data sources", icon: FileSpreadsheet, section: "Planning" },
+  { href: "/overview", label: "Обзор", icon: OverviewHomeIcon, section: "Workspace" },
+  { href: "/transactions", label: "Операции", icon: TransactionsIcon, section: "Workspace" },
+  { href: "/forecast", label: "Прогноз", icon: ForecastIcon, section: "Analytics" },
+  { href: "/scenarios", label: "Сценарии", icon: SlidersHorizontal, section: "Analytics" },
+  { href: "/risks", label: "Нехватка денег", icon: CashShortfallsIcon, section: "Analytics" },
+  { href: "/calendar", label: "Платёжный календарь", icon: PaymentCalendarIcon, section: "Planning" },
+  { href: "/recurring", label: "Регулярные платежи", icon: PaymentCalendarIcon, section: "Planning" },
+  { href: "/documents", label: "Счета и договоры", icon: FileSpreadsheet, section: "Planning" },
+  { href: "/plan-fact", label: "План-факт", icon: ForecastIcon, section: "Analytics" },
+  { href: "/counterparties", label: "Контрагенты", icon: TransactionsIcon, section: "Workspace" },
+  { href: "/notifications", label: "Уведомления", icon: Activity, section: "Workspace" },
+  { href: "/settings", label: "Настройки", icon: SlidersHorizontal, section: "Workspace" },
+  { href: "/methodology", label: "Как мы считаем", icon: ForecastIcon, section: "Analytics" },
+  { href: "/sources", label: "Источники данных", icon: FileSpreadsheet, section: "Planning" },
   { href: "/development/components", label: "Buttons and fields", icon: LayoutGrid, section: "Development" },
   { href: "/test", label: "Payment calendar demo", icon: FlaskConical, section: "Development" },
 ];
@@ -140,7 +147,7 @@ export function SidebarNav({ items = defaultCabinetNav, onNavigate }: { items?: 
                 )}
               >
                 {SectionIcon ? <SectionIcon className="mr-2 h-[15px] w-[15px] shrink-0" aria-hidden="true" /> : null}
-                <span className="min-w-0 truncate">{section}</span>
+                <span className="min-w-0 truncate">{({ Workspace: "Компания", Analytics: "Аналитика", Planning: "Планирование" } as Record<string, string>)[section] ?? section}</span>
                 <ChevronDown className={cn("ml-1 h-[13px] w-[13px] shrink-0 transition-transform", !expanded && "-rotate-90")} aria-hidden="true" />
               </button>
               <ul id={panelId} hidden={!expanded}>

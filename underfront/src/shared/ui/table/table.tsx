@@ -76,7 +76,7 @@ export function Table({
         />
       </div>
 
-      <nav aria-label="Страницы таблицы" className="mt-4 flex justify-end">
+      {pagination && <nav aria-label="Страницы таблицы" className="mt-4 flex justify-end">
         <Pagination
           page={page}
           totalPages={totalPages}
@@ -84,7 +84,7 @@ export function Table({
           onPageChange={pagination?.onPageChange ?? (() => undefined)}
           label={`${page}/${totalPages}`}
         />
-      </nav>
+      </nav>}
     </div>
   );
 }

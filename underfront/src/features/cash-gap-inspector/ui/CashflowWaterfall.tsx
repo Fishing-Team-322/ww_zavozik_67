@@ -4,21 +4,21 @@ import { Bar, BarChart, CartesianGrid, Cell, LabelList, ReferenceLine, Responsiv
 import type { WaterfallStep } from "@/src/entities/cash-gap";
 import { formatRub } from "@/src/shared/lib/charts";
 
-type WaterfallPoint = WaterfallStep & { range: [number, number]; formatted: string };
+type WaterfallPoint = WaterfallStep & { range: [number, number]; formatted: string; contributions?: boolean };
 
 function WaterfallTooltip({ active, payload }: { active?: boolean; payload?: Array<{ payload?: WaterfallPoint }> }) {
   const step = payload?.[0]?.payload;
   if (!active || !step) return null;
   return <div className="max-w-[260px] rounded-[5px] border border-[color:var(--border)] bg-[color:var(--surface-elevated)] p-3 text-[12px] leading-5 text-[color:var(--nav-item-active-text)]">
     <p className="font-medium">{step.title}</p><p className="tabular-nums">Сумма: {step.formatted}</p>
-    <p className="tabular-nums">Остаток: {formatRub(step.after)}</p>
+    {!step.contributions && <p className="tabular-nums">Остаток: {formatRub(step.after)}</p>}
     {step.event ? <p className="text-[color:var(--nav-item-text)]">{step.event.counterparty}</p> : null}
   </div>;
 }
 
-export function CashflowWaterfall({ steps }: { steps: readonly WaterfallStep[] }) {
-  const data: WaterfallPoint[] = steps.map((step) => ({ ...step, range: [Math.min(step.before, step.after), Math.max(step.before, step.after)], formatted: `${step.kind === "income" ? "+" : ""}${formatRub(step.amount)}` }));
-  return <div className="min-w-0 w-full" style={{ height: Math.max(230, steps.length * 34) }} role="img" aria-label="Каскад изменения денег: начальный остаток, поступления, списания и итог">
+export function CashflowWaterfall({ steps, contributions = false }: { steps: readonly WaterfallStep[]; contributions?: boolean }) {
+  const data: WaterfallPoint[] = steps.map((step) => ({ ...step, contributions, range: [Math.min(step.before, step.after), Math.max(step.before, step.after)], formatted: `${step.kind === "income" ? "+" : ""}${formatRub(step.amount)}` }));
+  return <div className="min-w-0 w-full" style={{ height: Math.max(230, steps.length * 34) }} role="img" aria-label={contributions ? "Вклад факторов в разрыв по данным сервера" : "Каскад изменения денег: начальный остаток, поступления, списания и итог"}>
     <ResponsiveContainer width="100%" height="100%" minWidth={0}>
       <BarChart data={data} layout="vertical" margin={{ top: 4, right: 86, left: 0, bottom: 0 }} barSize={14} accessibilityLayer>
         <CartesianGrid horizontal={false} stroke="var(--border-muted)" strokeDasharray="2 4" />

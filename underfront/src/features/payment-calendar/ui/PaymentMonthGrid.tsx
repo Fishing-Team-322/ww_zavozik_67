@@ -6,7 +6,7 @@ import type { DailyBalance, PaymentEvent } from "@/src/entities/payment";
 const weekdays = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
 
 interface PaymentMonthGridProps {
-  days: DailyBalance[];
+  days: Array<Pick<DailyBalance, "date" | "events"> & { closing: number | null; risk?: string }>;
   selectedDate: string;
   today: string;
   onSelectDate: (date: string) => void;
@@ -21,8 +21,9 @@ function markerColor(event: PaymentEvent): string {
 }
 
 export function PaymentMonthGrid({ days, selectedDate, today, onSelectDate, onMoveEvent }: PaymentMonthGridProps) {
+  if (!days.length) return <p>Дни календаря пока не загружены.</p>;
   const offset = (parseDate(days[0].date).getDay() + 6) % 7;
-  const cells: Array<DailyBalance | null> = [...Array(offset).fill(null), ...days];
+  const cells: Array<(typeof days)[number] | null> = [...Array(offset).fill(null), ...days];
   while (cells.length % 7) cells.push(null);
 
   return (
@@ -37,14 +38,14 @@ export function PaymentMonthGrid({ days, selectedDate, today, onSelectDate, onMo
           const markers = [...new Set(activeEvents.map(markerColor))];
           const selected = day.date === selectedDate;
           const weekend = index % 7 > 4;
-          const risk = day.closing < 0;
+          const risk = day.risk === "danger" || day.risk === "warning" || (day.closing !== null && day.closing < 0);
           return <button
             key={day.date}
             type="button"
             onClick={() => onSelectDate(day.date)}
             onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = "move"; }}
             onDrop={(event) => { event.preventDefault(); const id = event.dataTransfer.getData("text/plain"); if (id) onMoveEvent(id, day.date); }}
-            aria-label={`${parseDate(day.date).toLocaleDateString("ru-RU", { day: "numeric", month: "long" })}, остаток ${formatMoney(day.closing)}, событий ${activeEvents.length}${risk ? ", возможная нехватка денег" : ""}`}
+            aria-label={`${parseDate(day.date).toLocaleDateString("ru-RU", { day: "numeric", month: "long" })}, остаток ${(day.closing === null ? "нет оценки" : formatMoney(day.closing))}, событий ${activeEvents.length}${risk ? ", возможная нехватка денег" : ""}`}
             aria-pressed={selected}
             title="Нажмите для выбора дня или перенесите сюда событие"
             className={`relative flex h-11 min-w-0 flex-col items-center justify-center gap-1 rounded-[5px] transition-colors ${selected ? "bg-[color:var(--nav-item-active-bg)] ring-1 ring-inset ring-[color:var(--nav-item-active-border)]" : "hover:bg-[color:var(--nav-item-hover-bg)]"} focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[color:var(--nav-focus-ring)]`}

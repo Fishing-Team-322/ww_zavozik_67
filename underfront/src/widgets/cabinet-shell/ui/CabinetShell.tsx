@@ -22,7 +22,8 @@ export function CabinetShell(props: SidebarShellProps) {
   const router = useRouter();
   const { user, status, error, retry } = useAuth();
   const publicRoute = isPublicPath(pathname);
-  const needsOnboarding = status === "authenticated" && user?.companies.length === 0 && pathname !== "/companies/new";
+  const adminRoute = pathname === "/admin" || pathname.startsWith("/admin/");
+  const needsOnboarding = !adminRoute && status === "authenticated" && user?.companies.length === 0 && pathname !== "/companies/new";
 
   useEffect(() => {
     if (publicRoute) return;
@@ -38,6 +39,7 @@ export function CabinetShell(props: SidebarShellProps) {
   if (status === "guest" || needsOnboarding) return <SessionState message="Открываем нужную страницу…" />;
   if (pathname.startsWith("/admin/") || pathname === "/admin") {
     if (user?.role !== "admin") return <SessionState message="403 · У вас нет доступа к разделу администратора." />;
+    return <>{props.children}</>;
   }
   return <SidebarShell {...props} userName={user?.email ?? props.userName} />;
 }

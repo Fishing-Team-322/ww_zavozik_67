@@ -6,6 +6,8 @@ const companyPath = (companyId: string) => `/companies/${encodeURIComponent(comp
 export const sourceApi = {
   list: (companyId: string) => apiRequest<DataSource[]>(`${companyPath(companyId)}/sources`),
   create: (companyId: string, input: CreateSourceInput) => apiRequest<DataSource>(`${companyPath(companyId)}/sources`, { method: "POST", body: JSON.stringify(input) }),
+  update: (sourceId: string, input: { title?: string; enabled?: boolean }) => apiRequest<DataSource>(`/sources/${encodeURIComponent(sourceId)}`, { method: "PATCH", body: JSON.stringify(input) }),
+  remove: (sourceId: string, keepData: boolean) => apiRequest<void>(`/sources/${encodeURIComponent(sourceId)}`, { method: "DELETE", body: JSON.stringify({ keep_data: keepData }) }),
   sync: (sourceId: string) => apiRequest<Job>(`/sources/${encodeURIComponent(sourceId)}/sync`, { method: "POST" }),
   test: (sourceId: string) => apiRequest<{ ok: boolean; message: string }>(`/sources/${encodeURIComponent(sourceId)}/test`, { method: "POST" }),
   upload: (companyId: string, file: File) => {

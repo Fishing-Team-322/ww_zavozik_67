@@ -13,6 +13,7 @@ export function useApiResource<T>(
   const method = options.method || "GET";
   const key = `${path}\n${method}\n${payload}`;
   const [version, setVersion] = useState(0);
+  useEffect(() => api.onDataChanged(() => setVersion(value => value + 1)), []);
   const [state, setState] = useState<{
     key: string;
     data: T | null;
