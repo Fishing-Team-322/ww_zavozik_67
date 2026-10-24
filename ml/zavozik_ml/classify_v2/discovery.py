@@ -16,7 +16,7 @@ import shutil
 import numpy as np
 
 from .artifact import publish, seal
-from .model import EncoderClassifier, unit
+from .model import EncoderClassifier, unit, sha256_file
 from .taxonomy import Taxonomy
 
 
@@ -96,6 +96,8 @@ def approve(source: Path, report_path: Path, centers_path: Path, candidate_id: s
     report = json.loads(report_path.read_text())
     if report["model_version"] != classifier.model_version or report["taxonomy_version"] != classifier.taxonomy.version:
         raise ValueError("proposal provenance does not match source model")
+    if sha256_file(centers_path) != report.get("centers_sha256"):
+        raise ValueError("proposal centers digest mismatch")
     candidates = [c for c in report["proposals"] if c["candidate_id"] == candidate_id]
     if len(candidates) != 1:
         raise ValueError("candidate not found or ambiguous")
@@ -147,8 +149,9 @@ def main():
         if args.out.exists():
             parser.error("out already exists")
         args.out.mkdir(parents=True)
-        (args.out / "candidates.json").write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n")
         np.savez_compressed(args.out / "centers.npz", **centers)
+        report["centers_sha256"] = sha256_file(args.out / "centers.npz")
+        (args.out / "candidates.json").write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n")
         print(json.dumps({"proposals": len(centers), "eligible": report["eligible_novel_rows"]}))
     else:
         print(approve(args.model, args.report, args.centers, args.candidate,

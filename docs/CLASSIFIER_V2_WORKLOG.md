@@ -70,3 +70,76 @@
   Hidden-category experiment использует calibration-компании для кластеров,
   отдельные test-компании для оценки после добавления; не строит прототип
   из тех же тестовых точек, на которых измеряется качество.
+
+## Возобновление 15:46 МСК
+
+- Пользователь написал «продолжай» после прерывания. Ветка ml, текущий commit
+  2762e1a + рабочие изменения; исходные untracked SPEC/models/.claude/case
+  сохранены. Deadline нет, задача v2 остаётся активной.
+- run2 и его очередь были остановлены до завершения: дополнительный тест
+  обнаружил, что старое жадное удаление VAT-хвоста могло удалить следующий
+  payment-channel marker. Исправлено ограниченной грамматикой VAT; нормализация
+  version v2-preserve-payment-channel-2, auxiliary teacher v2.3. Проверены
+  payroll/fuel-card vs acquiring, incoming acquiring net of bank fee и НДС.
+- Текущие данные prepared_v3:59903train/5395calibration views/50148test.
+  Новый frozen182 и старый novel280 НЕ оценивались и не менялись.
+- rubert_run3 ЗАВЕРШЁН (PID27713/session44510 больше не активны),12epochs,
+  selected epoch12,1610s active training. Calibration category .9968489342,
+  macroF1 .9953622643, channel .9985171455, tags после calibration .9977962011.
+  source-hash guard прошёл. selected/ содержит обученный encoder, heads, config.
+- Автоочередь PID27747/session65738 запустила E5-small PID30469. На15:46 он
+  наepoch3 batch100; wall clock включает длительную паузу хоста, активный elapsed
+  ~2210s. Не запускать дубликат. e5_run1.log/selected/history сохранены.
+  Его fit_files включают model.py: до завершения НЕ менять model.py и остальные
+  train/network/calibration/data/text/weak_labels/taxonomy/v1augment.
+- Pending после окончания E5: при явном override runtime надо возвращать версию
+  с суффиксом backend и использовать соответствующую calibration из runtime
+  comparison; сейчас config.model_version не различает override. Исправить
+  loader и тесты после завершения fit, без повторного обучения.
+- Runtime/export тест с настоящим tiny random BERT прошёл, включая ONNX
+  float32/int8 и динамические размеры/паритет. Это smoke, не метрики модели.
+  Полный pytest248PASS+1SKIP до последних benchmark/runtime/export tests.
+  buf lint через go run github.com/bufbuild/buf/cmd/buf@latest завершилсяPASS.
+- В живом main-server с Torch после LightGBM первый v2RPC завис (deadline20s),
+  v1/models продолжали отвечать. Native sample показал две libomp copies.
+  Наш PID29285 после TERM пришлось KILL. Добавлен conditional Torch bootstrap
+  ДО forecasters; штатный v1/ONNX не импортирует torch. Проверка исправления
+  была прервана, сейчас запущена заново на50074; log torch_server_smoke_fixed2.
+  Это только наш тестовый сервис, остановить после проверки.
+- Новые Docker optional extras encoder/encoder-torch и исключение models из
+  build-context подготовлены; обученные веса не будут включаться в Git/context.
+
+## Сервис и freeze политики выбора, до итоговых тестов
+
+- Ruby экспортирован в rubert_candidate1, версия encoder-v1-689ac3623ffb6316.
+  Torch/ONNX-fp32/ONNX-int8 имеют одинаковые category/channel decisions на5395
+  calibration views; max abs embedding difference float ONNX2.1e-7,int8~.0146.
+  Tag microF1 .997796(float) vs.997691(int8). Выбран int8 по заранее заданным
+  calibration parity bounds и скорости. Это ещё не окончательный encoder choice.
+- Полный CPU batch256 (все нормализованные входы различны): median.1256s,
+  p95.1630s,max.1674s,10повторов. Включены normalization/tokenization/encoder/
+  heads/dicts/attributes; startup/network исключены. Локальная проверка M1Pro,
+  E5 training ещё активен; не объявлять production SLA.
+- Порядок импортов Torch/LightGBM не устранил native сбой: bootstrap дал139.
+  Не оставлять этот workaround. Вместо него PyTorch работает в отдельном
+  subprocess с bounded framed stdio IPC, без LightGBM. Parent остаётся numpy/
+  LightGBM/gRPC. v1/forecast и ONNX не импортируют Torch. Попытки и native sample
+  сохранены локально, bootstrap-файлы удалены (наши неопубликованные).
+- Live isolated Torch smoke PASS:4concurrent v2RPC, v1supplier, настоящий
+  gbm_global forecast8paths×7days. Worker был убит специально, следующий v2RPC
+  восстановил его:PASS. Parent и worker после smoke остановлены,50074свободен.
+- Изолированный regression test с tiny random BERT:ONNX+Torch load/parity,
+  dynamic lengths,new prototype,worker crash/recovery и fresh main-server
+  с v1/forecast PASS за33s. Он выполняется в отдельном subprocess, чтобы
+  optional Torch не попадал в уже импортировавший LightGBM pytest-process.
+- Штатный pytest250PASS+2SKIP до новых report acceptance tests. Все backend
+  проверки ранее PASS. Source hashes E5 перепроверены:изменений fit sources0.
+- Политика encoder choice фиксируется до финальных тестов: score=categoryAcc+
+  .15*categoryMacroF1+.05*channelAcc+.05*tagsMicroF1 на законченных Torch
+  calibration artifacts; tie<=1e-6 выбирает меньшие encoder weights. Это та же
+  структура objective, что при checkpoint selection, с калиброванными тегами.
+  Реализовано select_model.py; нужны ДВА завершённых run, не сравнивать Ruby
+  на финальных тестах пока E5 не закончен. Старый novel и новый182 НЕ открыты.
+- Pending после E5: унифицировать verified loader с encoder_factory и runtime
+  override calibration/version (убрать временную дубликацию проверки из
+  serving/torch_process.py). Файлы model.py/fit sources до конца E5 не менять.

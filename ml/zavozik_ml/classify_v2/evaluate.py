@@ -120,6 +120,7 @@ def main():
     ap.add_argument("--baseline-company", type=Path, required=True, help="v1 eval artifact trained only on same 90 companies")
     ap.add_argument("--baseline-release", type=Path, default=ML_DIR / "artifacts/classifier")
     ap.add_argument("--out", type=Path, required=True)
+    ap.add_argument("--overlap-report", type=Path)
     ap.add_argument("--unlock-heldout", action="store_true", help="explicitly consume final evaluation; no subsequent tuning")
     args = ap.parse_args()
     if not args.unlock_heldout:
@@ -148,6 +149,10 @@ def main():
     authored, manifest = authored_rows(frozen_path)
     novel = novel_rows(ML_DIR / "zavozik_ml/classify/novel_test.csv")
     sources += [("novel_regression", novel, baseline_release, False), ("authored_holdout", authored, baseline_release, True)]
+    overlap = json.loads(args.overlap_report.read_text()) if args.overlap_report else None
+    if overlap and (overlap["frozen_fixture_sha256"] != sha256_file(frozen_path)
+                    or overlap["train_sha256"] != split["train"]["sha256"]):
+        raise ValueError("input-overlap audit does not match frozen fixture/training source")
     for name, rows, baseline, auxiliary in sources:
         result, errors, predictions = score_rows(model, rows, baseline, auxiliary)
         result["label_source"] = ("partition-local weak category labels; auxiliary regex weak labels" if name == "company_test"
@@ -155,6 +160,21 @@ def main():
                                   else "synthetic authored labels frozen before training; not external human gold")
         if name == "authored_holdout":
             result["fixture_manifest"] = manifest
+            if overlap:
+                excluded = set(overlap["exact_overlap_ids"])
+                ix = [i for i, r in enumerate(rows) if r["id"] not in excluded]
+                clean = [rows[i] for i in ix]
+                truth = np.array([model.taxonomy.categories.index(r["label"]) for r in clean])
+                cp = np.array([[predictions[i].category_probs[k] for k in model.taxonomy.categories] for i in ix])
+                channel_truth = np.array([model.taxonomy.channels.index(r["channel"]) for r in clean])
+                channel_p = np.array([[predictions[i].channel_probs[k] for k in model.taxonomy.channels] for i in ix])
+                tag_truth = np.array([[tag in r["tags"] for tag in model.taxonomy.tags] for r in clean])
+                tag_p = np.array([[tag in predictions[i].tags for tag in model.taxonomy.tags] for i in ix])
+                result["input_overlap_audit"] = overlap
+                result["without_exact_train_input_overlap"] = {
+                    "category": category_scores(cp, truth),
+                    "linear_v1": label_scores([r["label"] for r in clean], baseline_predictions(baseline, clean), model.taxonomy.categories),
+                    "channel": category_scores(channel_p, channel_truth), "tags": binary_scores(tag_p, tag_truth)}
         digital = [i for i, r in enumerate(rows) if r.get("group") == "digital_ruble" or r.get("channel") == "digital_ruble"]
         if digital:
             result["digital_ruble"] = {"n": len(digital),

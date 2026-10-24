@@ -1,0 +1,141 @@
+# Классификатор v2
+
+Одна операция даёт нормированный embedding, одну категорию, распределение
+категорий, один канал, независимые теги, атрибуты категории и novelty score.
+Векторы сопоставимы только внутри одной версии энкодера. Порядок/количество
+категорий определяется taxonomy артефакта, а не клиентским enum.
+
+## Данные и обучение
+
+Штатное `ml/.venv` не требует torch. Создайте отдельное окружение и установите
+`pip install -e 'ml[train,dev]'`; на macOS обучение использует MPS, иначе CPU
+или явно указанный `--device cuda`. Команды из корня репозитория:
+
+```sh
+export PYTHONPATH=ml/gen:ml
+python -m zavozik_ml.classify_v2.fetch_base \
+  --model cointegrated/rubert-tiny2 --out ml/data/classifier_v2/base/rubert-tiny2
+python -m zavozik_ml.classify_v2.data --out ml/data/classifier_v2/prepared
+python -m zavozik_ml.classify_v2.train \
+  --base ml/data/classifier_v2/base/rubert-tiny2/REVISION \
+  --prepared ml/data/classifier_v2/prepared --out ml/data/classifier_v2/run
+python -m zavozik_ml.classify_v2.export \
+  --selected ml/data/classifier_v2/run/selected \
+  --prepared ml/data/classifier_v2/prepared --out ml/data/classifier_v2/candidate
+```
+
+Загрузчик скачивает только публичные pretrained-файлы, фиксирует revision и
+SHA-256, требует safetensors; загрузка модели всегда offline, без remote code.
+Данные операций остаются локально. Для E5 используются `--pooling mean` и
+`--text-prefix 'query: '`. Сначала выбирается энкодер по calibration-компаниям,
+затем формат runtime по качеству и скорости на тех же calibration-компаниях.
+
+Разбиение 90/30/30 компаний совпадает с v1. Teacher категории — Go rules и
+ручная доразметка шаблонов v1; каналы и теги — консервативные weak labels.
+Статистические метки пустого назначения выводятся отдельно внутри каждого
+partition. Дедупликация выполняется раздельно внутри разделов; company test
+сохраняет все исходные операции. Слоты даты/суммы маскируются,
+распространённые шаблоны имеют ограниченный вес. Чистые и шумные
+примеры, синтетика v1 и dropout контрагента дают устойчивость к формулировкам.
+
+Подготовленные файлы и исходники проверяются по хэшам. После изменения
+разметчика/нормализации надо создать новый prepared-каталог. Скрипт обучения
+читает только train/calibration, не company test и не authored holdout.
+Скрипт export сравнивает Torch/ONNX float32/int8, калибрует выбранный runtime
+заново и сохраняет реальные результаты измерения. Наличие ONNX не означает,
+что он автоматически выбран. PyTorch допустим, если он лучше по качеству.
+
+## Итоговая оценка
+
+`heldout_v1.tsv` (182 авторских синтетических примера) и его SHA зафиксированы
+до обучения. Это не независимый human gold. Не использовать набор для выбора
+параметров, не менять примеры после просмотра результатов. Старый
+`classify/novel_test.csv` — уже изученная regression-проверка.
+
+```sh
+python -m zavozik_ml.classify_v2.evaluate \
+  --model ml/data/classifier_v2/candidate \
+  --prepared ml/data/classifier_v2/prepared \
+  --baseline-company ml/data/classifier_counterparty_dropout \
+  --overlap-report ml/data/classifier_v2/fixture_overlap.json \
+  --out ml/data/classifier_v2/final_evaluation --unlock-heldout
+```
+
+Для company test нужен сохранённый **evaluation-only** v1 с теми же90 train и
+30 test-компаниями; финальный v1 обучался на всех компаниях и не подходит для
+такого сравнения. На authored/regression сравнение делается с выпущенным v1.
+Финальные результаты нельзя молча перезаписывать/подменять новым подбором.
+До просмотра предсказаний можно выполнить `python -m
+zavozik_ml.classify_v2.audit_inputs --train .../train.jsonl --out
+ml/data/classifier_v2/fixture_overlap.json`: пустые/мусорные строки могут
+совпадать с обучением по построению. В отчёте отдельно показывается поднабор
+без полного совпадения нормализованного входа; исходный frozen-файл не меняется.
+
+## Запуск сервиса
+
+`proto/categorize/v2/categorizer.proto` — новый контракт, v1 не менялся.
+Вход передаёт тип контрагента, а не ИНН. Атрибуты описывают типовую категорию,
+поэтому фактическое направление входящей операции передаётся отдельно.
+Пример: действующий справочник относит получение банковского кредита к
+`loan_payment`, чьё типовое `direction` равно `out`.
+
+```sh
+pip install -e 'ml[encoder]'        # ONNX runtime
+# либо: pip install -e 'ml[encoder-torch]'
+ML_CLASSIFIER_V2=/absolute/path/to/encoder-v1-HASH \
+PYTHONPATH=ml/gen:ml python -m zavozik_ml.serving.server
+```
+
+По умолчанию используется runtime из артефакта. `ML_CLASSIFIER_V2_BACKEND=torch`
+явно выбирает PyTorch. Без `ML_CLASSIFIER_V2` v2 отвечает FAILED_PRECONDITION,
+v1 и прогноз работают как раньше. Ошибочно настроенный путь/хэш прекращает
+startup — подмена модели не допускается. Лимиты:1024операции,1млн символов,
+8192символа назначения,1024названия,256ID; amount конечный,0..1e15.
+PyTorch-инференс сервера автоматически изолирован в отдельном локальном
+worker, чтобы его OpenMP не конфликтовал с LightGBM. Worker не хранит
+операции и не вызывает внешние API; таймаут/отказ даёт UNAVAILABLE,
+следующий запрос может восстановить worker. Его остановка включена в shutdown.
+
+Для Docker: `docker build -f ml/Dockerfile --build-arg ML_EXTRA=encoder ml`;
+для PyTorch — `ML_EXTRA=encoder-torch` (CPU wheel). Каталог модели монтируется
+read-only, например `/models/current`, переменная ML_CLASSIFIER_V2 указывает
+внутрь контейнера. Веса не встраиваются в Git/Docker context автоматически.
+Go-клиент v2 и его подключение остаются задачей владельца backend.
+
+## Новые категории
+
+Сервис не хранит пользовательские операции. Backend может локально сохранять
+ответы `is_novel` вместе с ID/назначением для офлайн-проверки. Не смешивать
+эмбеддинги разных model_version; taxonomy_version также обязана совпадать.
+
+```sh
+python -m zavozik_ml.classify_v2.discovery propose \
+  --model /path/to/model --predictions /path/to/predictions.jsonl \
+  --out ml/data/category_candidates
+```
+
+HDBSCAN выдаёт размер, представителей, центр, ближайшую категорию и предложения
+названия/атрибутов. Почти совпадающий кластер помечается synonym_review;
+категория из него автоматически не создаётся. Название и атрибуты — только
+подсказки. Для явного подтверждения:
+
+```sh
+python -m zavozik_ml.classify_v2.discovery approve \
+  --model /path/to/model \
+  --report ml/data/category_candidates/candidates.json \
+  --centers ml/data/category_candidates/centers.npz \
+  --candidate cluster_000 --reviewed-category /path/to/reviewed_category.json \
+  --taxonomy-version ru-operations-v2.N --reviewer reviewer-name \
+  --model-root ml/models/classifiers --workdir ml/data/reviewed_extension
+```
+
+`reviewed_category.json` содержит key/title_ru/description_ru/attributes,
+как в taxonomy.json. Создаётся новый артефакт, старый не меняется. Энкодер
+не переобучается. Перед активацией нужны повторная калибровка и проверка
+ошибочных переключений известных категорий.
+
+Проверка механизма: обучить отдельный run с `--hide leasing,enforcement`,
+экспортировать, затем `python -m zavozik_ml.classify_v2.novelty_experiment`.
+Discovery использует calibration-компании, оценка — test-компании. Название
+скрытого класса подтверждается симуляцией oracle по меткам discovery,
+что отдельно раскрывается в отчёте и не выдаётся за человеческое согласование.
