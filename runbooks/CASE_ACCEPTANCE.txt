@@ -180,3 +180,30 @@ regenerate the obsolete projections. No integration credentials are required.
 Regression coverage: planning_integrity_regressions_test.go (plan-fact in both
 directions, confirmation and bank matching, internal/duplicate exclusions,
 per-occurrence edits, revoked overdue schedules, migration preservation).
+
+Source removal and import integrity
+-----------------------------------
+Removing a source with keep_data=false reverses its bank-backed settlements in
+the same transaction as deleting the operations. It restores invoice balances
+and contract installments, clears obsolete calendar bank references, and retains
+manual payments and settlements from other sources. Cancelled tax liabilities
+remain cancelled. keep_data=true retains all facts and settlement state.
+
+Sync imports recheck that the source still exists and is enabled under the
+company write lock, after the network fetch. An in-flight Sheets/bank import
+cannot recreate a deleted source or commit after disabling it.
+
+Rejected CSV/XLSX rows no longer consume anonymous occurrence numbers. Invalid
+balances therefore cannot turn the following valid equal row into a new payment
+on repeat import. This does not infer identity across differently formatted
+anonymous files or automatically repair duplicates created by older versions.
+Use stable operation IDs when available.
+
+XLSX uploads publish the API source kind excel. Apply embedded migration 00009
+through the normal migrate command before running the updated API/worker; it
+normalizes legacy sources, operation metadata and import reports without
+changing financial facts, operation IDs or bank settlement references.
+
+Regression coverage: source_deletion_regressions_test.go and the import identity
+suite, including interrupted sync, legacy bank references, multiple payment
+sources, cancelled taxes, rejected rows and legacy Excel normalization.

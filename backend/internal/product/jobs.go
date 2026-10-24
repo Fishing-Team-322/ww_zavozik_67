@@ -219,6 +219,18 @@ func tableOperations(cid string, table [][]string, mapping Doc) ([]domain.Operat
 			issues = append(issues, Doc{"row": i + 2, "code": "invalid_operation", "message": "Проверьте дату, сумму и направление"})
 			continue
 		}
+		// Rejected rows must not consume an occurrence number: otherwise an
+		// invalid balance changes the identity of a later, valid equal payment.
+		var balance *domain.Money
+		if raw := cell(row, "balance"); raw != "" {
+			value, e := parseAmount(raw)
+			if e != nil {
+				issues = append(issues, Doc{"row": i + 2, "code": "invalid_balance", "message": "Проверьте остаток"})
+				continue
+			}
+			v := domain.Money(value)
+			balance = &v
+		}
 		canonical := dt + "|" + cell(row, "amount") + "|" + direction + "|" + cell(row, "counterparty") + "|" + cell(row, "inn") + "|" + cell(row, "purpose")
 		if original := cell(row, "id"); original != "" {
 			canonical = "id:" + original
@@ -229,16 +241,7 @@ func tableOperations(cid string, table [][]string, mapping Doc) ([]domain.Operat
 		sum := sha256.Sum256([]byte(canonical))
 		key := hex.EncodeToString(sum[:])
 		id := idFor(cid, "csv:"+key)
-		op := domain.Operation{ID: id, CompanyID: cid, Date: dateValue, Amount: domain.Money(amount), Direction: domain.Direction(direction), CounterpartyName: domain.Name(cell(row, "counterparty")), CounterpartyINN: domain.INN(cell(row, "inn")), Purpose: domain.Purpose(cell(row, "purpose")), DedupHash: key, Source: domain.SrcUpload}
-		if raw := cell(row, "balance"); raw != "" {
-			balance, e := parseAmount(raw)
-			if e != nil {
-				issues = append(issues, Doc{"row": i + 2, "code": "invalid_balance", "message": "Проверьте остаток"})
-				continue
-			}
-			v := domain.Money(balance)
-			op.BalanceEOD = &v
-		}
+		op := domain.Operation{ID: id, CompanyID: cid, Date: dateValue, Amount: domain.Money(amount), Direction: domain.Direction(direction), CounterpartyName: domain.Name(cell(row, "counterparty")), CounterpartyINN: domain.INN(cell(row, "inn")), Purpose: domain.Purpose(cell(row, "purpose")), BalanceEOD: balance, DedupHash: key, Source: domain.SrcUpload}
 		out = append(out, op)
 		keys[id] = key
 	}
@@ -295,12 +298,26 @@ func (s *Service) saveImport(ctx context.Context, j store.ProductJob, sourceID, 
 	if e = tx.QueryRow(ctx, "SELECT data_revision FROM companies WHERE id=$1 FOR UPDATE", j.CompanyID).Scan(&rev); e != nil {
 		return nil, e
 	}
+	if j.Kind == "sync" {
+		// The network fetch happens outside the company lock. Deletion or
+		// disabling during that fetch invalidates its eventual write.
+		var enabled bool
+		if e = tx.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM sources WHERE id=$1 AND company_id=$2 AND enabled)", sourceID, j.CompanyID).Scan(&enabled); e != nil {
+			return nil, e
+		}
+		if !enabled {
+			return nil, platform.Fail(409, "source_unavailable", "Источник удалён или отключён. Результат синхронизации не сохранён.")
+		}
+	}
 	sourceKind := kind
 	if kind == "onec" {
 		sourceKind = "onec_bank_file"
 	}
 	if kind == "csv" {
 		sourceKind = "upload"
+	}
+	if kind == "xlsx" {
+		sourceKind = "excel"
 	}
 	_, e = tx.Exec(ctx, "INSERT INTO sources(id,company_id,kind,title) VALUES($1,$2,$3,$4) ON CONFLICT(id) DO NOTHING", sourceID, j.CompanyID, sourceKind, "Загрузка "+sourceKind)
 	if e != nil {

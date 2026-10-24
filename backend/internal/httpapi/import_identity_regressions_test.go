@@ -5,9 +5,12 @@ import (
 	"context"
 	"mime/multipart"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/product"
+	"github.com/Fishing-Team-322/ww_zavozik_67/backend/migrations"
+	"github.com/xuri/excelize/v2"
 )
 
 func importAuditCSV(t *testing.T, h *harness, s *product.Service, token, cid, body string) product.Doc {
@@ -53,6 +56,64 @@ func TestImportReportsReusedIDWithDifferentAmount(t *testing.T) {
 				t.Fatalf("conflicting import rewrote historical amount: %.2f", amount)
 			}
 		})
+	}
+}
+
+func TestRejectedRowsDoNotShiftAnonymousPaymentIdentity(t *testing.T) {
+	h, s, token, cid := auditSetup(t)
+	head := "date;amount;direction;counterparty;purpose;balance\n"
+	valid := "2026-10-24;100;in;Anonymous client;Services;109100\n"
+	importAuditCSV(t, h, s, token, cid, head+valid)
+	report := importAuditCSV(t, h, s, token, cid, head+"2026-10-24;100;in;Anonymous client;Services;invalid\n"+valid)
+	if report["added"] != float64(0) || report["duplicates"] != float64(1) || len(report["errors"].([]any)) != 1 {
+		t.Fatal("a rejected balance row shifted the valid payment's identity", report)
+	}
+}
+
+func TestExcelImportUsesPublicSourceKindAndRepairsLegacyRecords(t *testing.T) {
+	h, s, token, cid := auditSetup(t)
+	book := excelize.NewFile()
+	defer book.Close()
+	for i, row := range [][]any{{"date", "amount", "direction", "counterparty", "balance", "id"}, {"2026-10-24", 100, "in", "Excel audit", 109100, "excel-one"}} {
+		cell, _ := excelize.CoordinatesToCellName(1, i+1)
+		if err := book.SetSheetRow("Sheet1", cell, &row); err != nil {
+			t.Fatal(err)
+		}
+	}
+	buf, err := book.WriteToBuffer()
+	if err != nil {
+		t.Fatal(err)
+	}
+	report := importAuditCSV(t, h, s, token, cid, string(buf.Bytes()))
+	if report["source"].(map[string]any)["kind"] != "excel" {
+		t.Fatal("internal XLSX format leaked into the public source enum", report)
+	}
+	base := "/v1/companies/" + cid
+	status(t, h.call("GET", base+"/sources", "", token), 200)
+	status(t, h.call("GET", base+"/operations", "", token), 200)
+	// Recreate the old persisted representation and apply the actual upgrade.
+	ctx := context.Background()
+	if _, err = h.db.Pool.Exec(ctx, "UPDATE sources SET kind='xlsx' WHERE id=$1", report["source_id"]); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = h.db.Pool.Exec(ctx, `UPDATE operations SET extra=extra||'{"source":"xlsx"}'::jsonb WHERE source_id=$1`, report["source_id"]); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = h.db.Pool.Exec(ctx, `UPDATE product_documents SET data=jsonb_set(data,'{source,kind}','"xlsx"'::jsonb) WHERE id=$1`, report["id"]); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := migrations.Files.ReadFile("00009_excel_source_kind.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = h.db.Pool.Exec(ctx, strings.SplitN(string(raw), "-- +goose Down", 2)[0]); err != nil {
+		t.Fatal(err)
+	}
+	status(t, h.call("GET", base+"/sources", "", token), 200)
+	status(t, h.call("GET", base+"/operations", "", token), 200)
+	repaired := auditCall(t, h, token, "GET", "/v1/imports/"+report["id"].(string), nil, 200)
+	if repaired["source"].(map[string]any)["kind"] != "excel" {
+		t.Fatal("legacy import report was not repaired", repaired)
 	}
 }
 func TestRepeatImportCanFillAnUnknownClosingBalance(t *testing.T) {
