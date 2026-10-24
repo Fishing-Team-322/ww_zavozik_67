@@ -4,7 +4,29 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/domain"
 )
+
+func TestCounterpartyKey(t *testing.T) {
+	if counterpartyKey("A", domain.Operation{}) != "" {
+		t.Fatal("missing counterparties must not form a shared stream")
+	}
+	a := domain.Operation{CounterpartyINN: domain.INN("0012345678"), CounterpartyName: domain.Name("first")}
+	b := a
+	b.CounterpartyName = domain.Name("another spelling")
+	if counterpartyKey("A", a) != counterpartyKey("A", b) || len(counterpartyKey("A", a)) != 64 {
+		t.Fatal("stable INN must yield a stable pseudonymous stream")
+	}
+	if counterpartyKey("A", a) == counterpartyKey("B", a) {
+		t.Fatal("counterparty keys must be company-scoped")
+	}
+	a = domain.Operation{CounterpartyName: domain.Name("  Example  Supplier ")}
+	b = domain.Operation{CounterpartyName: domain.Name("example supplier")}
+	if counterpartyKey("A", a) != counterpartyKey("A", b) {
+		t.Fatal("name-only keys should normalize whitespace and case")
+	}
+}
 
 func TestValidateOutputPaths(t *testing.T) {
 	dir := t.TempDir()

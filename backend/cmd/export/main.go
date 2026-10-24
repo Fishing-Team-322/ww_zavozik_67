@@ -12,6 +12,7 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/csv"
 	"encoding/json"
 	"flag"
@@ -70,7 +71,7 @@ func main() {
 			fail(err)
 		}
 		transactions = csvout.New(f)
-		transactions.Write([]string{"company_id", "date", "direction", "amount", "category"})
+		transactions.Write([]string{"company_id", "date", "direction", "amount", "category", "counterparty"})
 	}
 	out, err := os.Create(*outPath)
 	if err != nil {
@@ -99,7 +100,7 @@ func main() {
 		if transactions != nil {
 			for _, op := range c.Ops {
 				if dataset.NotInternal(op) {
-					transactions.Write([]string{c.ID, op.Date.Format(domain.DateLayout), string(op.Direction), op.Amount.String(), string(op.Category)})
+					transactions.Write([]string{c.ID, op.Date.Format(domain.DateLayout), string(op.Direction), op.Amount.String(), string(op.Category), counterpartyKey(c.ID, op)})
 				}
 			}
 		}
@@ -149,6 +150,20 @@ func main() {
 		fail(err)
 	}
 	fmt.Printf("companies: %d, rows: %d, out: %s\n", len(files), rows, *outPath)
+}
+
+// counterpartyKey preserves within-company relationships without exporting names
+// or tax identifiers. Missing identity stays missing, not one shared counterparty.
+func counterpartyKey(companyID string, op domain.Operation) string {
+	identity := strings.TrimSpace(string(op.CounterpartyINN))
+	if identity == "" {
+		identity = strings.ToLower(strings.Join(strings.Fields(string(op.CounterpartyName)), " "))
+	}
+	if identity == "" {
+		return ""
+	}
+	digest := sha256.Sum256([]byte(companyID + "\x00" + identity))
+	return fmt.Sprintf("%x", digest)
 }
 
 // validateOutputPaths runs before any file is truncated. Resolve existing
