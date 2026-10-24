@@ -9,6 +9,7 @@
 - [Архитектура](docs/ARCHITECTURE.md) — технические решения, роли и порядок работ.
 - [Прогресс](docs/PROGRESS.md) — состояние реализации, доказательства и следующие шаги.
 - [Детали реализации](docs/IMPLEMENTATION_NOTES.md) — ограничения и подводные камни.
+- [Полный API бэкенда](docs/BACKEND_API.md) — маршруты, источники, worker и ограничения расчётов.
 
 ## Состав
 
@@ -46,6 +47,11 @@ make backtest ML=localhost:50051
 cd backend && go run ./cmd/api
 ```
 
+Для загрузок, синхронизации и выгрузок дополнительно запустить `go run ./cmd/worker`
+из `backend/` с теми же `DATABASE_URL` и `DATA_ENCRYPTION_KEY`, что у API.
+Финансовые методы используют постоянные данные компании; все маршруты документа
+экранов включены в OpenAPI. Настройка интеграций — в [инструкции API](docs/BACKEND_API.md).
+
 Фронту до готовности API — мок по контракту:
 
 ```bash
@@ -54,9 +60,10 @@ npx @stoplight/prism-cli mock api/openapi.yaml
 
 ## Как добавлять
 
-- **Эндпоинт:** правим `api/openapi.yaml` → `make gen-api` → реализуем метод на
-  `httpapi.Server` (сигнатура — в `unimplemented.gen.go`). Пока метода нет,
-  эндпоинт отвечает 501.
+- **Эндпоинт:** правим `api/openapi.yaml` → `make gen-api`. Строгие адаптеры
+  финансовых методов генерируются в `product.gen.go`, бизнес-обработчик добавляется
+  в `backend/internal/product`. Аккаунты реализованы в `httpapi/platform.go`.
+  `Server` больше не наследует заглушки 501; контракт и обработчик обновлять вместе.
 - **Прогнозная модель:** класс в `ml/zavozik_ml/forecasters/` с `@register` —
   сразу доступна через gRPC и в `make backtest ML=... ` (`-model <name>`).
 - **Источник данных:** тип в `backend/internal/sources/<name>/` +

@@ -54,14 +54,25 @@ func (p *Postgres) GetCompany(ctx context.Context, uid, id string) (platform.Com
 	return scanCompany(p.Pool.QueryRow(ctx, "SELECT "+companyFields+" FROM companies c JOIN memberships m ON m.company_id=c.id WHERE c.id=$1 AND m.user_id=$2 AND m.role='owner'", id, uid))
 }
 func (p *Postgres) UpdateCompany(ctx context.Context, uid string, in platform.Company) (platform.Company, error) {
-	c, err := scanCompany(p.Pool.QueryRow(ctx, `UPDATE companies AS c SET name=$3,inn=$4,legal_form=$5,industry=$6,tax_regime=$7,reserve=$8,default_horizon=$9,updated_at=clock_timestamp()
+	tx, err := p.Pool.Begin(ctx)
+	if err != nil {
+		return in, dbError(err)
+	}
+	defer tx.Rollback(ctx)
+	c, err := scanCompany(tx.QueryRow(ctx, `UPDATE companies AS c SET name=$3,inn=$4,legal_form=$5,industry=$6,tax_regime=$7,reserve=$8,default_horizon=$9,updated_at=clock_timestamp()
  WHERE c.id=$1 AND c.updated_at=$10 AND EXISTS(SELECT 1 FROM memberships WHERE company_id=c.id AND user_id=$2 AND role='owner') RETURNING `+companyFields, in.ID, uid, in.Name, in.INN, in.LegalForm, in.Industry, in.TaxRegime, in.Reserve, in.DefaultHorizon, in.UpdatedAt))
 	if platform.IsStatus(err, 404) {
 		if _, e := p.GetCompany(ctx, uid, in.ID); e == nil {
 			return c, platform.Fail(409, "version_conflict", "Компания уже изменена. Обновите данные")
 		}
 	}
-	return c, err
+	if err != nil {
+		return c, err
+	}
+	if err = touchCompany(ctx, tx, uid, in.ID); err != nil {
+		return c, err
+	}
+	return c, dbError(tx.Commit(ctx))
 }
 func (p *Postgres) DeleteCompany(ctx context.Context, uid, id, confirm string) error {
 	tx, err := p.Pool.Begin(ctx)

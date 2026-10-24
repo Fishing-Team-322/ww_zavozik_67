@@ -91,7 +91,7 @@ func (s *Server) withPlatform(next http.Handler) http.Handler {
 				return
 			}
 		}
-		r = r.WithContext(context.WithValue(r.Context(), requestKey, r))
+		*r = *r.WithContext(context.WithValue(r.Context(), requestKey, r))
 		isAuth := strings.HasPrefix(r.URL.Path, "/v1/auth/")
 		public := r.URL.Path == "/healthz" || r.URL.Path == "/v1/models" || r.URL.Path == "/v1/models/quality" || (isAuth && r.URL.Path != "/v1/auth/logout")
 		if strings.HasPrefix(r.URL.Path, "/v1/") && !public {
@@ -110,7 +110,7 @@ func (s *Server) withPlatform(next http.Handler) http.Handler {
 				s.platformError(w, err)
 				return
 			}
-			r = r.WithContext(context.WithValue(r.Context(), principalKey, p))
+			*r = *r.WithContext(context.WithValue(r.Context(), principalKey, p))
 		}
 		if (isAuth && r.URL.Path != "/v1/auth/providers") || r.URL.Path == "/v1/me/password" {
 			if s.Accounts == nil {
@@ -136,6 +136,10 @@ func (s *Server) withPlatform(next http.Handler) http.Handler {
 			}
 		}
 		required, allowed, check := bodyRules(r.Method, r.URL.Path)
+		productJSON := !check && r.ContentLength != 0 && r.Header.Get("Content-Type") != "" && strings.HasPrefix(r.Header.Get("Content-Type"), "application/json") && r.Method != "GET" && r.Method != "HEAD"
+		if productJSON {
+			check = true
+		}
 		if check {
 			media, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
 			if err != nil || media != "application/json" {
@@ -160,7 +164,7 @@ func (s *Server) withPlatform(next http.Handler) http.Handler {
 				}
 			}
 			for key, value := range values {
-				if !strings.Contains(" "+allowed+" ", " "+key+" ") {
+				if !productJSON && !strings.Contains(" "+allowed+" ", " "+key+" ") {
 					writeError(w, 400, "bad_request", "Неизвестное поле запроса")
 					return
 				}
@@ -174,7 +178,7 @@ func (s *Server) withPlatform(next http.Handler) http.Handler {
 				return
 			}
 			r.Body = io.NopCloser(bytes.NewReader(data))
-			r = r.WithContext(context.WithValue(r.Context(), bodyKey, values))
+			*r = *r.WithContext(context.WithValue(r.Context(), bodyKey, values))
 		}
 		next.ServeHTTP(w, r)
 	})
