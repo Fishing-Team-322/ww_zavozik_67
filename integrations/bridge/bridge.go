@@ -1,0 +1,22 @@
+// Package bridge exposes the integration adapters to the authenticated backend.
+// Identity is supplied by the backend after checking company ownership.
+package bridge
+
+import (
+ "context"
+ "io"
+ "net/http"
+
+ "github.com/Fishing-Team-322/ww_zavozik_67/integrations/internal/contracts"
+ "github.com/Fishing-Team-322/ww_zavozik_67/integrations/internal/providers/onecbank"
+ "github.com/Fishing-Team-322/ww_zavozik_67/integrations/internal/providers/onecodata"
+ "github.com/Fishing-Team-322/ww_zavozik_67/integrations/internal/providers/dadata"
+)
+type Identity = contracts.Identity
+type Batch = contracts.ImportBatch
+type Operation = contracts.Operation
+type ODataConfig = onecodata.Config
+type Party = dadata.Party
+func ParseBank(ctx context.Context,r io.Reader,id Identity)(Batch,error){return (onecbank.Parser{}).Parse(ctx,r,id)}
+func FetchOData(ctx context.Context,cfg ODataConfig,username,password string)(Batch,error){return (onecodata.Client{Username:username,Password:password}).Fetch(ctx,cfg)}
+func Lookup(ctx context.Context,token,inn string,httpClient *http.Client)(Party,error){return (dadata.Client{Token:token,HTTP:httpClient}).Lookup(ctx,inn)}

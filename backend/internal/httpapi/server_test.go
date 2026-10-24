@@ -53,9 +53,9 @@ func TestListModelsIncludesBuiltin(t *testing.T) {
 	t.Errorf("builtin model missing from %+v", models)
 }
 
-// Ещё не реализованный эндпоинт остаётся заглушкой 501.
-func TestUnimplementedRoute(t *testing.T) {
-	if rec := get(t, "/v1/models/quality"); rec.Code != http.StatusNotImplemented {
+// Public quality works even when the optional reports are not mounted.
+func TestModelQualityRoute(t *testing.T) {
+	if rec := get(t, "/v1/models/quality"); rec.Code != http.StatusOK {
 		t.Fatalf("status %d: %s", rec.Code, rec.Body)
 	}
 }
