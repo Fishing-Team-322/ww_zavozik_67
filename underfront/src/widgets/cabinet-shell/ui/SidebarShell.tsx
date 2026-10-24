@@ -7,6 +7,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { NotificationBell } from "@/src/features/notifications";
 import { Breadcrumbs, type BreadcrumbItem } from "@/src/shared/ui/breadcrumbs/breadcrumbs";
 import { Button } from "@/src/shared/ui/button";
+import { SearchInput } from "@/src/shared/ui/search-input";
 import { Select, type SelectOption } from "@/src/shared/ui/select";
 import { useCompany } from "@/src/features/company-context/CompanyProvider";
 import { useAuth } from "@/src/features/auth/model/AuthProvider";
@@ -23,6 +24,47 @@ export type SidebarShellProps = {
   /** Kept for existing callers; rendered in the sidebar footer. */
   topRight?: ReactNode;
 };
+
+const demoSearchResults = [
+  { label: "Обзор", href: "/overview" },
+  { label: "Прогноз", href: "/forecast" },
+  { label: "Нехватка денег", href: "/risks" },
+  { label: "Операции", href: "/transactions" },
+];
+
+function HeaderSearch() {
+  const router = useRouter();
+  const rootRef = useRef<HTMLDivElement>(null);
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.altKey && !event.ctrlKey && !event.metaKey && event.code === "KeyK") {
+        const input = rootRef.current?.querySelector("input");
+        if (!input?.getClientRects().length) return;
+        event.preventDefault();
+        input.focus();
+        setOpen(Boolean(input.value.trim()));
+      } else if (event.key === "Escape" && rootRef.current?.contains(document.activeElement)) {
+        setOpen(false);
+        rootRef.current?.querySelector("input")?.blur();
+      }
+    };
+    const onPointerDown = (event: PointerEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    document.addEventListener("keydown", onKeyDown);
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => { document.removeEventListener("keydown", onKeyDown); document.removeEventListener("pointerdown", onPointerDown); };
+  }, []);
+
+  return <div ref={rootRef} className="relative hidden w-[150px] md:block xl:w-[170px]" onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false); }}>
+    <SearchInput aria-label="Поиск по разделам" placeholder="Поиск…" inputSize="md" value={query} onChange={event => { setQuery(event.target.value); setOpen(Boolean(event.target.value.trim())); }} onFocus={() => setOpen(Boolean(query.trim()))} className="!h-6 !pr-14 !text-xs !font-medium !leading-4 [&::-webkit-search-cancel-button]:hidden" />
+    <kbd aria-hidden="true" title="Alt + K или Alt + Л" className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 rounded border border-[color:var(--border)] bg-[color:var(--surface-subtle)] px-1 py-0.5 text-[10px] leading-none text-[color:var(--text-secondary)]">Alt K</kbd>
+    {open && query.trim() && <div className="absolute right-0 top-full z-50 mt-2 w-[260px] max-w-[calc(100vw-24px)] overflow-hidden rounded-[6px] border border-[color:var(--border)] bg-[color:var(--surface-elevated)] p-2 shadow-[var(--shadow-md)]"><p className="px-2 pb-1 text-[11px] text-[color:var(--text-secondary)]">Демо-результаты</p>{demoSearchResults.map(result => <button key={result.href} type="button" className="flex w-full items-center rounded-[5px] px-2 py-2 text-left text-xs text-[color:var(--text-primary)] transition-colors hover:bg-[color:var(--surface-subtle)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--focus-ring-strong)]" onClick={() => { setOpen(false); setQuery(""); router.push(result.href); }}>{result.label}</button>)}</div>}
+  </div>;
+}
 
 function breadcrumbsForPath(pathname: string, navItems: SidebarNavItem[]): BreadcrumbItem[] {
   const path = pathname.replace(/\/+$/, "") || "/";
@@ -154,6 +196,7 @@ export function SidebarShell({children, navItems = defaultCabinetNav, appTitle =
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
+          <HeaderSearch />
           <NotificationBell key={companyId} />
           <div className="hidden items-center gap-4 sm:flex">
             <span className="whitespace-nowrap text-[12px] font-medium leading-4 tracking-normal tabular-nums text-[color:var(--nav-item-text)]">{selectedCompany?.data_as_of ? `Данные на ${new Date(selectedCompany.data_as_of).toLocaleDateString("ru-RU")}` : "Данные ещё не загружены"}</span>
