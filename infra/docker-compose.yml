@@ -30,12 +30,33 @@ services:
       HTTP_ADDR: :8080
       DATABASE_URL: postgres://zavozik:${POSTGRES_PASSWORD:-zavozik}@postgres:5432/zavozik?sslmode=disable
       ML_ADDR: ml:50051
-      JWT_SECRET: ${JWT_SECRET:-dev-only-change-me}
+      JWT_SECRET: ${JWT_SECRET:-}
       LOG_LEVEL: info
+      PUBLIC_URL: ${PUBLIC_URL:-http://localhost:8080}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+      COOKIE_SECURE: ${COOKIE_SECURE:-true}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      YANDEX_CLIENT_ID: ${YANDEX_CLIENT_ID:-}
+      YANDEX_CLIENT_SECRET: ${YANDEX_CLIENT_SECRET:-}
+      SMTP_ADDR: ${SMTP_ADDR:-}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-}
     ports: ["8080:8080"]
     depends_on:
       postgres: { condition: service_healthy }
       ml: { condition: service_started }
+      migrate: { condition: service_completed_successfully }
+
+  migrate:
+    build:
+      context: ../backend
+      args: { CMD: migrate }
+    environment:
+      DATABASE_URL: postgres://zavozik:${POSTGRES_PASSWORD:-zavozik}@postgres:5432/zavozik?sslmode=disable
+    depends_on:
+      postgres: { condition: service_healthy }
 
   worker:
     build:
