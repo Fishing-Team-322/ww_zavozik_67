@@ -23,7 +23,7 @@ type Status struct {
 	Status string `json:"status"`
 }
 
-func List(oneCODataConfigured, daDataConfigured bool) []Status {
+func List(oneCODataConfigured, daDataConfigured bool, marketplaces ...bool) []Status {
 	oneCODataStatus := "not_configured"
 	if oneCODataConfigured {
 		oneCODataStatus = "ready"
@@ -32,11 +32,20 @@ func List(oneCODataConfigured, daDataConfigured bool) []Status {
 	if daDataConfigured {
 		daDataStatus = "ready"
 	}
+	wbStatus, ozonStatus := "mock_ready", "mock_ready"
+	if len(marketplaces) > 0 && marketplaces[0] {
+		wbStatus = "ready"
+	}
+	if len(marketplaces) > 1 && marketplaces[1] {
+		ozonStatus = "ready"
+	}
 	return []Status{
 		{"onecbank", "file", "ready"},
 		{"onecodata", "pull", oneCODataStatus},
 		{"dadata", "lookup", daDataStatus},
-		{"fnsopendata", "pull", "not_implemented"},
-		{"wb", "pull", "not_implemented"},
+		{"fnsopendata", "archive_import", "ready"},
+		{"wb", "pull", wbStatus},
+		{"ozon", "pull", ozonStatus},
+		{"csv", "file", "ready"},
 	}
 }

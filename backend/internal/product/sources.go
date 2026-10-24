@@ -12,6 +12,7 @@ import (
 	"io"
 	"math"
 	"mime/multipart"
+	"net"
 	"net/http"
 	"net/url"
 	"path"
@@ -27,6 +28,10 @@ import (
 	"github.com/xuri/excelize/v2"
 	"golang.org/x/text/encoding/charmap"
 )
+
+func isLoopbackHost(host string) bool {
+	return strings.EqualFold(host, "localhost") || net.ParseIP(host) != nil && net.ParseIP(host).IsLoopback()
+}
 
 func (s *Service) seal(data []byte) ([]byte, error) {
 	if len(s.EncryptionKey) != 32 {
@@ -70,7 +75,7 @@ func (s *Service) unseal(data []byte) (Doc, error) {
 	}
 	return store.Decode(plain), nil
 }
-func (s *Service) validateSourceConfig(ctx context.Context, uid, cid, kind string, cfg Doc) error {
+func (s *Service) validateSourceConfig(ctx context.Context, uid, cid, kind string, cfg Doc, requireMapping bool) error {
 	switch kind {
 	case "onec_odata":
 		var c bridge.ODataConfig
@@ -87,10 +92,13 @@ func (s *Service) validateSourceConfig(ctx context.Context, uid, cid, kind strin
 		c.CompanyID = cid
 		c.CompanyINN = *company.INN
 		cfg["company_id"], cfg["company_inn"] = cid, *company.INN
-		if c.Validate() != nil {
+		if requireMapping && c.Validate() != nil {
 			return bad("Проверьте base_url, company_account, account_map и коллекции 1С")
 		}
 		u, _ := url.Parse(c.BaseURL)
+		if u == nil || u.Host == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || !strings.HasSuffix(u.Path, "/") || u.Scheme != "https" && (u.Scheme != "http" || !isLoopbackHost(u.Hostname())) {
+			return bad("Нужен HTTPS URL OData или адрес на этом компьютере, оканчивающийся на /")
+		}
 		allowed := false
 		for _, host := range s.AllowedSourceHosts {
 			if strings.EqualFold(u.Host, host) {
@@ -162,7 +170,7 @@ func (s *Service) sourceAction(ctx context.Context, op, uid, id string) (Result,
 	if e != nil {
 		return Result{}, e
 	}
-	if e = s.validateSourceConfig(ctx, uid, cid, kind, cfg); e != nil {
+	if e = s.validateSourceConfig(ctx, uid, cid, kind, cfg, op != "testSource"); e != nil {
 		return Result{}, e
 	}
 	if op == "testSource" {
@@ -170,7 +178,50 @@ func (s *Service) sourceAction(ctx context.Context, op, uid, id string) (Result,
 		case "onec_odata":
 			var c bridge.ODataConfig
 			json.Unmarshal(store.JSON(cfg), &c)
-			_, e = bridge.FetchOData(ctx, c, text(cfg, "username"), text(cfg, "password"))
+			var discovery bridge.ODataDiscovery
+			discovery, e = bridge.InspectOData(ctx, c.BaseURL, text(cfg, "username"), text(cfg, "password"))
+			if e == nil {
+				published := make(map[string]map[string]bool, len(discovery.Collections))
+				for _, collection := range discovery.Collections {
+					fields := make(map[string]bool, len(collection.Fields))
+					for _, field := range collection.Fields {
+						fields[field.Name] = true
+					}
+					published[collection.Name] = fields
+				}
+				missing := []string{}
+				for _, collection := range c.Collections {
+					fields, ok := published[collection.EntitySet]
+					if !ok {
+						missing = append(missing, collection.EntitySet)
+						continue
+					}
+					mapped := collection.Fields
+					for _, field := range []string{mapped.ExternalID, mapped.Number, mapped.DocumentDate, mapped.ExecutionDate, mapped.Amount, mapped.Posted, mapped.AccountKey, mapped.Unconfirmed, mapped.CounterpartyINN, mapped.CounterpartyName, mapped.CounterpartyKey, mapped.Purpose} {
+						root := strings.SplitN(field, ".", 2)[0]
+						if field != "" && !fields[root] {
+							missing = append(missing, collection.EntitySet+"."+field)
+						}
+					}
+				}
+				if len(missing) > 0 {
+					if _, e = s.DB.Pool.Exec(ctx, "UPDATE sources SET status='mapping_required',error=NULL WHERE id=$1 AND company_id=$2", id, cid); e != nil {
+						return Result{}, e
+					}
+					return ok(Doc{"ok": true, "ready_to_sync": false, "message": "В опубликованной 1С нет части настроенных коллекций или полей", "missing": missing, "discovery": discovery})
+				}
+				ready := c.Validate() == nil
+				message := "Соединение проверено. Настройте счёт и соответствие коллекций для синхронизации"
+				status := "mapping_required"
+				if ready {
+					message = "Соединение и маппинг проверены"
+					status = "ok"
+				}
+				if _, e = s.DB.Pool.Exec(ctx, "UPDATE sources SET status=$3,error=NULL WHERE id=$1 AND company_id=$2", id, cid, status); e != nil {
+					return Result{}, e
+				}
+				return ok(Doc{"ok": true, "ready_to_sync": ready, "message": message, "discovery": discovery})
+			}
 		case "gsheets":
 			_, e = s.fetchSheet(ctx, cfg)
 		case "fns":
@@ -184,6 +235,9 @@ func (s *Service) sourceAction(ctx context.Context, op, uid, id string) (Result,
 			_, e = s.lookup(ctx, *company.INN)
 		}
 		if e != nil {
+			if kind == "onec_odata" {
+				_, _ = s.DB.Pool.Exec(ctx, "UPDATE sources SET status='error',error='Не удалось проверить подключение' WHERE id=$1 AND company_id=$2", id, cid)
+			}
 			var configured *platform.Error
 			if errors.As(e, &configured) && configured.Status == 503 {
 				return Result{}, e

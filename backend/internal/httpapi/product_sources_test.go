@@ -129,7 +129,11 @@ func TestProductSourceAdaptersAndRecovery(t *testing.T) {
 			t.Error("missing adapter credentials")
 		}
 		w.Header().Set("Content-Type", "application/json")
-		if strings.HasSuffix(r.URL.Path, "Document_BankReceipt") {
+		if strings.HasSuffix(r.URL.Path, "/$metadata") {
+			io.WriteString(w, `<edmx:Edmx xmlns:edmx="http://schemas.microsoft.com/ado/2007/06/edmx"><edmx:DataServices><Schema xmlns="http://schemas.microsoft.com/ado/2009/11/edm" Namespace="StandardODATA"><EntityType Name="Document_BankReceipt"><Property Name="Ref_Key" Type="Edm.String"/><Property Name="Number" Type="Edm.String"/><Property Name="Date" Type="Edm.DateTime"/><Property Name="ExecutionDate" Type="Edm.DateTime"/><Property Name="Amount" Type="Edm.Double"/><Property Name="Posted" Type="Edm.Boolean"/><Property Name="Account_Key" Type="Edm.String"/><Property Name="Counterparty" Type="Edm.String"/><Property Name="PaymentPurpose" Type="Edm.String"/></EntityType><EntityType Name="Document_BankPayment"><Property Name="Ref_Key" Type="Edm.String"/><Property Name="Number" Type="Edm.String"/><Property Name="Date" Type="Edm.DateTime"/><Property Name="ExecutionDate" Type="Edm.DateTime"/><Property Name="Amount" Type="Edm.Double"/><Property Name="Posted" Type="Edm.Boolean"/><Property Name="Account_Key" Type="Edm.String"/><Property Name="Counterparty" Type="Edm.String"/><Property Name="PaymentPurpose" Type="Edm.String"/></EntityType><EntityContainer Name="Default"><EntitySet Name="Document_BankReceipt" EntityType="StandardODATA.Document_BankReceipt"/><EntitySet Name="Document_BankPayment" EntityType="StandardODATA.Document_BankPayment"/></EntityContainer></Schema></edmx:DataServices></edmx:Edmx>`)
+		} else if strings.HasSuffix(r.URL.Path, "/standard.odata/") {
+			io.WriteString(w, `{"value":[{"name":"Document_BankReceipt","url":"Document_BankReceipt"},{"name":"Document_BankPayment","url":"Document_BankPayment"}]}`)
+		} else if strings.HasSuffix(r.URL.Path, "Document_BankReceipt") {
 			io.WriteString(w, `{"value":[{"Ref_Key":"backend-in-1","Number":"1","Date":"2026-10-22","ExecutionDate":"2026-10-22","Amount":1250.75,"Posted":true,"Account_Key":"bank-account-1","Counterparty":{"INN":"7800000000","Description":"Backend client"},"PaymentPurpose":"Services"}]}`)
 		} else {
 			io.WriteString(w, `{"value":[]}`)
@@ -148,9 +152,23 @@ func TestProductSourceAdaptersAndRecovery(t *testing.T) {
 	cfg["username"] = "reader"
 	cfg["password"] = "secret-value"
 	service.AllowedSourceHosts = []string{strings.TrimPrefix(mock.URL, "http://")}
+	draft := call("POST", base+"/sources", product.Doc{"title": "Draft OData", "kind": "onec_odata", "config": product.Doc{"base_url": mock.URL + "/odata/standard.odata/", "username": "reader", "password": "secret-value"}}, 201)
+	if draft["status"] != "pending" {
+		t.Fatal("new OData source must wait for connection test", draft)
+	}
+	draftCheck := call("POST", "/v1/sources/"+draft["id"].(string)+"/test", nil, 200)
+	if draftCheck["ok"] != true || draftCheck["ready_to_sync"] != false || draftCheck["discovery"] == nil {
+		t.Fatal("OData draft should discover metadata before mapping", draftCheck)
+	}
+	if after := call("GET", "/v1/sources/"+draft["id"].(string), nil, 200); after["status"] != "mapping_required" {
+		t.Fatal("draft status should request mapping", after)
+	}
 	source := call("POST", base+"/sources", product.Doc{"title": "Test OData", "kind": "onec_odata", "config": cfg}, 201)
 	sid := source["id"].(string)
-	call("POST", "/v1/sources/"+sid+"/test", nil, 200)
+	checked := call("POST", "/v1/sources/"+sid+"/test", nil, 200)
+	if checked["ok"] != true || checked["ready_to_sync"] != true || checked["discovery"] == nil {
+		t.Fatal("OData metadata discovery failed", checked)
+	}
 	done(call("POST", "/v1/sources/"+sid+"/sync", nil, 202))
 	done(call("POST", "/v1/admin/integrations/"+sid+"/retry", nil, 202))
 	var secret []byte
