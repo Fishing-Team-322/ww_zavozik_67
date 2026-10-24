@@ -22,6 +22,11 @@ type ODataConfig = onecodata.Config
 type ODataDiscovery = onecodata.Discovery
 type ODataPlanConfig = onecodata.PlanConfig
 type Party = dadata.Party
+type AccountingOrganization = onecodata.AccountingOrganization
+
+func DiscoverAccounting(ctx context.Context, root, inn, username, password string) ([]AccountingOrganization, error) {
+	return (onecodata.Client{Username: username, Password: password}).DiscoverAccounting(ctx, root, inn)
+}
 
 // ValidINN validates length, digits and the official checksum, not ownership.
 func ValidINN(value string) bool {

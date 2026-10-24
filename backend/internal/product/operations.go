@@ -278,6 +278,27 @@ func (s *Service) counterparties(ctx context.Context, op, uid, cid string, r *ht
 			g["overdue_amount"] = number(g, "overdue_amount") + number(d, "amount") - number(d, "paid_amount")
 		}
 	}
+	registry, e := s.DB.ProductList(ctx, uid, cid, "registry")
+	if e != nil {
+		return Result{}, e
+	}
+	for _, record := range registry {
+		if text(record, "target") != "counterparty" {
+			continue
+		}
+		ref := cpRef(cid, Doc{"counterparty_inn": record["inn"], "counterparty_name": record["name"]})
+		id := ref["id"].(string)
+		g := groups[id]
+		if g == nil {
+			g = Doc{"id": id, "name": record["name"], "inn": record["inn"], "roles": []string{}, "turnover_in_12m": float64(0), "turnover_out_12m": float64(0), "revenue_share": float64(0), "operations_count": 0, "first_at": nil, "last_at": nil, "avg_payment_delay_days": nil, "delay_stability": nil, "discipline_score": nil, "overdue_amount": float64(0)}
+			groups[id] = g
+		}
+		old, _ := g["registry"].(Doc)
+		if old == nil || text(record, "actual_at") > text(old, "actual_at") || text(record, "actual_at") == text(old, "actual_at") && text(record, "created_at") > text(old, "created_at") {
+			g["registry"] = record
+			g["fns_status"] = text(record, "registration_status") + " · сведения на " + text(record, "actual_at")
+		}
+	}
 	out := []Doc{}
 	for _, g := range groups {
 		if values := delays[text(g, "id")]; len(values) > 0 {

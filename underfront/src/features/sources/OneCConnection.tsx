@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { api, message, type Source, type SourceTest } from "@/src/shared/api";
-import { Button, Input } from "@/src/shared/ui";
+import { Button, Input, Select } from "@/src/shared/ui";
+import { validInn } from "@/src/shared/lib/inn";
 import { SectionCard } from "@/src/widgets/cabinet-shell";
 
 type Props = {
@@ -30,6 +31,9 @@ export function OneCConnection({ companyId, companyINN, sources, onChanged }: Pr
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [mode, setMode] = useState<"network" | "file">("network");
+  const [foundAccounts, setFoundAccounts] = useState<Array<{ number: string; name: string }>>([]);
+  const [discovered, setDiscovered] = useState(false);
   const operation = useRef<AbortController | null>(null);
   useEffect(() => () => operation.current?.abort(), []);
 
@@ -57,6 +61,8 @@ export function OneCConnection({ companyId, companyINN, sources, onChanged }: Pr
   }
   async function connect(event: React.FormEvent) {
     event.preventDefault();
+    if (!validInn(inn.trim())) { setError("Проверьте контрольную цифру ИНН компании."); return; }
+    if (!/^\d{20}$/.test(account) || /^0+$/.test(account)) { setError("Выберите найденный счёт или укажите действительный номер из 20 цифр."); return; }
     const controller = start("connect");
     try {
       if (inn.trim() !== companyINN) {
@@ -92,6 +98,19 @@ export function OneCConnection({ companyId, companyINN, sources, onChanged }: Pr
       finish(controller);
     }
   }
+  async function discover() {
+    if (!validInn(inn.trim())) { setError("Проверьте контрольную цифру ИНН компании."); return; }
+    const controller = start("discover");
+    try {
+      if (inn.trim() !== companyINN) await api.updateCompany(companyId, { inn: inn.trim() }, controller.signal);
+      const result = await api.request<{ organizations: Array<{ name: string; inn: string; accounts: Array<{ number: string; name: string }> }> }>(`/v1/companies/${companyId}/onec/discover`, { method: "POST", json: { base_url: address.trim(), username: username.trim(), password }, signal: controller.signal });
+      const accounts = result.organizations.flatMap(org => org.accounts);
+      setFoundAccounts(accounts); setDiscovered(true); setAccount(accounts[0]?.number ?? "");
+      setNotice(accounts.length ? `Найдено счетов: ${accounts.length}. Выберите счёт для подключения. Связь с организацией проверена по справочнику этой 1С; юридическое владение не проверялось.` : "Организация найдена, но её счета не опубликованы. Попросите администратора 1С открыть справочник счетов или используйте файловый импорт.");
+      onChanged();
+    } catch (cause) { if (!controller.signal.aborted) setError(message(cause)); }
+    finally { finish(controller); }
+  }
   async function run(id: string, action: "test" | "sync") {
     const controller = start(id);
     try {
@@ -111,13 +130,15 @@ export function OneCConnection({ companyId, companyINN, sources, onChanged }: Pr
       <div>
         <h2 className="text-lg font-semibold">Подключить 1С:Бухгалтерию 3.0</h2>
         <p className="mt-1 text-sm text-[color:var(--text-secondary)]">
-          Укажите опубликованный стандартный OData, номер счёта вашей компании и
-          учётную запись 1С с правом чтения. Сервис подберёт организацию, счета и
-          валюту по данным самой 1С. Адрес должен быть доступен серверу приложения.
+          Выберите способ передачи данных. ПУЛЬС читает разрешённые данные, а организацию внутри базы создают и ведут в самой 1С. Один ИНН не открывает доступ к базе.
         </p>
       </div>
+      <div className="flex flex-wrap gap-2"><Button type="button" variant={mode === "network" ? "default" : "outline"} onClick={() => setMode("network")}>Подключить 1С по сети</Button><Button type="button" variant={mode === "file" ? "default" : "outline"} onClick={() => setMode("file")}>Импортировать файлы из 1С</Button></div>
+      {mode === "file" ? <div className="space-y-3 text-sm"><p>Выгрузите банковскую выписку из 1С в формате 1CClientBankExchange, CSV или XLSX и загрузите её в разделе банковских операций. Адрес OData, логин и пароль для этого не нужны.</p><Button type="button" variant="outline" onClick={() => document.querySelector('input[accept=".csv,.xlsx,.txt,.1c"]')?.closest("section")?.scrollIntoView({ behavior: "smooth" })}>Перейти к импорту банковской выписки</Button></div> : <>
+      <ol className="list-decimal space-y-1 pl-5 text-sm text-[color:var(--text-secondary)]"><li>Администратор вашей 1С публикует базу на веб-сервере и включает стандартный интерфейс OData. Универсального адреса для всех организаций нет.</li><li>Получите URL публикации и отдельного пользователя с правом чтения. Это адрес сервера, а не API-ключ. Сервер ПУЛЬС должен иметь доступ к адресу; локальная база потребует защищённого подключения и разрешения оператора.</li><li>Укажите адрес и учётную запись, нажмите «Найти организацию и счета», затем выберите найденный счёт.</li></ol>
       <form className="grid gap-4 sm:grid-cols-2" onSubmit={connect}>
-        <Input
+        {discovered && foundAccounts.length > 0 && <Select label="Найденный счёт организации" value={account} options={foundAccounts.map(item => ({ value: item.number, label: `${item.number} · ${item.name}` }))} onChange={event => setAccount(event.target.value)} />}
+        <details className="sm:col-span-2"><summary className="cursor-pointer text-sm">Дополнительно: номер счёта вручную</summary><Input
           label="ИНН компании"
           required
           inputMode="numeric"
@@ -146,9 +167,9 @@ export function OneCConnection({ companyId, companyINN, sources, onChanged }: Pr
           maxLength={20}
           value={account}
           onChange={(event) => setAccount(event.target.value)}
-          helperText="20 цифр; счёт должен принадлежать указанной организации."
+          helperText="20 цифр. Формат номера не доказывает принадлежность; перед подключением проверим его в справочнике 1С."
           disabled={busy !== null}
-        />
+        /></details>
         <Input
           label="Логин 1С"
           value={username}
@@ -166,11 +187,15 @@ export function OneCConnection({ companyId, companyINN, sources, onChanged }: Pr
           disabled={busy !== null}
         />
         <div className="flex items-end">
+          <Button type="button" variant="outline" disabled={busy !== null || !address.trim()} onClick={() => void discover()}>Найти организацию и счета</Button>
+        </div>
+        <div className="flex items-end">
           <Button type="submit" loading={busy === "connect"} disabled={busy !== null}>
             Подключить и синхронизировать
           </Button>
         </div>
       </form>
+      </>}
       <p className="text-xs text-[color:var(--text-secondary)]">
         Счета попадут в прогноз только при подтверждённой дате оплаты и связи с
         платежом. Если счета не опубликованы в OData, импортируются доступные

@@ -1,4 +1,5 @@
 "use client";
+import { queryParams } from "@/src/shared/api/query";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -32,7 +33,7 @@ export function TransactionsScreen() {
     const timer = setTimeout(() => setSearch(query), 300);
     return () => clearTimeout(timer);
   }, [query]);
-  const filters = new URLSearchParams(Object.entries({ q: search, direction, category, from, to, source, counterparty_id: counterpartyId }).filter(([, value]) => value !== ""));
+  const filters = queryParams({ q: search, direction, category, from, to, source, counterparty_id: counterpartyId });
   const page = new URLSearchParams(filters);
   page.set("limit", "50");
   if (cursor) page.set("cursor", cursor);

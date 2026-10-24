@@ -1423,10 +1423,112 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/companies/{companyId}/onec/discover": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                companyId: components["parameters"]["CompanyId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Discover organizations and their accounts in an allowlisted 1C publication */
+        post: operations["discoverOneCAccounting"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/companies/{companyId}/registry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                companyId: components["parameters"]["CompanyId"];
+            };
+            cookie?: never;
+        };
+        /** Saved registry profiles and document history for the owned workspace */
+        get: operations["listRegistryDocuments"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/companies/{companyId}/registry/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                companyId: components["parameters"]["CompanyId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Parse one official text PDF, XML or ZIP without linking a legal entity */
+        post: operations["previewRegistryDocument"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/companies/{companyId}/registry/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                companyId: components["parameters"]["CompanyId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Explicitly link a preview; own-company target requires matching INN */
+        post: operations["confirmRegistryDocument"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        RegistryDocument: {
+            /** Format: uuid */
+            id?: string;
+            inn: string;
+            ogrn: string;
+            name: string;
+            actual_at: string;
+            source: string;
+            source_format: string;
+            registration_status?: string;
+            /** @enum {string} */
+            signature_status: "NOT_VERIFIED";
+            /** @enum {string} */
+            target?: "company" | "counterparty";
+            /** @enum {boolean} */
+            ownership_verified?: false;
+            /** @enum {boolean} */
+            bank_account_verified?: false;
+        };
+        RegistryPreview: {
+            /** Format: uuid */
+            id: string;
+            /** Format: date-time */
+            expires_at: string;
+            records: components["schemas"]["RegistryDocument"][];
+        };
         Error: {
             code: string;
             /** @description Текст для пользователя */
@@ -1668,9 +1770,9 @@ export interface components {
             revenue_share: number;
             operations_count: number;
             /** Format: date */
-            first_at: string;
+            first_at: string | null;
             /** Format: date */
-            last_at: string;
+            last_at: string | null;
             /** Format: double */
             avg_payment_delay_days: number | null;
             /** Format: double */
@@ -1679,6 +1781,7 @@ export interface components {
             discipline_score: number | null;
             /** Format: double */
             overdue_amount: number;
+            registry?: components["schemas"]["RegistryDocument"];
             fns_status: string | null;
         };
         ModelInfo: {
@@ -2238,6 +2341,12 @@ export interface components {
             comment?: string;
         };
         Lookup: {
+            /** Format: date */
+            actual_at?: string;
+            /** @enum {boolean} */
+            ownership_verified?: false;
+            /** @enum {string} */
+            signature_status?: "NOT_VERIFIED";
             inn: string;
             name: string;
             legal_form: string | null;
@@ -2808,6 +2917,7 @@ export interface operations {
                 to?: string;
                 direction?: string;
                 category?: string;
+                /** @description Optional counterparty UUID. Omit to include all; legacy empty values are treated as absent. Invalid nonempty values return 400. */
                 counterparty_id?: string;
                 source?: string;
                 q?: string;
@@ -3300,6 +3410,7 @@ export interface operations {
             query?: {
                 severity?: string;
                 kind?: string;
+                /** @description Omit for all alerts, true for unread, false for read. Legacy empty values are treated as absent. */
                 unread?: boolean;
                 cursor?: string;
                 limit?: number;
@@ -5100,6 +5211,133 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Page"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    discoverOneCAccounting: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                companyId: components["parameters"]["CompanyId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    base_url: string;
+                    username?: string;
+                    password?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Source-verified organization/account relationships, not legal ownership */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        organizations: {
+                            name: string;
+                            inn: string;
+                            accounts: {
+                                number: string;
+                                name: string;
+                                verified_in_source: boolean;
+                            }[];
+                        }[];
+                    };
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    listRegistryDocuments: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                companyId: components["parameters"]["CompanyId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Registry profiles, never bank operations */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RegistryDocument"][];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    previewRegistryDocument: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                companyId: components["parameters"]["CompanyId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    /** Format: binary */
+                    file: string;
+                };
+            };
+        };
+        responses: {
+            /** @description A preview valid for 30 minutes, scoped to this workspace */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RegistryPreview"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    confirmRegistryDocument: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                companyId: components["parameters"]["CompanyId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: uuid */
+                    preview_id: string;
+                    record_index: number;
+                    /** @enum {string} */
+                    target: "company" | "counterparty";
+                };
+            };
+        };
+        responses: {
+            /** @description Idempotently saved profile, never proof of ownership */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RegistryDocument"];
                 };
             };
             default: components["responses"]["Error"];

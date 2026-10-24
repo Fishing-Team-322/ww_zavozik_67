@@ -2630,6 +2630,120 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Page'
+  /v1/companies/{companyId}/onec/discover:
+    parameters:
+    - $ref: '#/components/parameters/CompanyId'
+    post:
+      operationId: discoverOneCAccounting
+      summary: Discover organizations and their accounts in an allowlisted 1C publication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [base_url]
+              properties:
+                base_url: {type: string}
+                username: {type: string}
+                password: {type: string}
+      responses:
+        '200':
+          description: Source-verified organization/account relationships, not legal ownership
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [organizations]
+                properties:
+                  organizations:
+                    type: array
+                    items:
+                      type: object
+                      required: [name, inn, accounts]
+                      properties:
+                        name: {type: string}
+                        inn: {type: string}
+                        accounts:
+                          type: array
+                          items:
+                            type: object
+                            required: [number, name, verified_in_source]
+                            properties:
+                              number: {type: string}
+                              name: {type: string}
+                              verified_in_source: {type: boolean}
+        default:
+          $ref: '#/components/responses/Error'
+  /v1/companies/{companyId}/registry:
+    parameters:
+    - $ref: '#/components/parameters/CompanyId'
+    get:
+      operationId: listRegistryDocuments
+      summary: Saved registry profiles and document history for the owned workspace
+      responses:
+        '200':
+          description: Registry profiles, never bank operations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RegistryDocument'
+        default:
+          $ref: '#/components/responses/Error'
+  /v1/companies/{companyId}/registry/preview:
+    parameters:
+    - $ref: '#/components/parameters/CompanyId'
+    post:
+      operationId: previewRegistryDocument
+      summary: Parse one official text PDF, XML or ZIP without linking a legal entity
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: {type: string, format: binary}
+      responses:
+        '200':
+          description: A preview valid for 30 minutes, scoped to this workspace
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegistryPreview'
+        default:
+          $ref: '#/components/responses/Error'
+  /v1/companies/{companyId}/registry/confirm:
+    parameters:
+    - $ref: '#/components/parameters/CompanyId'
+    post:
+      operationId: confirmRegistryDocument
+      summary: Explicitly link a preview; own-company target requires matching INN
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [preview_id, record_index, target]
+              properties:
+                preview_id: {type: string, format: uuid}
+                record_index: {type: integer, minimum: 0}
+                target: {type: string, enum: [company, counterparty]}
+      responses:
+        '200':
+          description: Idempotently saved profile, never proof of ownership
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegistryDocument'
+        default:
+          $ref: '#/components/responses/Error'
 components:
   securitySchemes:
     bearerAuth:
@@ -2652,6 +2766,32 @@ components:
           schema:
             $ref: '#/components/schemas/Error'
   schemas:
+    RegistryDocument:
+      type: object
+      required: [inn, ogrn, name, actual_at, source, source_format, signature_status]
+      properties:
+        id: {type: string, format: uuid}
+        inn: {type: string}
+        ogrn: {type: string}
+        name: {type: string}
+        actual_at: {type: string}
+        source: {type: string}
+        source_format: {type: string}
+        registration_status: {type: string}
+        signature_status: {type: string, enum: [NOT_VERIFIED]}
+        target: {type: string, enum: [company, counterparty]}
+        ownership_verified: {type: boolean, enum: [false]}
+        bank_account_verified: {type: boolean, enum: [false]}
+    RegistryPreview:
+      type: object
+      required: [id, records, expires_at]
+      properties:
+        id: {type: string, format: uuid}
+        expires_at: {type: string, format: date-time}
+        records:
+          type: array
+          items:
+            $ref: '#/components/schemas/RegistryDocument'
     Error:
       type: object
       required:
@@ -3270,9 +3410,11 @@ components:
         first_at:
           type: string
           format: date
+          nullable: true
         last_at:
           type: string
           format: date
+          nullable: true
         avg_payment_delay_days:
           type: number
           format: double
@@ -3288,6 +3430,8 @@ components:
         overdue_amount:
           type: number
           format: double
+        registry:
+          $ref: '#/components/schemas/RegistryDocument'
         fns_status:
           type: string
           nullable: true
@@ -4775,6 +4919,9 @@ components:
       type: object
       additionalProperties: false
       properties:
+        actual_at: {type: string, format: date}
+        ownership_verified: {type: boolean, enum: [false]}
+        signature_status: {type: string, enum: [NOT_VERIFIED]}
         inn:
           type: string
           minLength: 1

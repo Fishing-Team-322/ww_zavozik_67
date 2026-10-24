@@ -1,4 +1,5 @@
 "use client";
+import { queryParams } from "@/src/shared/api/query";
 import { useState } from "react";
 import Link from "next/link";
 import { Bell, AlertTriangle, CheckCircle2 } from "lucide-react";
@@ -27,7 +28,7 @@ export function NotificationsScreen() {
   const [cursor, setCursor] = useState(""); const [previous, setPrevious] = useState<string[]>([]);
   const [busy, setBusy] = useState(false); const [error, setError] = useState<string | null>(null);
   const base = `/v1/companies/${companyId}`;
-  const resource = useApiResource<Schemas["AlertPage"]>(companyId ? `${base}/alerts?${new URLSearchParams(Object.entries({ severity, kind, unread, cursor, limit: "30" }).filter(([, value]) => value !== ""))}` : null);
+  const resource = useApiResource<Schemas["AlertPage"]>(companyId ? `${base}/alerts?${queryParams({ severity, kind, unread, cursor, limit: "30" })}` : null);
   const reset = () => { setCursor(""); setPrevious([]); };
   async function read(id?: string, value = true) {
     setBusy(true); setError(null);

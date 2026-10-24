@@ -316,7 +316,7 @@ func (s *Service) Execute(ctx context.Context, op string, p platform.Principal, 
 	case "applyAction":
 		return s.applyAction(ctx, uid, r.PathValue("actionId"))
 	case "lookupFNS":
-		return s.lookup(ctx, r.URL.Query().Get("inn"))
+		return s.lookup(ctx, uid, r.URL.Query().Get("inn"))
 	case "uploadStatement":
 		return s.upload(ctx, uid, cid, upload)
 	case "previewUpload", "mapUpload":

@@ -176,6 +176,16 @@ const (
 	Running JobStatus = "running"
 )
 
+// Defines values for LookupOwnershipVerified.
+const (
+	LookupOwnershipVerifiedFalse LookupOwnershipVerified = false
+)
+
+// Defines values for LookupSignatureStatus.
+const (
+	LookupSignatureStatusNOTVERIFIED LookupSignatureStatus = "NOT_VERIFIED"
+)
+
 // Defines values for OAuthProvider.
 const (
 	Google OAuthProvider = "google"
@@ -205,6 +215,27 @@ const (
 // Defines values for RegisterRequestConsentPd.
 const (
 	True RegisterRequestConsentPd = true
+)
+
+// Defines values for RegistryDocumentBankAccountVerified.
+const (
+	RegistryDocumentBankAccountVerifiedFalse RegistryDocumentBankAccountVerified = false
+)
+
+// Defines values for RegistryDocumentOwnershipVerified.
+const (
+	False RegistryDocumentOwnershipVerified = false
+)
+
+// Defines values for RegistryDocumentSignatureStatus.
+const (
+	RegistryDocumentSignatureStatusNOTVERIFIED RegistryDocumentSignatureStatus = "NOT_VERIFIED"
+)
+
+// Defines values for RegistryDocumentTarget.
+const (
+	RegistryDocumentTargetCompany      RegistryDocumentTarget = "company"
+	RegistryDocumentTargetCounterparty RegistryDocumentTarget = "counterparty"
 )
 
 // Defines values for ScenarioStepKind.
@@ -281,6 +312,12 @@ const (
 	Closed     UpdateSignalInputStatus = "closed"
 	InProgress UpdateSignalInputStatus = "in_progress"
 	New        UpdateSignalInputStatus = "new"
+)
+
+// Defines values for ConfirmRegistryDocumentJSONBodyTarget.
+const (
+	ConfirmRegistryDocumentJSONBodyTargetCompany      ConfirmRegistryDocumentJSONBodyTarget = "company"
+	ConfirmRegistryDocumentJSONBodyTargetCounterparty ConfirmRegistryDocumentJSONBodyTarget = "counterparty"
 )
 
 // Action defines model for Action.
@@ -514,21 +551,22 @@ type Contract struct {
 
 // Counterparty defines model for Counterparty.
 type Counterparty struct {
-	AvgPaymentDelayDays *float64           `json:"avg_payment_delay_days"`
-	DelayStability      *float64           `json:"delay_stability"`
-	DisciplineScore     *float64           `json:"discipline_score"`
-	FirstAt             openapi_types.Date `json:"first_at"`
-	FnsStatus           *string            `json:"fns_status"`
-	Id                  openapi_types.UUID `json:"id"`
-	Inn                 *string            `json:"inn"`
-	LastAt              openapi_types.Date `json:"last_at"`
-	Name                string             `json:"name"`
-	OperationsCount     int                `json:"operations_count"`
-	OverdueAmount       float64            `json:"overdue_amount"`
-	RevenueShare        float64            `json:"revenue_share"`
-	Roles               []string           `json:"roles"`
-	TurnoverIn12m       float64            `json:"turnover_in_12m"`
-	TurnoverOut12m      float64            `json:"turnover_out_12m"`
+	AvgPaymentDelayDays *float64            `json:"avg_payment_delay_days"`
+	DelayStability      *float64            `json:"delay_stability"`
+	DisciplineScore     *float64            `json:"discipline_score"`
+	FirstAt             *openapi_types.Date `json:"first_at"`
+	FnsStatus           *string             `json:"fns_status"`
+	Id                  openapi_types.UUID  `json:"id"`
+	Inn                 *string             `json:"inn"`
+	LastAt              *openapi_types.Date `json:"last_at"`
+	Name                string              `json:"name"`
+	OperationsCount     int                 `json:"operations_count"`
+	OverdueAmount       float64             `json:"overdue_amount"`
+	Registry            *RegistryDocument   `json:"registry,omitempty"`
+	RevenueShare        float64             `json:"revenue_share"`
+	Roles               []string            `json:"roles"`
+	TurnoverIn12m       float64             `json:"turnover_in_12m"`
+	TurnoverOut12m      float64             `json:"turnover_out_12m"`
 }
 
 // CounterpartyRef defines model for CounterpartyRef.
@@ -624,6 +662,7 @@ type CreateScenarioInput struct {
 
 // CreateSourceInput defines model for CreateSourceInput.
 type CreateSourceInput struct {
+	// Config Для onec_odata шаблон accounting3 принимает base_url, company_account, username и password; сервер подбирает OData маппинг по ИНН компании и номеру счёта. Данные подключения не возвращаются в Source.
 	Config  *map[string]interface{} `json:"config,omitempty"`
 	Enabled *bool                   `json:"enabled,omitempty"`
 	Kind    CreateSourceInputKind   `json:"kind"`
@@ -872,14 +911,23 @@ type JobStatus string
 
 // Lookup defines model for Lookup.
 type Lookup struct {
-	Industry  *string `json:"industry"`
-	Inn       string  `json:"inn"`
-	LegalForm *string `json:"legal_form"`
-	Name      string  `json:"name"`
-	Source    string  `json:"source"`
-	Status    string  `json:"status"`
-	TaxRegime string  `json:"tax_regime"`
+	ActualAt          *openapi_types.Date      `json:"actual_at,omitempty"`
+	Industry          *string                  `json:"industry"`
+	Inn               string                   `json:"inn"`
+	LegalForm         *string                  `json:"legal_form"`
+	Name              string                   `json:"name"`
+	OwnershipVerified *LookupOwnershipVerified `json:"ownership_verified,omitempty"`
+	SignatureStatus   *LookupSignatureStatus   `json:"signature_status,omitempty"`
+	Source            string                   `json:"source"`
+	Status            string                   `json:"status"`
+	TaxRegime         string                   `json:"tax_regime"`
 }
+
+// LookupOwnershipVerified defines model for Lookup.OwnershipVerified.
+type LookupOwnershipVerified bool
+
+// LookupSignatureStatus defines model for Lookup.SignatureStatus.
+type LookupSignatureStatus string
 
 // MapUploadInput defines model for MapUploadInput.
 type MapUploadInput struct {
@@ -974,17 +1022,28 @@ type PlanFactPoint struct {
 
 // PlannedEvent defines model for PlannedEvent.
 type PlannedEvent struct {
-	Amount       float64            `json:"amount"`
-	Category     string             `json:"category"`
-	Counterparty CounterpartyRef    `json:"counterparty"`
-	Date         openapi_types.Date `json:"date"`
-	Direction    Direction          `json:"direction"`
-	Editable     bool               `json:"editable"`
-	Id           openapi_types.UUID `json:"id"`
-	Probability  float64            `json:"probability"`
-	Source       string             `json:"source"`
-	Status       string             `json:"status"`
-	Title        string             `json:"title"`
+	Amount           float64             `json:"amount"`
+	Category         string              `json:"category"`
+	Counterparty     CounterpartyRef     `json:"counterparty"`
+	DataMode         *string             `json:"data_mode,omitempty"`
+	Date             openapi_types.Date  `json:"date"`
+	Direction        Direction           `json:"direction"`
+	DueDate          *openapi_types.Date `json:"due_date"`
+	Editable         bool                `json:"editable"`
+	ExternalId       *string             `json:"external_id,omitempty"`
+	ForecastEligible *bool               `json:"forecast_eligible,omitempty"`
+	Id               openapi_types.UUID  `json:"id"`
+	LinkStatus       *string             `json:"link_status,omitempty"`
+	PaidKopecks      *int64              `json:"paid_kopecks,omitempty"`
+	PaymentStatus    *string             `json:"payment_status,omitempty"`
+	Probability      float64             `json:"probability"`
+	RemainingKopecks *int64              `json:"remaining_kopecks,omitempty"`
+	Source           string              `json:"source"`
+	SourceId         *openapi_types.UUID `json:"source_id,omitempty"`
+	Status           string              `json:"status"`
+	Title            string              `json:"title"`
+	TotalKopecks     *int64              `json:"total_kopecks,omitempty"`
+	Version          *int64              `json:"version,omitempty"`
 }
 
 // PreviewForecastInput defines model for PreviewForecastInput.
@@ -1067,6 +1126,41 @@ type RegisterRequest struct {
 
 // RegisterRequestConsentPd defines model for RegisterRequest.ConsentPd.
 type RegisterRequestConsentPd bool
+
+// RegistryDocument defines model for RegistryDocument.
+type RegistryDocument struct {
+	ActualAt            string                               `json:"actual_at"`
+	BankAccountVerified *RegistryDocumentBankAccountVerified `json:"bank_account_verified,omitempty"`
+	Id                  *openapi_types.UUID                  `json:"id,omitempty"`
+	Inn                 string                               `json:"inn"`
+	Name                string                               `json:"name"`
+	Ogrn                string                               `json:"ogrn"`
+	OwnershipVerified   *RegistryDocumentOwnershipVerified   `json:"ownership_verified,omitempty"`
+	RegistrationStatus  *string                              `json:"registration_status,omitempty"`
+	SignatureStatus     RegistryDocumentSignatureStatus      `json:"signature_status"`
+	Source              string                               `json:"source"`
+	SourceFormat        string                               `json:"source_format"`
+	Target              *RegistryDocumentTarget              `json:"target,omitempty"`
+}
+
+// RegistryDocumentBankAccountVerified defines model for RegistryDocument.BankAccountVerified.
+type RegistryDocumentBankAccountVerified bool
+
+// RegistryDocumentOwnershipVerified defines model for RegistryDocument.OwnershipVerified.
+type RegistryDocumentOwnershipVerified bool
+
+// RegistryDocumentSignatureStatus defines model for RegistryDocument.SignatureStatus.
+type RegistryDocumentSignatureStatus string
+
+// RegistryDocumentTarget defines model for RegistryDocument.Target.
+type RegistryDocumentTarget string
+
+// RegistryPreview defines model for RegistryPreview.
+type RegistryPreview struct {
+	ExpiresAt time.Time          `json:"expires_at"`
+	Id        openapi_types.UUID `json:"id"`
+	Records   []RegistryDocument `json:"records"`
+}
 
 // ResetPasswordRequest defines model for ResetPasswordRequest.
 type ResetPasswordRequest struct {
@@ -1397,9 +1491,11 @@ type StartOAuthParams struct {
 type ListAlertsParams struct {
 	Severity *string `form:"severity,omitempty" json:"severity,omitempty"`
 	Kind     *string `form:"kind,omitempty" json:"kind,omitempty"`
-	Unread   *bool   `form:"unread,omitempty" json:"unread,omitempty"`
-	Cursor   *string `form:"cursor,omitempty" json:"cursor,omitempty"`
-	Limit    *int    `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Unread Omit for all alerts, true for unread, false for read. Legacy empty values are treated as absent.
+	Unread *bool   `form:"unread,omitempty" json:"unread,omitempty"`
+	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
+	Limit  *int    `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
 // GetCalendarParams defines parameters for GetCalendar.
@@ -1449,12 +1545,21 @@ type ListInvoicesParams struct {
 	Status    *string `form:"status,omitempty" json:"status,omitempty"`
 }
 
+// DiscoverOneCAccountingJSONBody defines parameters for DiscoverOneCAccounting.
+type DiscoverOneCAccountingJSONBody struct {
+	BaseUrl  string  `json:"base_url"`
+	Password *string `json:"password,omitempty"`
+	Username *string `json:"username,omitempty"`
+}
+
 // ListOperationsParams defines parameters for ListOperations.
 type ListOperationsParams struct {
-	From           *openapi_types.Date `form:"from,omitempty" json:"from,omitempty"`
-	To             *openapi_types.Date `form:"to,omitempty" json:"to,omitempty"`
-	Direction      *string             `form:"direction,omitempty" json:"direction,omitempty"`
-	Category       *string             `form:"category,omitempty" json:"category,omitempty"`
+	From      *openapi_types.Date `form:"from,omitempty" json:"from,omitempty"`
+	To        *openapi_types.Date `form:"to,omitempty" json:"to,omitempty"`
+	Direction *string             `form:"direction,omitempty" json:"direction,omitempty"`
+	Category  *string             `form:"category,omitempty" json:"category,omitempty"`
+
+	// CounterpartyId Optional counterparty UUID. Omit to include all; legacy empty values are treated as absent. Invalid nonempty values return 400.
 	CounterpartyId *openapi_types.UUID `form:"counterparty_id,omitempty" json:"counterparty_id,omitempty"`
 	Source         *string             `form:"source,omitempty" json:"source,omitempty"`
 	Q              *string             `form:"q,omitempty" json:"q,omitempty"`
@@ -1485,6 +1590,21 @@ type GetPlanFactParams struct {
 // ListRecurringParams defines parameters for ListRecurring.
 type ListRecurringParams struct {
 	Direction *string `form:"direction,omitempty" json:"direction,omitempty"`
+}
+
+// ConfirmRegistryDocumentJSONBody defines parameters for ConfirmRegistryDocument.
+type ConfirmRegistryDocumentJSONBody struct {
+	PreviewId   openapi_types.UUID                    `json:"preview_id"`
+	RecordIndex int                                   `json:"record_index"`
+	Target      ConfirmRegistryDocumentJSONBodyTarget `json:"target"`
+}
+
+// ConfirmRegistryDocumentJSONBodyTarget defines parameters for ConfirmRegistryDocument.
+type ConfirmRegistryDocumentJSONBodyTarget string
+
+// PreviewRegistryDocumentMultipartBody defines parameters for PreviewRegistryDocument.
+type PreviewRegistryDocumentMultipartBody struct {
+	File openapi_types.File `json:"file"`
 }
 
 // CompareScenarioParams defines parameters for CompareScenario.
@@ -1560,11 +1680,20 @@ type SimulateGapJSONRequestBody = SimulateGapInput
 // CreateInvoiceJSONRequestBody defines body for CreateInvoice for application/json ContentType.
 type CreateInvoiceJSONRequestBody = CreateInvoiceInput
 
+// DiscoverOneCAccountingJSONRequestBody defines body for DiscoverOneCAccounting for application/json ContentType.
+type DiscoverOneCAccountingJSONRequestBody DiscoverOneCAccountingJSONBody
+
 // RecategorizeOperationsJSONRequestBody defines body for RecategorizeOperations for application/json ContentType.
 type RecategorizeOperationsJSONRequestBody = RecategorizeOperationsInput
 
 // CreateRecurringJSONRequestBody defines body for CreateRecurring for application/json ContentType.
 type CreateRecurringJSONRequestBody = CreateRecurringInput
+
+// ConfirmRegistryDocumentJSONRequestBody defines body for ConfirmRegistryDocument for application/json ContentType.
+type ConfirmRegistryDocumentJSONRequestBody ConfirmRegistryDocumentJSONBody
+
+// PreviewRegistryDocumentMultipartRequestBody defines body for PreviewRegistryDocument for multipart/form-data ContentType.
+type PreviewRegistryDocumentMultipartRequestBody PreviewRegistryDocumentMultipartBody
 
 // CreateScenarioJSONRequestBody defines body for CreateScenario for application/json ContentType.
 type CreateScenarioJSONRequestBody = CreateScenarioInput
@@ -1784,6 +1913,9 @@ type ServerInterface interface {
 
 	// (POST /v1/companies/{companyId}/invoices)
 	CreateInvoice(w http.ResponseWriter, r *http.Request, companyId openapi_types.UUID)
+	// Discover organizations and their accounts in an allowlisted 1C publication
+	// (POST /v1/companies/{companyId}/onec/discover)
+	DiscoverOneCAccounting(w http.ResponseWriter, r *http.Request, companyId CompanyId)
 
 	// (GET /v1/companies/{companyId}/operations)
 	ListOperations(w http.ResponseWriter, r *http.Request, companyId openapi_types.UUID, params ListOperationsParams)
@@ -1808,6 +1940,15 @@ type ServerInterface interface {
 
 	// (POST /v1/companies/{companyId}/recurring)
 	CreateRecurring(w http.ResponseWriter, r *http.Request, companyId openapi_types.UUID)
+	// Saved registry profiles and document history for the owned workspace
+	// (GET /v1/companies/{companyId}/registry)
+	ListRegistryDocuments(w http.ResponseWriter, r *http.Request, companyId CompanyId)
+	// Explicitly link a preview; own-company target requires matching INN
+	// (POST /v1/companies/{companyId}/registry/confirm)
+	ConfirmRegistryDocument(w http.ResponseWriter, r *http.Request, companyId CompanyId)
+	// Parse one official text PDF, XML or ZIP without linking a legal entity
+	// (POST /v1/companies/{companyId}/registry/preview)
+	PreviewRegistryDocument(w http.ResponseWriter, r *http.Request, companyId CompanyId)
 
 	// (GET /v1/companies/{companyId}/retro)
 	GetRetro(w http.ResponseWriter, r *http.Request, companyId openapi_types.UUID)
@@ -3921,6 +4062,37 @@ func (siw *ServerInterfaceWrapper) CreateInvoice(w http.ResponseWriter, r *http.
 	handler.ServeHTTP(w, r)
 }
 
+// DiscoverOneCAccounting operation middleware
+func (siw *ServerInterfaceWrapper) DiscoverOneCAccounting(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "companyId" -------------
+	var companyId CompanyId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "companyId", r.PathValue("companyId"), &companyId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "companyId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DiscoverOneCAccounting(w, r, companyId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ListOperations operation middleware
 func (siw *ServerInterfaceWrapper) ListOperations(w http.ResponseWriter, r *http.Request) {
 
@@ -4319,6 +4491,99 @@ func (siw *ServerInterfaceWrapper) CreateRecurring(w http.ResponseWriter, r *htt
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.CreateRecurring(w, r, companyId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListRegistryDocuments operation middleware
+func (siw *ServerInterfaceWrapper) ListRegistryDocuments(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "companyId" -------------
+	var companyId CompanyId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "companyId", r.PathValue("companyId"), &companyId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "companyId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListRegistryDocuments(w, r, companyId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ConfirmRegistryDocument operation middleware
+func (siw *ServerInterfaceWrapper) ConfirmRegistryDocument(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "companyId" -------------
+	var companyId CompanyId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "companyId", r.PathValue("companyId"), &companyId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "companyId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ConfirmRegistryDocument(w, r, companyId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PreviewRegistryDocument operation middleware
+func (siw *ServerInterfaceWrapper) PreviewRegistryDocument(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "companyId" -------------
+	var companyId CompanyId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "companyId", r.PathValue("companyId"), &companyId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "companyId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PreviewRegistryDocument(w, r, companyId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -5749,6 +6014,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc("GET "+options.BaseURL+"/v1/companies/{companyId}/imports", wrapper.ListImports)
 	m.HandleFunc("GET "+options.BaseURL+"/v1/companies/{companyId}/invoices", wrapper.ListInvoices)
 	m.HandleFunc("POST "+options.BaseURL+"/v1/companies/{companyId}/invoices", wrapper.CreateInvoice)
+	m.HandleFunc("POST "+options.BaseURL+"/v1/companies/{companyId}/onec/discover", wrapper.DiscoverOneCAccounting)
 	m.HandleFunc("GET "+options.BaseURL+"/v1/companies/{companyId}/operations", wrapper.ListOperations)
 	m.HandleFunc("GET "+options.BaseURL+"/v1/companies/{companyId}/operations/export", wrapper.ExportOperations)
 	m.HandleFunc("POST "+options.BaseURL+"/v1/companies/{companyId}/operations/recategorize", wrapper.RecategorizeOperations)
@@ -5757,6 +6023,9 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc("GET "+options.BaseURL+"/v1/companies/{companyId}/plan-fact/missed", wrapper.GetMissedPlanFact)
 	m.HandleFunc("GET "+options.BaseURL+"/v1/companies/{companyId}/recurring", wrapper.ListRecurring)
 	m.HandleFunc("POST "+options.BaseURL+"/v1/companies/{companyId}/recurring", wrapper.CreateRecurring)
+	m.HandleFunc("GET "+options.BaseURL+"/v1/companies/{companyId}/registry", wrapper.ListRegistryDocuments)
+	m.HandleFunc("POST "+options.BaseURL+"/v1/companies/{companyId}/registry/confirm", wrapper.ConfirmRegistryDocument)
+	m.HandleFunc("POST "+options.BaseURL+"/v1/companies/{companyId}/registry/preview", wrapper.PreviewRegistryDocument)
 	m.HandleFunc("GET "+options.BaseURL+"/v1/companies/{companyId}/retro", wrapper.GetRetro)
 	m.HandleFunc("GET "+options.BaseURL+"/v1/companies/{companyId}/scenarios", wrapper.ListScenarios)
 	m.HandleFunc("POST "+options.BaseURL+"/v1/companies/{companyId}/scenarios", wrapper.CreateScenario)
@@ -7494,6 +7763,46 @@ func (response CreateInvoicedefaultJSONResponse) VisitCreateInvoiceResponse(w ht
 	return json.NewEncoder(w).Encode(response.Body)
 }
 
+type DiscoverOneCAccountingRequestObject struct {
+	CompanyId CompanyId `json:"companyId"`
+	Body      *DiscoverOneCAccountingJSONRequestBody
+}
+
+type DiscoverOneCAccountingResponseObject interface {
+	VisitDiscoverOneCAccountingResponse(w http.ResponseWriter) error
+}
+
+type DiscoverOneCAccounting200JSONResponse struct {
+	Organizations []struct {
+		Accounts []struct {
+			Name             string `json:"name"`
+			Number           string `json:"number"`
+			VerifiedInSource bool   `json:"verified_in_source"`
+		} `json:"accounts"`
+		Inn  string `json:"inn"`
+		Name string `json:"name"`
+	} `json:"organizations"`
+}
+
+func (response DiscoverOneCAccounting200JSONResponse) VisitDiscoverOneCAccountingResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DiscoverOneCAccountingdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response DiscoverOneCAccountingdefaultJSONResponse) VisitDiscoverOneCAccountingResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+
+	return json.NewEncoder(w).Encode(response.Body)
+}
+
 type ListOperationsRequestObject struct {
 	CompanyId openapi_types.UUID `json:"companyId"`
 	Params    ListOperationsParams
@@ -7737,6 +8046,95 @@ type CreateRecurringdefaultJSONResponse struct {
 }
 
 func (response CreateRecurringdefaultJSONResponse) VisitCreateRecurringResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+
+	return json.NewEncoder(w).Encode(response.Body)
+}
+
+type ListRegistryDocumentsRequestObject struct {
+	CompanyId CompanyId `json:"companyId"`
+}
+
+type ListRegistryDocumentsResponseObject interface {
+	VisitListRegistryDocumentsResponse(w http.ResponseWriter) error
+}
+
+type ListRegistryDocuments200JSONResponse []RegistryDocument
+
+func (response ListRegistryDocuments200JSONResponse) VisitListRegistryDocumentsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListRegistryDocumentsdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response ListRegistryDocumentsdefaultJSONResponse) VisitListRegistryDocumentsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+
+	return json.NewEncoder(w).Encode(response.Body)
+}
+
+type ConfirmRegistryDocumentRequestObject struct {
+	CompanyId CompanyId `json:"companyId"`
+	Body      *ConfirmRegistryDocumentJSONRequestBody
+}
+
+type ConfirmRegistryDocumentResponseObject interface {
+	VisitConfirmRegistryDocumentResponse(w http.ResponseWriter) error
+}
+
+type ConfirmRegistryDocument200JSONResponse RegistryDocument
+
+func (response ConfirmRegistryDocument200JSONResponse) VisitConfirmRegistryDocumentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ConfirmRegistryDocumentdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response ConfirmRegistryDocumentdefaultJSONResponse) VisitConfirmRegistryDocumentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+
+	return json.NewEncoder(w).Encode(response.Body)
+}
+
+type PreviewRegistryDocumentRequestObject struct {
+	CompanyId CompanyId `json:"companyId"`
+	Body      *multipart.Reader
+}
+
+type PreviewRegistryDocumentResponseObject interface {
+	VisitPreviewRegistryDocumentResponse(w http.ResponseWriter) error
+}
+
+type PreviewRegistryDocument200JSONResponse RegistryPreview
+
+func (response PreviewRegistryDocument200JSONResponse) VisitPreviewRegistryDocumentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PreviewRegistryDocumentdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response PreviewRegistryDocumentdefaultJSONResponse) VisitPreviewRegistryDocumentResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(response.StatusCode)
 
@@ -9129,6 +9527,9 @@ type StrictServerInterface interface {
 
 	// (POST /v1/companies/{companyId}/invoices)
 	CreateInvoice(ctx context.Context, request CreateInvoiceRequestObject) (CreateInvoiceResponseObject, error)
+	// Discover organizations and their accounts in an allowlisted 1C publication
+	// (POST /v1/companies/{companyId}/onec/discover)
+	DiscoverOneCAccounting(ctx context.Context, request DiscoverOneCAccountingRequestObject) (DiscoverOneCAccountingResponseObject, error)
 
 	// (GET /v1/companies/{companyId}/operations)
 	ListOperations(ctx context.Context, request ListOperationsRequestObject) (ListOperationsResponseObject, error)
@@ -9153,6 +9554,15 @@ type StrictServerInterface interface {
 
 	// (POST /v1/companies/{companyId}/recurring)
 	CreateRecurring(ctx context.Context, request CreateRecurringRequestObject) (CreateRecurringResponseObject, error)
+	// Saved registry profiles and document history for the owned workspace
+	// (GET /v1/companies/{companyId}/registry)
+	ListRegistryDocuments(ctx context.Context, request ListRegistryDocumentsRequestObject) (ListRegistryDocumentsResponseObject, error)
+	// Explicitly link a preview; own-company target requires matching INN
+	// (POST /v1/companies/{companyId}/registry/confirm)
+	ConfirmRegistryDocument(ctx context.Context, request ConfirmRegistryDocumentRequestObject) (ConfirmRegistryDocumentResponseObject, error)
+	// Parse one official text PDF, XML or ZIP without linking a legal entity
+	// (POST /v1/companies/{companyId}/registry/preview)
+	PreviewRegistryDocument(ctx context.Context, request PreviewRegistryDocumentRequestObject) (PreviewRegistryDocumentResponseObject, error)
 
 	// (GET /v1/companies/{companyId}/retro)
 	GetRetro(ctx context.Context, request GetRetroRequestObject) (GetRetroResponseObject, error)
@@ -10882,6 +11292,39 @@ func (sh *strictHandler) CreateInvoice(w http.ResponseWriter, r *http.Request, c
 	}
 }
 
+// DiscoverOneCAccounting operation middleware
+func (sh *strictHandler) DiscoverOneCAccounting(w http.ResponseWriter, r *http.Request, companyId CompanyId) {
+	var request DiscoverOneCAccountingRequestObject
+
+	request.CompanyId = companyId
+
+	var body DiscoverOneCAccountingJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DiscoverOneCAccounting(ctx, request.(DiscoverOneCAccountingRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DiscoverOneCAccounting")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DiscoverOneCAccountingResponseObject); ok {
+		if err := validResponse.VisitDiscoverOneCAccountingResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // ListOperations operation middleware
 func (sh *strictHandler) ListOperations(w http.ResponseWriter, r *http.Request, companyId openapi_types.UUID, params ListOperationsParams) {
 	var request ListOperationsRequestObject
@@ -11102,6 +11545,98 @@ func (sh *strictHandler) CreateRecurring(w http.ResponseWriter, r *http.Request,
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(CreateRecurringResponseObject); ok {
 		if err := validResponse.VisitCreateRecurringResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListRegistryDocuments operation middleware
+func (sh *strictHandler) ListRegistryDocuments(w http.ResponseWriter, r *http.Request, companyId CompanyId) {
+	var request ListRegistryDocumentsRequestObject
+
+	request.CompanyId = companyId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListRegistryDocuments(ctx, request.(ListRegistryDocumentsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListRegistryDocuments")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListRegistryDocumentsResponseObject); ok {
+		if err := validResponse.VisitListRegistryDocumentsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ConfirmRegistryDocument operation middleware
+func (sh *strictHandler) ConfirmRegistryDocument(w http.ResponseWriter, r *http.Request, companyId CompanyId) {
+	var request ConfirmRegistryDocumentRequestObject
+
+	request.CompanyId = companyId
+
+	var body ConfirmRegistryDocumentJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ConfirmRegistryDocument(ctx, request.(ConfirmRegistryDocumentRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ConfirmRegistryDocument")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ConfirmRegistryDocumentResponseObject); ok {
+		if err := validResponse.VisitConfirmRegistryDocumentResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PreviewRegistryDocument operation middleware
+func (sh *strictHandler) PreviewRegistryDocument(w http.ResponseWriter, r *http.Request, companyId CompanyId) {
+	var request PreviewRegistryDocumentRequestObject
+
+	request.CompanyId = companyId
+
+	if reader, err := r.MultipartReader(); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode multipart body: %w", err))
+		return
+	} else {
+		request.Body = reader
+	}
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PreviewRegistryDocument(ctx, request.(PreviewRegistryDocumentRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PreviewRegistryDocument")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PreviewRegistryDocumentResponseObject); ok {
+		if err := validResponse.VisitPreviewRegistryDocumentResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

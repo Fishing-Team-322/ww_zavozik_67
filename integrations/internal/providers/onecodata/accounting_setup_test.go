@@ -64,6 +64,10 @@ func TestSuggestAccountingUsesPublishedReferences(t *testing.T) {
 	defer srv.Close()
 	client := onecodata.Client{Username: "reader", Password: "secret"}
 	root := srv.URL + "/odata/standard.odata/"
+	discovered, discoverErr := client.DiscoverAccounting(context.Background(), root, "7701234567")
+	if discoverErr != nil || len(discovered) != 1 || len(discovered[0].Accounts) != 1 || discovered[0].Accounts[0].Number != "40802810999900003157" || !discovered[0].Accounts[0].VerifiedInSource {
+		t.Fatalf("discovery leaked foreign accounts or failed: %+v %v", discovered, discoverErr)
+	}
 	config, plan, err := client.SuggestAccounting(context.Background(), root, "company", "7701234567", "40802810999900003157")
 	if err != nil {
 		t.Fatal(err)

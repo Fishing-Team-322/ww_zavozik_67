@@ -1,4 +1,5 @@
 "use client";
+import { queryParams } from "@/src/shared/api/query";
 import { useState } from "react";
 import Link from "next/link";
 import { useSession } from "@/src/features/auth";
@@ -29,7 +30,7 @@ function DocumentsPanel({ kind }: { kind: Kind }) {
   const base = `/v1/companies/${company!.id}/${kind}`;
   const [status, setStatus] = useState("");
   const [direction, setDirection] = useState("");
-  const rows = useApiResource<Array<Invoice | Contract>>(`${base}?${new URLSearchParams(Object.entries({ status, direction }).filter(([, value]) => value !== ""))}`);
+  const rows = useApiResource<Array<Invoice | Contract>>(`${base}?${queryParams({ status, direction })}`);
   const [editing, setEditing] = useState<Invoice | Contract | "new" | null>(null);
   const [deleting, setDeleting] = useState<Invoice | Contract | null>(null);
   const action = useAction();

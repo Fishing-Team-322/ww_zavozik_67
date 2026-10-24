@@ -25,6 +25,7 @@ import (
 	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/store"
 	"github.com/Fishing-Team-322/ww_zavozik_67/integrations/bridge"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/xuri/excelize/v2"
 	"golang.org/x/text/encoding/charmap"
 )
@@ -288,7 +289,7 @@ func (s *Service) sourceAction(ctx context.Context, op, uid, id string) (Result,
 			if company.INN == nil {
 				return Result{}, bad("Укажите ИНН компании")
 			}
-			_, e = s.lookup(ctx, *company.INN)
+			_, e = s.lookup(ctx, uid, *company.INN)
 		}
 		if e != nil {
 			_, _ = s.DB.Pool.Exec(ctx, "UPDATE sources SET status='error',error='Не удалось проверить подключение' WHERE id=$1 AND company_id=$2", id, cid)
@@ -346,27 +347,37 @@ func (s *Service) deleteSource(ctx context.Context, uid, cid, id string, b Doc) 
 	}
 	return Result{Status: 204}, nil
 }
-func (s *Service) lookup(ctx context.Context, inn string) (Result, error) {
-	if len(inn) != 10 && len(inn) != 12 {
-		return Result{}, bad("ИНН должен содержать 10 или 12 цифр")
+func (s *Service) lookup(ctx context.Context, uid, inn string) (Result, error) {
+	if !bridge.ValidINN(inn) {
+		return Result{}, bad("Проверьте ИНН: неверная длина или контрольная цифра")
 	}
-	for _, c := range inn {
-		if c < '0' || c > '9' {
-			return Result{}, bad("ИНН должен содержать цифры")
+	if s.DaDataToken != "" {
+		party, e := bridge.Lookup(ctx, s.DaDataToken, inn, s.HTTP)
+		if e == nil {
+			var legal any
+			if len(inn) == 12 {
+				legal = "ИП"
+			}
+			return ok(Doc{"inn": party.INN, "name": party.Name, "legal_form": legal, "industry": nil, "tax_regime": "unknown", "status": party.Status, "source": party.SourceKind, "ownership_verified": false})
 		}
 	}
+	var raw []byte
+	e := s.DB.Pool.QueryRow(ctx, `SELECT d.data FROM product_documents d WHERE d.kind='registry' AND d.data->>'inn'=$1 AND EXISTS(SELECT 1 FROM memberships m WHERE m.company_id=d.company_id AND m.user_id=$2 AND m.role='owner') ORDER BY d.data->>'actual_at' DESC,d.created_at DESC LIMIT 1`, inn, uid).Scan(&raw)
+	if e == nil {
+		record := store.Decode(raw)
+		legal := "ООО"
+		if len(inn) == 12 {
+			legal = "ИП"
+		}
+		return ok(Doc{"inn": inn, "name": record["name"], "legal_form": legal, "industry": nil, "tax_regime": "unknown", "status": record["registration_status"], "actual_at": record["actual_at"], "source": "ФНС: загруженная выписка на " + text(record, "actual_at"), "ownership_verified": false, "signature_status": "NOT_VERIFIED"})
+	}
+	if !errors.Is(e, pgx.ErrNoRows) {
+		return Result{}, e
+	}
 	if s.DaDataToken == "" {
-		return Result{}, platform.Fail(503, "provider_not_configured", "Нужен ключ провайдера сведений об организациях DADATA_API_TOKEN")
+		return Result{}, platform.Fail(503, "provider_not_configured", "Онлайн-поиск DaData не настроен. Создайте рабочее пространство вручную и загрузите официальную выписку ФНС в разделе источников.")
 	}
-	party, e := bridge.Lookup(ctx, s.DaDataToken, inn, s.HTTP)
-	if e != nil {
-		return Result{}, platform.Fail(502, "registry_unavailable", "Реестр не ответил или организация не найдена")
-	}
-	var legal any
-	if len(inn) == 12 {
-		legal = "ИП"
-	}
-	return ok(Doc{"inn": party.INN, "name": party.Name, "legal_form": legal, "industry": nil, "tax_regime": "unknown", "status": party.Status, "source": party.SourceKind})
+	return Result{}, platform.Fail(502, "registry_unavailable", "Онлайн-проверка недоступна; загрузите официальную выписку ФНС или повторите позже")
 }
 func (s *Service) upload(ctx context.Context, uid, cid string, reader *multipart.Reader) (Result, error) {
 	if reader == nil {

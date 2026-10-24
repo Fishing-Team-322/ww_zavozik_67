@@ -442,7 +442,7 @@ func (s *Service) syncJob(ctx context.Context, j store.ProductJob) (Doc, error) 
 		if company.INN == nil {
 			return nil, bad("Укажите ИНН компании")
 		}
-		result, err := s.lookup(ctx, *company.INN)
+		result, err := s.lookup(ctx, j.UserID, *company.INN)
 		if err != nil {
 			return nil, err
 		}

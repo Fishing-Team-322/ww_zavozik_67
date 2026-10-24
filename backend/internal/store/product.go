@@ -21,7 +21,7 @@ func productQuery(kind string) (string, error) {
 		return "SELECT t.extra||(to_jsonb(t)-'extra'-'config'-'config_secret') AS doc FROM " + table + " t", nil
 	}
 	switch kind {
-	case "invoice", "contract", "action", "signal", "import", "model_quality", "classifier_quality", "drift":
+	case "invoice", "contract", "action", "signal", "import", "model_quality", "classifier_quality", "drift", "registry", "registry_preview", "marketplace_report":
 		return "SELECT data||jsonb_build_object('id',id,'company_id',company_id,'created_at',created_at,'updated_at',updated_at) AS doc FROM product_documents t WHERE kind='" + kind + "'", nil
 	}
 	return "", errors.New("unknown resource kind")
@@ -143,7 +143,7 @@ func (p *Postgres) ProductSave(ctx context.Context, uid, cid, kind, id string, d
 	if err = writeProduct(ctx, tx, cid, kind, id, d); err != nil {
 		return nil, err
 	}
-	if kind != "alert" && kind != "signal" && kind != "action" && kind != "import" {
+	if kind != "alert" && kind != "signal" && kind != "action" && kind != "import" && kind != "registry" && kind != "registry_preview" && kind != "marketplace_report" {
 		if err = touchCompany(ctx, tx, uid, cid); err != nil {
 			return nil, err
 		}

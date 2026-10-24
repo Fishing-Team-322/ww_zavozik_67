@@ -71,6 +71,7 @@ test('anonymous data is protected and an unavailable source fails clearly', asyn
   await expect(page.getByRole('heading', { name: 'Источники данных' })).toBeVisible();
   await page.getByRole('textbox', { name: 'Адрес OData 1С' }).fill('https://example.invalid/odata/');
   await page.getByRole('textbox', { name: 'ИНН компании' }).fill('7725895601');
+  await page.getByText('Дополнительно: номер счёта вручную', { exact: true }).click();
   await page.getByRole('textbox', { name: 'Расчётный счёт компании' }).fill('40802810999900003157');
   await page.getByRole('button', { name: 'Подключить и синхронизировать' }).click();
   await expect(page.getByRole('alert').filter({ hasText: /разрешён|подобрать|недоступ|адрес/i })).toBeVisible();
@@ -109,7 +110,9 @@ test('live educational 1C imports once and keeps undated invoices out of calenda
   await login(page, user.email);
   await createCompany(page, 'E2E live 1C clone', process.env.LIVE_ONEC_INN);
   await page.getByRole('textbox', { name: 'Адрес OData 1С' }).fill(process.env.LIVE_ONEC_URL);
-  await page.getByRole('textbox', { name: 'Расчётный счёт компании' }).fill(process.env.LIVE_ONEC_ACCOUNT);
+  await page.getByRole('button', { name: 'Найти организацию и счета', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Найденный счёт организации', exact: true })).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByRole('button', { name: 'Найденный счёт организации', exact: true })).toContainText(process.env.LIVE_ONEC_ACCOUNT);
   await page.getByRole('button', { name: 'Подключить и синхронизировать' }).click();
   await expect(page.getByRole('status').filter({ hasText: /Синхронизация завершена/ })).toContainText('Новых операций: 15', { timeout: 120_000 });
   await expect(page.getByRole('heading', { name: 'Счета из 1С' })).toBeVisible();
@@ -173,7 +176,7 @@ test('synthetic CSV drives dashboard, forecast and a persistent manual event', a
     if (failJobPoll) { failJobPoll = false; return route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ message: 'E2E polling outage' }) }); }
     return route.continue();
   });
-  await page.locator('input[type="file"]').setInputFiles({ name: 'synthetic-statement.csv', mimeType: 'text/csv', buffer: Buffer.from(csv) });
+  await page.locator('input[type="file"][accept=".csv,.xlsx,.txt,.1c"]').setInputFiles({ name: 'synthetic-statement.csv', mimeType: 'text/csv', buffer: Buffer.from(csv) });
   await expect(page.getByRole('alert').filter({ hasText: 'Проверка задания приостановлена' })).toBeVisible();
   await page.getByRole('button', { name: 'Повторить проверку задания' }).click();
   const report = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Результат импорта' }) });
