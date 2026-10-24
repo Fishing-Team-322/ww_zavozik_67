@@ -1,0 +1,20 @@
+{
+  "protocol": "supplemental_research_no_model_selection",
+  "model": "amazon/chronos-t5-tiny",
+  "revision": "29d808298f1a62493e7b9a5e08529d0d930fa189",
+  "origins": 54,
+  "companies": 13,
+  "calibration_available_origins": 12,
+  "minimum_calibration_companies": 20,
+  "target_end_exclusive": "2026-07-01",
+  "paths": 600,
+  "source_sha256_at_start": "42673b93ef95e98d989c1231160b4690bf936104bb110b86f3bfb912bdcdef5d",
+  "source_changed_during_run": false,
+  "script_sha256": "5327dba5bbb735bf41144429e8e062b0142ebd250988fcf441b34c4e447b1c61",
+  "flows_sha256": "21d1e925e6d9ca1450e9d5254dd3e57ea6a6c6ad72096eb6bd0a2da307c668c5",
+  "baseline_sha256": "c7bbea35b540061f6fce1c63010cd90b45480d910235f20efd3254a2f682ef0e",
+  "calibration_predictions_sha256": "d2ae644337dd2fa0cd9f0f0a028108707d78995495d48e8faa92e63651eca8bc",
+  "seconds": 150.71075437497348,
+  "serving_model_changed": false,
+  "limitation": "Previously inspected synthetic supplemental cohort. Few actually young companies. Net flow only; no independent external audit and no pooling with locked audit."
+}
