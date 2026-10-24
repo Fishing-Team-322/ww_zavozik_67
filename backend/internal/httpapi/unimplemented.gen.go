@@ -17,6 +17,34 @@ func (Unimplemented) Login(ctx context.Context, request LoginRequestObject) (Log
 	return nil, ErrNotImplemented
 }
 
+func (Unimplemented) Logout(ctx context.Context, request LogoutRequestObject) (LogoutResponseObject, error) {
+	return nil, ErrNotImplemented
+}
+
+func (Unimplemented) FinishOAuth(ctx context.Context, request FinishOAuthRequestObject) (FinishOAuthResponseObject, error) {
+	return nil, ErrNotImplemented
+}
+
+func (Unimplemented) StartOAuth(ctx context.Context, request StartOAuthRequestObject) (StartOAuthResponseObject, error) {
+	return nil, ErrNotImplemented
+}
+
+func (Unimplemented) ForgotPassword(ctx context.Context, request ForgotPasswordRequestObject) (ForgotPasswordResponseObject, error) {
+	return nil, ErrNotImplemented
+}
+
+func (Unimplemented) ResetPassword(ctx context.Context, request ResetPasswordRequestObject) (ResetPasswordResponseObject, error) {
+	return nil, ErrNotImplemented
+}
+
+func (Unimplemented) ListAuthProviders(ctx context.Context, request ListAuthProvidersRequestObject) (ListAuthProvidersResponseObject, error) {
+	return nil, ErrNotImplemented
+}
+
+func (Unimplemented) Refresh(ctx context.Context, request RefreshRequestObject) (RefreshResponseObject, error) {
+	return nil, ErrNotImplemented
+}
+
 func (Unimplemented) Register(ctx context.Context, request RegisterRequestObject) (RegisterResponseObject, error) {
 	return nil, ErrNotImplemented
 }
@@ -26,6 +54,18 @@ func (Unimplemented) ListCompanies(ctx context.Context, request ListCompaniesReq
 }
 
 func (Unimplemented) CreateCompany(ctx context.Context, request CreateCompanyRequestObject) (CreateCompanyResponseObject, error) {
+	return nil, ErrNotImplemented
+}
+
+func (Unimplemented) DeleteCompany(ctx context.Context, request DeleteCompanyRequestObject) (DeleteCompanyResponseObject, error) {
+	return nil, ErrNotImplemented
+}
+
+func (Unimplemented) GetCompany(ctx context.Context, request GetCompanyRequestObject) (GetCompanyResponseObject, error) {
+	return nil, ErrNotImplemented
+}
+
+func (Unimplemented) UpdateCompany(ctx context.Context, request UpdateCompanyRequestObject) (UpdateCompanyResponseObject, error) {
 	return nil, ErrNotImplemented
 }
 
@@ -93,6 +133,14 @@ func (Unimplemented) CreateSource(ctx context.Context, request CreateSourceReque
 	return nil, ErrNotImplemented
 }
 
+func (Unimplemented) GetCompanyState(ctx context.Context, request GetCompanyStateRequestObject) (GetCompanyStateResponseObject, error) {
+	return nil, ErrNotImplemented
+}
+
+func (Unimplemented) PutCompanyState(ctx context.Context, request PutCompanyStateRequestObject) (PutCompanyStateResponseObject, error) {
+	return nil, ErrNotImplemented
+}
+
 func (Unimplemented) UploadStatement(ctx context.Context, request UploadStatementRequestObject) (UploadStatementResponseObject, error) {
 	return nil, ErrNotImplemented
 }
@@ -109,7 +157,19 @@ func (Unimplemented) GetJob(ctx context.Context, request GetJobRequestObject) (G
 	return nil, ErrNotImplemented
 }
 
-func (Unimplemented) CreateTelegramLink(ctx context.Context, request CreateTelegramLinkRequestObject) (CreateTelegramLinkResponseObject, error) {
+func (Unimplemented) GetMe(ctx context.Context, request GetMeRequestObject) (GetMeResponseObject, error) {
+	return nil, ErrNotImplemented
+}
+
+func (Unimplemented) ChangePassword(ctx context.Context, request ChangePasswordRequestObject) (ChangePasswordResponseObject, error) {
+	return nil, ErrNotImplemented
+}
+
+func (Unimplemented) ListSessions(ctx context.Context, request ListSessionsRequestObject) (ListSessionsResponseObject, error) {
+	return nil, ErrNotImplemented
+}
+
+func (Unimplemented) RevokeSession(ctx context.Context, request RevokeSessionRequestObject) (RevokeSessionResponseObject, error) {
 	return nil, ErrNotImplemented
 }
 

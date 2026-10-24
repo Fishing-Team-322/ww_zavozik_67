@@ -15,6 +15,8 @@ import (
 	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/forecast"
 	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/httpapi"
 	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/logging"
+	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/platform"
+	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/store"
 )
 
 func main() {
@@ -22,6 +24,36 @@ func main() {
 	log := logging.New(cfg.LogLevel)
 
 	srv := &httpapi.Server{Fallback: forecast.SeasonalNaive{}, Log: log}
+	if cfg.DatabaseURL != "" {
+		if err := cfg.ValidatePlatform(); err != nil {
+			log.Error("platform configuration", "err", err)
+			os.Exit(1)
+		}
+		startup, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		db, err := store.Open(startup, cfg.DatabaseURL)
+		cancel()
+		if err != nil {
+			log.Error("storage startup", "err", err)
+			os.Exit(1)
+		}
+		defer db.Pool.Close()
+		accounts, err := platform.New(db, cfg.JWTSecret)
+		if err != nil {
+			log.Error("account startup")
+			os.Exit(1)
+		}
+		accounts.PublicURL = cfg.PublicURL
+		accounts.Log = log
+		accounts.FrontendURL = cfg.FrontendURL
+		accounts.SecureCookies = cfg.CookieSecure
+		accounts.Providers = platform.Providers(cfg.GoogleClientID, cfg.GoogleClientSecret, cfg.YandexClientID, cfg.YandexClientSecret, cfg.PublicURL)
+		if cfg.SMTPAddr != "" {
+			accounts.Mailer = platform.SMTPMailer{Addr: cfg.SMTPAddr, Username: cfg.SMTPUser, Password: cfg.SMTPPassword, From: cfg.SMTPFrom, LocalPlaintext: cfg.SMTPLocalPlaintext}
+		}
+		srv.Accounts = accounts
+	} else {
+		log.Warn("DATABASE_URL is empty; account and company APIs are unavailable")
+	}
 	if cfg.MLAddr != "" {
 		ml, err := forecast.DialML(cfg.MLAddr)
 		if err != nil {
@@ -36,6 +68,9 @@ func main() {
 		Addr:              cfg.HTTPAddr,
 		Handler:           withMiddleware(srv.Handler(), log),
 		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       60 * time.Second,
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -79,8 +114,10 @@ func withMiddleware(next http.Handler, log *slog.Logger) http.Handler {
 		rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
 		defer func() {
 			if p := recover(); p != nil {
-				log.Error("panic", "path", r.URL.Path, "panic", p)
-				http.Error(rec, `{"code":"internal","message":"Внутренняя ошибка"}`, http.StatusInternalServerError)
+				log.Error("panic", "path", r.URL.Path)
+				rec.Header().Set("Content-Type", "application/json")
+				rec.WriteHeader(http.StatusInternalServerError)
+				_, _ = rec.Write([]byte(`{"code":"internal","message":"Внутренняя ошибка"}`))
 			}
 			log.Info("http", "method", r.Method, "path", r.URL.Path, "status", rec.status, "dur_ms", time.Since(start).Milliseconds())
 		}()
