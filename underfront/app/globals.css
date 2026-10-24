@@ -153,40 +153,41 @@ html[data-theme="light"] {
   --tabs-active-shadow: 0 0 0 1px oklch(0.2306 0.0369 80.43 / 0.08), 0 1px 2px oklch(0.2306 0.0369 80.43 / 0.08);
 
   /* select dropdown */
-  --select-menu-bg: #ffffff;
-  --select-menu-border: #d8e3f2;
-  --select-menu-shadow: 0 22px 60px rgba(39, 76, 119, 0.12);
-  --select-search-bg: #f8fafc;
-  --select-option-fg: #334155;
-  --select-option-fg-hover: #112033;
-  --select-option-bg-hover: #f3f8ff;
-  --select-option-bg-selected: #eaf2ff;
-  --select-option-fg-selected: #0f2342;
-  --select-empty-title: #112033;
-  --select-empty-description: #64748b;
+  --select-menu-bg: var(--input-background);
+  --select-menu-border: var(--input-border);
+  --select-menu-shadow: 0 12px 28px rgba(44, 42, 36, 0.12);
+  --select-search-bg: #ffffff;
+  --select-option-fg: #85827c;
+  --select-option-fg-hover: #4b4943;
+  --select-option-bg-hover: #efeeea;
+  --select-option-bg-selected: #e9e8e4;
+  --select-option-fg-selected: #4b4943;
+  --select-empty-title: #4b4943;
+  --select-empty-description: #85827c;
   --select-scrollbar-thumb: rgba(100, 116, 139, 0.45);
   --select-scrollbar-thumb-hover: rgba(71, 85, 105, 0.62);
   --select-scrollbar-thumb-active: rgba(51, 65, 85, 0.72);
   --select-scrollbar-thumb-border: rgba(255, 255, 255, 0.5);
 
   /* nav */
-  --sidebar-bg: #ffffff;
-  --sidebar-hover: #f5f9ff;
-  --sidebar-active: #e1e3e6;
+  --sidebar-bg: #f8f7f5;
+  --sidebar-hover: #efeeea;
+  --sidebar-active: #e9e8e4;
 
   --nav-item-bg: transparent;
-  --nav-item-hover-bg: #f3f8ff;
-  --nav-item-active-bg: #eaf2ff;
-  --nav-item-active-border: rgba(31, 99, 242, 0.18);
+  --nav-item-hover-bg: #efeeea;
+  --nav-item-active-bg: #e9e8e4;
+  --nav-item-active-border: #dedcd7;
 
-  --nav-item-text: #26405f;
-  --nav-item-text-muted: #6b7280;
-  --nav-item-text-hover: #112033;
-  --nav-item-active-text: #1747b5;
+  --nav-item-text: #85827c;
+  --nav-item-text-muted: #85827c;
+  --nav-item-text-hover: #4b4943;
+  --nav-item-active-text: #4b4943;
 
-  --nav-item-icon: #7b8ca4;
-  --nav-item-icon-hover: #18304f;
-  --nav-item-icon-active: #1747b5;
+  --nav-item-icon: #85827c;
+  --nav-item-icon-hover: #4b4943;
+  --nav-item-icon-active: #4b4943;
+  --nav-focus-ring: #aaa79f;
 
   /* charts */
   --chart-grid: rgba(95, 108, 126, 0.16);
@@ -223,7 +224,7 @@ html[data-theme="light"] {
   --chart-metric-bg: var(--badge-bg);
   --chart-tooltip-bg: var(--tooltip-bg);
 
-  --sidebar-active-fg: var(--accent);
+  --sidebar-active-fg: var(--nav-item-active-text);
 
   /* radius */
   --radius-sm: 0.625rem;
@@ -352,15 +353,15 @@ html[data-theme="dark"] {
   --tabs-active-fg: #f4f4f5;
   --tabs-active-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1), 0 1px 2px rgba(0, 0, 0, 0.18);
 
-  --select-menu-bg: #161616;
-  --select-menu-border: #383838;
-  --select-menu-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
-  --select-search-bg: #101010;
-  --select-option-fg: #dddddf;
-  --select-option-fg-hover: #ffffff;
+  --select-menu-bg: var(--input-background);
+  --select-menu-border: var(--input-border);
+  --select-menu-shadow: 0 12px 28px rgba(0, 0, 0, 0.38);
+  --select-search-bg: #202020;
+  --select-option-fg: #cececd;
+  --select-option-fg-hover: #f4f4f2;
   --select-option-bg-hover: #222222;
-  --select-option-bg-selected: #2b2b2b;
-  --select-option-fg-selected: #ffffff;
+  --select-option-bg-selected: #2d2d2d;
+  --select-option-fg-selected: #e6e6e3;
   --select-empty-title: #f4f4f5;
   --select-empty-description: #a1a1a6;
   --select-scrollbar-thumb: rgba(255, 255, 255, 0.28);
@@ -368,21 +369,22 @@ html[data-theme="dark"] {
   --select-scrollbar-thumb-active: rgba(255, 255, 255, 0.58);
   --select-scrollbar-thumb-border: rgba(255, 255, 255, 0.08);
 
-  --sidebar-bg: #0c0c0c;
-  --sidebar-hover: #1b1b1b;
-  --sidebar-active: #292929;
+  --sidebar-bg: #141414;
+  --sidebar-hover: #222222;
+  --sidebar-active: #2d2d2d;
 
   --nav-item-bg: transparent;
-  --nav-item-hover-bg: #1b1b1b;
-  --nav-item-active-bg: #292929;
-  --nav-item-active-border: rgba(95, 149, 255, 0.24);
-  --nav-item-text: #dddddf;
-  --nav-item-text-muted: #a1a1a6;
+  --nav-item-hover-bg: #222222;
+  --nav-item-active-bg: #2d2d2d;
+  --nav-item-active-border: #404040;
+  --nav-item-text: #cececd;
+  --nav-item-text-muted: #92928f;
   --nav-item-text-hover: #ffffff;
-  --nav-item-active-text: #ffffff;
-  --nav-item-icon: #9a9aa0;
-  --nav-item-icon-hover: #ffffff;
-  --nav-item-icon-active: #ffffff;
+  --nav-item-active-text: #e6e6e3;
+  --nav-item-icon: #898985;
+  --nav-item-icon-hover: #c7c7c3;
+  --nav-item-icon-active: #d1d1cd;
+  --nav-focus-ring: #858580;
 
   --chart-grid: rgba(160, 160, 160, 0.18);
   --chart-axis: #99999f;
@@ -412,7 +414,7 @@ html[data-theme="dark"] {
   --chart-subtitle: var(--chart-text);
   --chart-metric-bg: var(--badge-bg);
   --chart-tooltip-bg: var(--tooltip-bg);
-  --sidebar-active-fg: #ffffff;
+  --sidebar-active-fg: var(--nav-item-active-text);
 
   --radius-sm: 0.625rem;
   --radius-md: 0.875rem;

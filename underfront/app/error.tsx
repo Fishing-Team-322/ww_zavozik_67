@@ -1,7 +1,7 @@
 "use client";
 
-import { Button, ErrorState } from "@/src/components/ui";
-import { PageLayout } from "@/src/components/cabinet/shared";
+import { Button, ErrorState } from "@/src/shared/ui";
+import { PageLayout } from "@/src/widgets/cabinet-shell";
 
 export default function ErrorPage({ reset }: { error: Error & { digest?: string }; reset: () => void }) {
   return (

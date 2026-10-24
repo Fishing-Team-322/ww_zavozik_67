@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
-import { CabinetShell } from "@/src/components/cabinet/shared/CabinetShell";
-import { SidebarNavStateProvider } from "@/src/components/cabinet/shared/SidebarNavStateProvider";
+import { CabinetShell } from "@/src/widgets/cabinet-shell";
+import { SidebarNavStateProvider } from "@/src/widgets/cabinet-shell";
 import "@fontsource-variable/inter/wght.css";
 import "@fontsource-variable/inter/wght-italic.css";
 import "./globals.css";

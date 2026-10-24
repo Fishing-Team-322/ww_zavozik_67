@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
-import { SectionView } from "@/src/components/workspace/SectionView";
-import { sections, type Section } from "@/src/lib/sections";
+import { SectionView } from "@/app/[section]/_ui/SectionView";
+import { sections, type Section } from "@/src/entities/navigation";
 
 export function generateStaticParams() {
   return sections.map((section) => ({ section }));

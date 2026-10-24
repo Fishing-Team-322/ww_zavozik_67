@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { EmptyState } from "@/src/components/ui";
-import { PageLayout } from "@/src/components/cabinet/shared";
+import { EmptyState } from "@/src/shared/ui";
+import { PageLayout } from "@/src/widgets/cabinet-shell";
 
 export default function NotFound() {
   return (

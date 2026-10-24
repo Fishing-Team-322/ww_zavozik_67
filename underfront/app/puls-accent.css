@@ -7,14 +7,13 @@
   --brand: #087f5b;
   --brand-hover: #066c4c;
   --brand-active: #05573d;
-  --nav-item-active-bg: #e9f6ef;
-  --nav-item-active-text: #075c42;
-  --nav-item-icon-active: #087f5b;
   --brand-gradient: linear-gradient(135deg, #087f5b, #16a77a);
   --focus-ring: rgba(8,127,91,.2);
   --focus-ring-strong: #087f5b;
   --ring: #087f5b;
   --input-border-focus: #087f5b;
+  --auth-glow: rgba(8, 127, 91, 0.065);
+  --auth-card-bg: #fbfaf8;
 }
 html[data-theme="dark"] {
   --accent: #48d6a3;
@@ -24,14 +23,13 @@ html[data-theme="dark"] {
   --brand: #10996e;
   --brand-hover: #17ad7d;
   --brand-active: #087f5b;
-  --nav-item-active-bg: #17352b;
-  --nav-item-active-text: #a9f7ce;
-  --nav-item-icon-active: #48d6a3;
   --brand-gradient: linear-gradient(135deg, #087f5b, #1bbf8d);
   --focus-ring: rgba(72,214,163,.22);
   --focus-ring-strong: #48d6a3;
   --ring: #48d6a3;
   --input-border-focus: #48d6a3;
+  --auth-glow: rgba(72, 214, 163, 0.055);
+  --auth-card-bg: #1b1b1a;
 }
 
 /* The overview keeps its warm Runway palette while following the app theme. */
