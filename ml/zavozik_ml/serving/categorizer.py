@@ -21,6 +21,7 @@ from zavozik_ml.classify import Classifier, Op
 log = logging.getLogger("zavozik_ml")
 
 MAX_OPERATIONS = 5000
+MAX_TEXT_CHARS = 2_000_000
 
 
 def load_classifier(directory: Path) -> Classifier | None:
@@ -51,6 +52,9 @@ class CategorizerService(pb_grpc.CategorizerServiceServicer):
         n = len(request.operations)
         if n > MAX_OPERATIONS:
             context.abort(grpc.StatusCode.INVALID_ARGUMENT, f"at most {MAX_OPERATIONS} operations per request")
+        if sum(len(o.payment_purpose)+len(o.counterparty_name)+len(o.counterparty_inn)+len(o.id)
+               for o in request.operations) > MAX_TEXT_CHARS:
+            context.abort(grpc.StatusCode.INVALID_ARGUMENT, "total operation text exceeds batch limit")
         for op in request.operations:
             if op.direction not in ("in", "out"):
                 context.abort(grpc.StatusCode.INVALID_ARGUMENT, "direction must be in or out")
@@ -58,6 +62,8 @@ class CategorizerService(pb_grpc.CategorizerServiceServicer):
                 context.abort(grpc.StatusCode.INVALID_ARGUMENT, "amount must be finite and nonnegative")
             if len(op.payment_purpose) > 8192 or len(op.counterparty_name) > 1024:
                 context.abort(grpc.StatusCode.INVALID_ARGUMENT, "operation text exceeds limit")
+            if len(op.counterparty_inn) > 64 or len(op.id) > 256:
+                context.abort(grpc.StatusCode.INVALID_ARGUMENT, "operation identifier exceeds limit")
         t0 = time.perf_counter()
         ops = [Op(direction=o.direction, purpose=o.payment_purpose, counterparty_name=o.counterparty_name,
                   counterparty_inn=o.counterparty_inn, amount=o.amount) for o in request.operations]

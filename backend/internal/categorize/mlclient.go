@@ -71,8 +71,20 @@ func (m *MLCategorizer) Categorize(ctx context.Context, ops []domain.Operation) 
 	if batch <= 0 {
 		batch = 5000
 	}
-	for from := 0; from < len(ops); from += batch {
-		to := min(from+batch, len(ops))
+	batch = min(batch, 5000)
+	for from := 0; from < len(ops); {
+		to, textBytes := from, 0
+		for to < len(ops) && to-from < batch {
+			op := ops[to]
+			size := len(op.ID) + len(op.Purpose) + len(op.CounterpartyName) + len(op.CounterpartyINN)
+			// A byte budget is conservative for the server's Unicode character
+			// limit and prevents valid long descriptions from failing a whole batch.
+			if to > from && textBytes+size > 2_000_000 {
+				break
+			}
+			textBytes += size
+			to++
+		}
 		if err := m.classify(ctx, ops[from:to], out[from:to]); err != nil {
 			if !m.FailOpen || ctx.Err() != nil {
 				return nil, err
@@ -82,11 +94,15 @@ func (m *MLCategorizer) Categorize(ctx context.Context, ops []domain.Operation) 
 			}
 			clear(out[from:to])
 		}
+		from = to
 	}
 	return out, nil
 }
 
 func (m *MLCategorizer) classify(ctx context.Context, ops []domain.Operation, out []Result) error {
+	if m.Client == nil {
+		return fmt.Errorf("categorize ml: client is not configured")
+	}
 	timeout := m.Timeout
 	if timeout <= 0 {
 		timeout = 30 * time.Second
@@ -119,7 +135,7 @@ func (m *MLCategorizer) classify(ctx context.Context, ops []domain.Operation, ou
 		}
 		c := domain.Category(r.GetCategory())
 		conf := r.GetConfidence()
-		if !knownCategory[c] || math.IsNaN(conf) || math.IsInf(conf, 0) || conf < m.MinConfidence {
+		if !knownCategory[c] || math.IsNaN(conf) || math.IsInf(conf, 0) || conf < 0 || conf > 1 || conf < m.MinConfidence {
 			out[i] = Result{}
 			continue
 		}

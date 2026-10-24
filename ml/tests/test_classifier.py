@@ -177,3 +177,21 @@ def test_grpc_without_artifact():
             assert e.value.code() == grpc.StatusCode.FAILED_PRECONDITION
     finally:
         server.stop(0)
+
+
+@pytest.mark.parametrize('op', [
+    pb.Operation(direction='wrong'), pb.Operation(direction='out', amount=float('inf')),
+    pb.Operation(direction='out', amount=-1), pb.Operation(direction='out', payment_purpose='x'*8193),
+    pb.Operation(direction='in', id='x'*257), pb.Operation(direction='in', counterparty_inn='x'*65),
+])
+def test_grpc_rejects_invalid_operation(stub, op):
+    with pytest.raises(grpc.RpcError) as e:
+        stub.Classify(pb.ClassifyRequest(operations=[op]))
+    assert e.value.code() == grpc.StatusCode.INVALID_ARGUMENT
+
+
+def test_grpc_bounds_total_text_before_classification(stub):
+    op=pb.Operation(direction='out', payment_purpose='x'*8000)
+    with pytest.raises(grpc.RpcError) as e:
+        stub.Classify(pb.ClassifyRequest(operations=[op]*251))
+    assert e.value.code() == grpc.StatusCode.INVALID_ARGUMENT

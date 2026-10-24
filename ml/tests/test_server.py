@@ -111,3 +111,14 @@ def test_auto_reports_out_of_domain_fallback(stub):
     assert response.fallback_used and response.low_confidence
     assert 'out_of_domain_naive_fallback' in response.warnings
     assert all(all(v==0 for v in path.inflow) for path in response.paths)
+
+
+@pytest.mark.parametrize('flow', [
+    pb.DailyFlow(date='2026-01-01', by_category={'unknown_category': 1}),
+    pb.DailyFlow(date='2026-01-01', inflow=1e308),
+    pb.DailyFlow(date='2026-01-01', by_category={'salary': -1e308}),
+])
+def test_forecast_bounds_input_feature_space(stub, flow):
+    with pytest.raises(grpc.RpcError) as e:
+        stub.Forecast(pb.ForecastRequest(model='seasonal_naive', history=[flow], horizon_days=7, n_paths=10))
+    assert e.value.code() == grpc.StatusCode.INVALID_ARGUMENT

@@ -16,6 +16,9 @@ import (
 	"sort"
 	"time"
 
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+
 	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/domain"
 )
 
@@ -117,12 +120,21 @@ func (a Assembler) Build(ctx context.Context, in Input) (Result, error) {
 }
 
 func (a Assembler) stochastic(ctx context.Context, req StochasticRequest) (StochasticForecast, error) {
+	if err := ctx.Err(); err != nil {
+		return StochasticForecast{}, err
+	}
 	if a.Primary != nil {
 		pctx, cancel := context.WithTimeout(ctx, a.timeout())
 		sf, err := a.Primary.Forecast(pctx, req)
 		cancel()
 		if err == nil {
 			return sf, nil
+		}
+		if ctx.Err() != nil {
+			return StochasticForecast{}, ctx.Err()
+		}
+		if status.Code(err) == codes.InvalidArgument {
+			return StochasticForecast{}, err // invalid input must not silently select another model
 		}
 		if a.Log != nil {
 			a.Log.Warn("ml forecast failed, using fallback", "company_id", req.CompanyID, "err", err)
@@ -131,7 +143,13 @@ func (a Assembler) stochastic(ctx context.Context, req StochasticRequest) (Stoch
 	if a.Fallback == nil {
 		return StochasticForecast{}, errors.New("forecast: no forecaster available")
 	}
-	return a.Fallback.Forecast(ctx, req)
+	sf, err := a.Fallback.Forecast(ctx, req)
+	if err == nil {
+		sf.FallbackUsed = true
+		sf.LowConfidence = true
+		sf.Warnings = append(sf.Warnings, "ml_service_fallback")
+	}
+	return sf, err
 }
 
 func (a Assembler) timeout() time.Duration {
