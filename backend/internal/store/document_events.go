@@ -49,7 +49,7 @@ func preserveContractReceipts(ctx context.Context, tx pgx.Tx, cid, id string, d 
 				continue
 			}
 			value, _ := entry["amount"].(float64)
-			if entry["date"] != date || math.Abs(value-amount) > .011 || d["direction"] != direction {
+			if entry["date"] != date || math.Round(value*100) != math.Round(amount*100) || d["direction"] != direction {
 				return platform.Fail(409, "settled_installment", "Оплаченный по выписке платёж нельзя изменить. Добавьте новое обязательство для корректировки.")
 			}
 			entry["status"] = "received"

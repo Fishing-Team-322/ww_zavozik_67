@@ -47,7 +47,22 @@ func TestContractReceiptSurvivesMetadataEdit(t *testing.T) {
 		t.Fatal("stale editor reopened a paid installment", edited)
 	}
 	auditCall(t, h, token, "PATCH", "/v1/contracts/"+contract["id"].(string), product.Doc{"total": float64(12000), "schedule": []product.Doc{{"date": "2026-10-24", "amount": float64(12000), "status": "expected"}}}, 409)
+	auditCall(t, h, token, "PATCH", "/v1/contracts/"+contract["id"].(string), product.Doc{"total": 10000.01, "schedule": []product.Doc{{"date": "2026-10-24", "amount": 10000.01, "status": "expected"}}}, 409)
 	auditCall(t, h, token, "PATCH", "/v1/contracts/"+contract["id"].(string), product.Doc{"total": float64(0), "schedule": []product.Doc{}}, 409)
+}
+
+func TestReconciliationPreservesOneKopeckDifference(t *testing.T) {
+	h, s, token, cid := auditSetup(t)
+	event := auditCall(t, h, token, "POST", "/v1/companies/"+cid+"/events", product.Doc{"date": "2026-10-24", "title": "Exact cents", "amount": 1000.01, "direction": "in", "counterparty_name": "Cents client"}, 201)
+	auditOperation(t, h, cid, "2026-10-24", "Cents client", "", 1000, 110000)
+	drainCase(t, s)
+	var state string
+	if e := h.db.Pool.QueryRow(context.Background(), "SELECT status FROM planned_events WHERE id=$1", event["id"]).Scan(&state); e != nil {
+		t.Fatal(e)
+	}
+	if state == "received" {
+		t.Fatal("one kopeck short was accepted as a full payment")
+	}
 }
 func TestScenarioMarkersFollowMovedAndScaledPlans(t *testing.T) {
 	h, _, token, cid := auditSetup(t)

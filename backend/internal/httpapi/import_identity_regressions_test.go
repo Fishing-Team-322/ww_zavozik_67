@@ -35,20 +35,24 @@ func importAuditCSV(t *testing.T, h *harness, s *product.Service, token, cid, bo
 	return auditCall(t, h, token, "GET", done["result_ref"].(string), nil, 200)
 }
 func TestImportReportsReusedIDWithDifferentAmount(t *testing.T) {
-	h, s, token, cid := auditSetup(t)
-	head := "date;amount;direction;counterparty;purpose;balance;id\n"
-	importAuditCSV(t, h, s, token, cid, head+"2026-10-24;100;in;CSV client;Services;109100;stable-id\n")
-	got := importAuditCSV(t, h, s, token, cid, head+"2026-10-24;200;in;CSV client;Services;109200;stable-id\n")
-	if len(got["errors"].([]any)) == 0 || got["duplicates"] != float64(0) {
-		t.Fatalf("changed bank fact was silently labelled a duplicate: %v", got)
-	}
-	var amount float64
-	e := h.db.Pool.QueryRow(context.Background(), "SELECT amount::float8 FROM operations WHERE company_id=$1 AND counterparty_name='CSV client'", cid).Scan(&amount)
-	if e != nil {
-		t.Fatal(e)
-	}
-	if amount != 100 {
-		t.Fatalf("conflicting import rewrote historical amount: %.2f", amount)
+	for _, changed := range []string{"200", "100.01"} {
+		t.Run(changed, func(t *testing.T) {
+			h, s, token, cid := auditSetup(t)
+			head := "date;amount;direction;counterparty;purpose;balance;id\n"
+			importAuditCSV(t, h, s, token, cid, head+"2026-10-24;100;in;CSV client;Services;109100;stable-id\n")
+			got := importAuditCSV(t, h, s, token, cid, head+"2026-10-24;"+changed+";in;CSV client;Services;109100;stable-id\n")
+			if len(got["errors"].([]any)) == 0 || got["duplicates"] != float64(0) {
+				t.Fatalf("changed bank fact was silently labelled a duplicate: %v", got)
+			}
+			var amount float64
+			e := h.db.Pool.QueryRow(context.Background(), "SELECT amount::float8 FROM operations WHERE company_id=$1 AND counterparty_name='CSV client'", cid).Scan(&amount)
+			if e != nil {
+				t.Fatal(e)
+			}
+			if amount != 100 {
+				t.Fatalf("conflicting import rewrote historical amount: %.2f", amount)
+			}
+		})
 	}
 }
 func TestRepeatImportCanFillAnUnknownClosingBalance(t *testing.T) {

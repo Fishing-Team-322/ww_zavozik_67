@@ -331,8 +331,8 @@ func (s *Service) saveImport(ctx context.Context, j store.ProductJob, sourceID, 
 				if e != nil {
 					return nil, e
 				}
-				conflict := oldDate != op.Date.Format(domain.DateLayout) || math.Abs(oldAmount-op.Amount.Float()) > .011 || oldDirection != string(op.Direction) || oldINN != string(op.CounterpartyINN) || oldName != string(op.CounterpartyName) || oldPurpose != string(op.Purpose)
-				if oldBalance != nil && op.BalanceEOD != nil && math.Abs(*oldBalance-op.BalanceEOD.Float()) > .011 {
+				conflict := oldDate != op.Date.Format(domain.DateLayout) || math.Round(oldAmount*100) != math.Round(op.Amount.Float()*100) || oldDirection != string(op.Direction) || oldINN != string(op.CounterpartyINN) || oldName != string(op.CounterpartyName) || oldPurpose != string(op.Purpose)
+				if oldBalance != nil && op.BalanceEOD != nil && math.Round(*oldBalance*100) != math.Round(op.BalanceEOD.Float()*100) {
 					conflict = true
 				}
 				if conflict {

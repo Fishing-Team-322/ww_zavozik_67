@@ -155,3 +155,5 @@ CSV/XLSX repeat imports compare reused IDs with the stored economic fact.
 Conflicts are reported as operation_conflict, not silently counted as duplicates,
 and do not overwrite historical facts. Matching repeats may fill a previously
 unknown closing balance, including an explicit zero.
+Payment matching, import-ID conflicts and settled contract terms compare amounts
+in rounded integer kopecks: a one-kopeck difference is not a full payment/duplicate.

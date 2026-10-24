@@ -165,7 +165,7 @@ func (s *Service) reconcileFacts(ctx context.Context, uid, cid string) error {
 		}
 		matches := []Doc{}
 		for _, op := range rows {
-			if used[text(op, "id")] || flag(op, "is_duplicate") || flag(op, "is_internal") || text(op, "direction") != text(event, "direction") || math.Abs(number(op, "amount")-number(event, "amount")) > .011 {
+			if used[text(op, "id")] || flag(op, "is_duplicate") || flag(op, "is_internal") || text(op, "direction") != text(event, "direction") || math.Round(number(op, "amount")*100) != math.Round(number(event, "amount")*100) {
 				continue
 			}
 			taxMatch := text(event, "source_kind") == "tax_calendar" && text(op, "category") == "tax"
