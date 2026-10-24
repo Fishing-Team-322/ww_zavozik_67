@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -65,8 +66,23 @@ func main() {
 	if api.SyncToken == "" {
 		log.Fatal("missing sync token")
 	}
+	if raw := strings.TrimSpace(os.Getenv("FNS_DEBT_INNS")); raw != "" {
+		cfg := &service.FNSSync{DB: postgres, CompanyID: companyID, INNs: strings.Split(raw, ",")}
+		api.FNSSync = cfg
+	}
 	jobsCtx, jobsCancel := context.WithCancel(context.Background())
 	defer jobsCancel()
+	if api.FNSSync != nil {
+		interval := 24 * time.Hour
+		if setting := os.Getenv("FNS_CHECK_INTERVAL"); setting != "" {
+			var e error
+			interval, e = time.ParseDuration(setting)
+			if e != nil || interval < 6*time.Hour {
+				log.Fatal("invalid FNS check interval")
+			}
+		}
+		scheduler.RunWithRetryFloor(jobsCtx, interval, 15*time.Minute, 6*time.Hour, func(ctx context.Context) error { _, e := api.FNSSync.Run(ctx); return e })
+	}
 	if setting := os.Getenv("ONEC_SYNC_INTERVAL"); setting != "" {
 		interval, err := time.ParseDuration(setting)
 		if err != nil || interval < time.Minute {
@@ -97,7 +113,7 @@ func main() {
 			})
 		}
 	}
-	srv := &http.Server{Addr: addr, Handler: api.Handler(), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 30 * time.Second, WriteTimeout: 30 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 16 << 10}
+	srv := &http.Server{Addr: addr, Handler: api.Handler(), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 2 * time.Minute, WriteTimeout: 16 * time.Minute, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 16 << 10}
 	log.Print("integration hub listening")
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)

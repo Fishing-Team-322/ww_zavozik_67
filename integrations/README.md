@@ -102,6 +102,10 @@ Compose публикует Hub на `127.0.0.1:8091`, PostgreSQL на `127.0.0.1
 - Токен общий для локального оператора; сервер разрешает только настроенную `INTEGRATIONS_COMPANY_ID` (по умолчанию `demo-company`). Полноценные пользовательские права и несколько компаний требуют backend.
 - Файл выписки ограничен 4 MiB, строки — 16 KiB, документы — 10 000. OData: 2 MiB на страницу, до 20 страниц и 4000 записей за синхронизацию и до 4000 контрагентов при включённом разрешении ссылок. Большие базы потребуют фильтра по дате, адресного получения контрагентов и сохранения курсора.
 - Поддерживаются UTF-8, UTF-8 BOM и Windows-1251. Ошибки отдельных документов возвращаются кодами в `issues`, без исходных реквизитов; сырые ответы 1С и пароль не попадают в ошибки.
-- ФНС импортируется из официального архива через CLI, WB и Ozon читаются через отдельные адаптеры с mock-тестами. Их серверная синхронизация/хранение ещё не включены; live WB/Ozon/DaData требует локальных ключей.
+- ФНС проверяет обновления публичного набора задолженности по расписанию и через HTTP; реестровые PDF/XML загружаются через HTTP или CLI. WB и Ozon имеют отдельные адаптеры и mock-тесты; live WB/Ozon/DaData требует локальных ключей.
 
 См. [контракт](docs/CONTRACT.md) и [маппинг backend](docs/BACKEND_MAPPING.md).
+
+## Реестры и открытые данные ФНС
+
+The Hub imports user-supplied EGRUL/EGRIP PDF, XML, and ZIP files without DaData. It also checks the official FNS debt dataset page and imports a newer public snapshot when `FNS_DEBT_INNS` is configured. See [FNS_DIRECT_INTEGRATION.md](docs/FNS_DIRECT_INTEGRATION.md) for setup and API routes, [FNS_SOURCES.md](docs/FNS_SOURCES.md) for the official source and access limits, and [FNS_TEST_RESULTS.md](docs/FNS_TEST_RESULTS.md) for verified test evidence. Registry data and published debt observations are risk context; they do not create cash operations.

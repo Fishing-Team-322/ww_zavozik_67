@@ -30,6 +30,9 @@ var migration4 string
 //go:embed migrations/005_counterparty_versions.sql
 var migration5 string
 
+//go:embed migrations/006_fns_registry.sql
+var migration6 string
+
 type Postgres struct{ DB *sql.DB }
 
 func OpenPostgres(ctx context.Context, dsn string) (*Postgres, error) {
@@ -63,6 +66,10 @@ func OpenPostgres(ctx context.Context, dsn string) (*Postgres, error) {
 		return nil, errors.New("database migration failed")
 	}
 	if _, err := db.ExecContext(ctx, migration5); err != nil {
+		db.Close()
+		return nil, errors.New("database migration failed")
+	}
+	if _, err := db.ExecContext(ctx, migration6); err != nil {
 		db.Close()
 		return nil, errors.New("database migration failed")
 	}

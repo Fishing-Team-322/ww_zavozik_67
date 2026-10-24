@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Counterparty Intelligence profile v1",
+  "type": "object",
+  "required": ["inn", "registration_status", "status", "field_sources", "conflicts", "risk_signals"],
+  "properties": {
+    "inn": {"type": "string", "pattern": "^[0-9]{10}([0-9]{2})?$"},
+    "ogrn": {"type": "string"},
+    "entity_type": {"type": "string", "enum": ["LEGAL_ENTITY", "INDIVIDUAL", "LEGAL", "UNKNOWN"]},
+    "name": {"type": "string"},
+    "registration_status": {"type": "string"},
+    "status": {"type": "string", "enum": ["NOT_FOUND", "UNKNOWN", "STALE", "VERIFIED"]},
+    "actual_at": {"type": "string"},
+    "field_sources": {"type": "object", "additionalProperties": {"type": "array", "items": {"type": "object", "required": ["provider", "actual_at", "value"], "properties": {"provider": {"type": "string"}, "actual_at": {"type": "string"}, "value": {"type": "string"}}}}},
+    "conflicts": {"type": "array", "items": {"type": "object", "required": ["field", "values"], "properties": {"field": {"type": "string"}, "values": {"type": "array", "items": {"type": "object"}}}}},
+    "risk_signals": {"type": "array", "items": {"type": "object"}}
+  },
+  "additionalProperties": false
+}

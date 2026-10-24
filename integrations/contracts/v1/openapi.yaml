@@ -13,6 +13,78 @@ components:
       type: http
       scheme: bearer
 paths:
+  /v1/fns/egrul/import:
+    post:
+      summary: Import a downloaded EGRUL PDF extract
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema: {type: object, required: [company_id, file], properties: {company_id: {type: string}, file: {type: string, format: binary}}}
+      responses:
+        '200': {description: Dated registry record and updated/duplicate/outdated status}
+        '403': {description: Company scope mismatch}
+        '422': {description: Unrecognized or incomplete PDF}
+  /v1/fns/egrip/import:
+    post:
+      summary: Import a downloaded EGRIP PDF extract
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema: {type: object, required: [company_id, file], properties: {company_id: {type: string}, file: {type: string, format: binary}}}
+      responses:
+        '200': {description: Dated registry record and updated/duplicate/outdated status}
+  /v1/fns/xml/import:
+    post:
+      summary: Import official-format EGRUL/EGRIP XML or ZIP
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema: {type: object, required: [company_id, file], properties: {company_id: {type: string}, file: {type: string, format: binary}}}
+      responses:
+        '200': {description: Counts of records, changes, duplicates and older snapshots}
+        '422': {description: Invalid XML or ZIP}
+  /v1/fns/counterparties/{inn}:
+    get:
+      parameters:
+        - {name: inn, in: path, required: true, schema: {type: string}}
+      responses:
+        '200': {description: Current imported FNS registry records}
+        '404': {description: No imported record for this company}
+  /v1/fns/counterparties/{inn}/history:
+    get:
+      parameters:
+        - {name: inn, in: path, required: true, schema: {type: string}}
+      responses:
+        '200': {description: Dated versions, newest first}
+  /v1/counterparty-intelligence/{inn}:
+    get:
+      parameters:
+        - {name: inn, in: path, required: true, schema: {type: string}}
+      responses:
+        '200':
+          description: Scoped profile with field provenance and dated risk signals
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [company_id, profile]
+                properties:
+                  company_id: {type: string}
+                  profile: {$ref: './counterparty-intelligence.schema.json'}
+  /v1/fns/opendata/sync:
+    post:
+      summary: Check official FNS debt dataset page and import a newer archive
+      responses:
+        '200': {description: updated or unchanged with publication metadata}
+        '409': {description: Identical sync is in progress}
+        '502': {description: FNS unavailable or archive invalid; last snapshot retained}
+  /v1/fns/opendata/status:
+    get:
+      responses:
+        '200': {description: Last successful snapshot and recent runs}
   /healthz:
     get:
       security: []

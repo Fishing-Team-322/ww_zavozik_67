@@ -1,0 +1,17 @@
+{
+  "company_id": "demo-company",
+  "profile": {
+    "inn": "9723161623",
+    "ogrn": "1234567890127",
+    "entity_type": "LEGAL_ENTITY",
+    "name": "Тестовая компания",
+    "registration_status": "UNKNOWN",
+    "status": "VERIFIED",
+    "actual_at": "2026-10-24",
+    "field_sources": {
+      "name": [{"provider": "FNS_EGRUL", "actual_at": "2026-10-24", "value": "Тестовая компания"}]
+    },
+    "conflicts": [],
+    "risk_signals": []
+  }
+}

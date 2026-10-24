@@ -4,6 +4,7 @@ go 1.25
 
 require (
 	github.com/jackc/pgx/v5 v5.7.6
+	github.com/ledongthuc/pdf v0.0.0-20260907135840-6c8c28e0e8a0
 	golang.org/x/text v0.30.0
 )
 

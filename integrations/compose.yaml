@@ -29,6 +29,8 @@ services:
       WB_API_TOKEN: ${WB_API_TOKEN:-}
       OZON_CLIENT_ID: ${OZON_CLIENT_ID:-}
       OZON_API_KEY: ${OZON_API_KEY:-}
+      FNS_DEBT_INNS: ${FNS_DEBT_INNS:-}
+      FNS_CHECK_INTERVAL: ${FNS_CHECK_INTERVAL:-24h}
     ports:
       - "127.0.0.1:8091:8091"
     read_only: true
