@@ -698,3 +698,10 @@
   evidence_graph.pyпокаНЕподключёнкнастоящемуvalidatedverifier. Нетзаявлений
   обидеальности/независимойточности. Новые768/1024dimsнеобрезатьдонашего384RPC.
   Послеboundedresearchчестныйитог+чтоостаётсяпоML/Go;Goинтеграцияуbackendowner.
+
+- Latestfulloptional послевсехновыхкода/tests:361PASS,прежнийHDBSCANwarning,
+  38.32s. Prod354PASS7SKIP. Optionalrunсоздал4ранееотсутствовавшихcalendar
+  cachesru2020..2023(birth19:21:50–51вовремятеста);толькоэтинашитестовыефайлы
+  перемещенывignoreddata/category_discovery/test_generated_calendar_cache_20261024_1921.
+  Forecastcode/trackedcalendarне менялись. На19:22controlleralive,teacher56/1000;
+  UI/тестовыхсерверовнет. Автомацияidmlпроверена:ACTIVE/15min/этотthread.
