@@ -1,7 +1,7 @@
 """Устойчивость к чужим данным: эксперты проверяют модель на своём наборе.
 
-Модель не должна падать и должна выдавать осмысленные пути на любых
-входах: короткая история, пропуски, нет категорий и отрасли, незнакомая
+Модель должна выдавать конечные пути при наличии наблюдений и явный отказ
+при полностью неизвестной истории: короткая история, пропуски, нет категорий и отрасли, незнакомая
 отрасль, даты вне производственного календаря, длинный горизонт.
 """
 
@@ -56,8 +56,12 @@ CASES = {
 @pytest.mark.parametrize("model_name", ["seasonal_naive", "ets", "gbm_global", "ensemble"])
 @pytest.mark.parametrize("case", list(CASES))
 @pytest.mark.parametrize("horizon", [30, 90])
-def test_models_never_fail(gbm, model_name, case, horizon):
+def test_models_return_valid_paths_or_reject_missing_evidence(gbm, model_name, case, horizon):
     h = CASES[case]
+    if case == "all_missing":
+        with pytest.raises(forecasters.InsufficientHistoryError):
+            forecasters.get(model_name).forecast(h, horizon, 40, np.random.default_rng(0))
+        return
     p = forecasters.get(model_name).forecast(h, horizon, 40, np.random.default_rng(0))
     assert p.inflow.shape == (40, horizon) and p.outflow.shape == (40, horizon)
     assert np.isfinite(p.inflow).all() and np.isfinite(p.outflow).all()
@@ -68,7 +72,7 @@ def test_models_never_fail(gbm, model_name, case, horizon):
 
 
 def test_short_history_is_low_confidence(gbm):
-    for case in ("one_day", "two_weeks", "all_missing"):
+    for case in ("one_day", "two_weeks"):
         assert forecasters.get("ensemble").forecast(CASES[case], 30, 10, np.random.default_rng(0)).low_confidence
 
 

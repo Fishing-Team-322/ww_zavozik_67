@@ -10,6 +10,9 @@ import (
 	"reflect"
 	"time"
 
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+
 	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/categorize"
 	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/domain"
 	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/forecast"
@@ -118,11 +121,34 @@ func check(addr string) error {
 	if err := checkRisk(degraded, asOf); err != nil {
 		return err
 	}
+	// Historical observations outside the sampling window must not turn into
+	// a plausible flat balance, whether the Python service is up or down.
+	stale := req
+	stale.History = append([]domain.DailyFlow(nil), req.History...)
+	for i := len(stale.History) - 56; i < len(stale.History); i++ {
+		stale.History[i].Missing = true
+	}
+	if _, err := ml.Forecast(ctx, stale); status.Code(err) != codes.FailedPrecondition {
+		return fmt.Errorf("stale history must fail precondition, got %v", err)
+	}
+	for _, primary := range []forecast.StochasticForecaster{ml, closed} {
+		guarded := forecast.Assembler{Primary: primary, Fallback: forecast.SeasonalNaive{}}
+		if _, err := guarded.Build(ctx, forecast.Input{AsOf: asOf, OpeningBalance: 250, Stochastic: stale}); err == nil {
+			return fmt.Errorf("stale history invented a forecast through fallback")
+		}
+	}
+	quietSunday := req
+	quietSunday.Model = "seasonal_naive"
+	quietSunday.History = []domain.DailyFlow{{Date: time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC)}}
+	guarded := forecast.Assembler{Primary: ml, Fallback: forecast.SeasonalNaive{}}
+	if _, err := guarded.Build(ctx, forecast.Input{AsOf: quietSunday.History[0].Date, Stochastic: quietSunday}); status.Code(err) != codes.FailedPrecondition {
+		return fmt.Errorf("calendar sampling precondition hidden by fallback: %v", err)
+	}
 	req.FlowScope = "residual_only"
 	if _, err = ml.Forecast(ctx, req); err == nil {
 		return fmt.Errorf("unsupported scope accepted")
 	}
-	fmt.Printf("PASS: classifier + hybrid, forecast %s, 64x30 paths, reproducibility, scope validation, auto fallback, balance/risk end-to-end, service outage; version %s\n", a.ModelUsed, a.ModelVersion)
+	fmt.Printf("PASS: classifier + hybrid, forecast %s, 64x30 paths, reproducibility, scope validation, auto fallback, balance/risk end-to-end, service outage, stale-history rejection; version %s\n", a.ModelUsed, a.ModelVersion)
 	return nil
 }
 

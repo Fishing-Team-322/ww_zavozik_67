@@ -109,11 +109,13 @@ class ForecasterService(pb_grpc.ForecasterServiceServicer):
             context.abort(grpc.StatusCode.INVALID_ARGUMENT, str(e))
         if history.valid_days == 0:
             context.abort(grpc.StatusCode.FAILED_PRECONDITION, "history contains no observed days")
+        if history.missing[-56:].all():
+            context.abort(grpc.StatusCode.FAILED_PRECONDITION, "history contains no observed days in the last 8 weeks")
 
         rng = np.random.default_rng(request.seed or None)
         try:
             paths = model.forecast(history, request.horizon_days, request.n_paths, rng)
-        except forecasters.NotTrainedError as e:
+        except (forecasters.NotTrainedError, forecasters.InsufficientHistoryError) as e:
             context.abort(grpc.StatusCode.FAILED_PRECONDITION, str(e))
         if (paths.inflow.shape != (request.n_paths, request.horizon_days)
                 or paths.outflow.shape != paths.inflow.shape

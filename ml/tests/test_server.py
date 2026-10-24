@@ -94,6 +94,23 @@ def test_all_missing_history_cannot_invent_forecast(stub):
     assert e.value.code() == grpc.StatusCode.FAILED_PRECONDITION
 
 
+@pytest.mark.parametrize('model', ['seasonal_naive', 'auto', 'gbm_global', 'ensemble', 'ets'])
+def test_stale_history_is_failed_precondition_for_every_model(stub, model):
+    history = [pb.DailyFlow(date=(date(2026, 1, 1)+timedelta(days=i)).isoformat(),
+                           inflow=100, outflow=70, missing=i >= 14) for i in range(70)]
+    with pytest.raises(grpc.RpcError) as error:
+        stub.Forecast(pb.ForecastRequest(model=model, history=history, horizon_days=30, n_paths=10))
+    assert error.value.code() == grpc.StatusCode.FAILED_PRECONDITION
+    assert 'last 8 weeks' in error.value.details()
+
+
+def test_no_eligible_sampling_days_is_failed_precondition(stub):
+    with pytest.raises(grpc.RpcError) as error:
+        stub.Forecast(pb.ForecastRequest(model='seasonal_naive',
+            history=[pb.DailyFlow(date='2026-03-01')], horizon_days=7, n_paths=10))
+    assert error.value.code() == grpc.StatusCode.FAILED_PRECONDITION
+
+
 def test_date_overflow_is_input_error(stub):
     req = pb.ForecastRequest(model='seasonal_naive', history=[pb.DailyFlow(date='9999-12-31')],
                              horizon_days=7, n_paths=10)

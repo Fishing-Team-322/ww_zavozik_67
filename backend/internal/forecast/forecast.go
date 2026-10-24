@@ -144,8 +144,10 @@ func (a Assembler) stochastic(ctx context.Context, req StochasticRequest) (Stoch
 		if ctx.Err() != nil {
 			return StochasticForecast{}, ctx.Err()
 		}
-		if status.Code(err) == codes.InvalidArgument {
-			return StochasticForecast{}, err // invalid input must not silently select another model
+		if status.Code(err) == codes.InvalidArgument || status.Code(err) == codes.FailedPrecondition {
+			// Correct the input/model precondition first; this is not a service outage.
+			// In particular, another sampler must not turn insufficient evidence into zeros.
+			return StochasticForecast{}, err
 		}
 		if a.Log != nil {
 			a.Log.Warn("ml forecast failed, using fallback", "company_id", req.CompanyID, "err", err)

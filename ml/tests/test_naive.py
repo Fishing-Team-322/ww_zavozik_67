@@ -1,6 +1,7 @@
 from datetime import date, timedelta
 
 import numpy as np
+import pytest
 
 from zavozik_ml import forecasters
 
@@ -34,5 +35,20 @@ def test_naive_skips_missing_and_flags_short_history():
 
     h = make_history(70)
     h.missing[:] = True
-    p = forecasters.get("seasonal_naive").forecast(h, horizon=7, n_paths=3, rng=np.random.default_rng(1))
-    assert p.low_confidence and np.all(p.inflow == 0)
+    with pytest.raises(forecasters.InsufficientHistoryError):
+        forecasters.get("seasonal_naive").forecast(h, horizon=7, n_paths=3, rng=np.random.default_rng(1))
+
+
+def test_stale_or_ineligible_observations_do_not_become_zero_flows():
+    h = make_history(70)
+    h.missing[-56:] = True
+    with pytest.raises(forecasters.InsufficientHistoryError):
+        forecasters.get("seasonal_naive").forecast(h, 7, 3, np.random.default_rng(1))
+    # An observed quiet Sunday is not evidence of quiet working days.
+    h = forecasters.History([date(2026, 3, 1)], np.zeros(1), np.zeros(1), np.zeros(1, bool))
+    with pytest.raises(forecasters.InsufficientHistoryError):
+        forecasters.get("seasonal_naive").forecast(h, 7, 3, np.random.default_rng(1))
+    # Observed zeros on an eligible working day are legitimate data.
+    h = forecasters.History([date(2026, 3, 2)], np.zeros(1), np.zeros(1), np.zeros(1, bool))
+    paths = forecasters.get("seasonal_naive").forecast(h, 7, 3, np.random.default_rng(1))
+    assert not paths.inflow.any() and not paths.outflow.any() and paths.low_confidence

@@ -92,6 +92,10 @@ class NotTrainedError(RuntimeError):
     pass
 
 
+class InsufficientHistoryError(RuntimeError):
+    """No observations support the model's sampling/forecast window."""
+
+
 class Forecaster(ABC):
     name: str
     description: str
