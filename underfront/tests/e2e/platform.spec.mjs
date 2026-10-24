@@ -36,7 +36,7 @@ async function login(page, email) {
 }
 
 async function navigate(page, route) {
-  const groups = { '/overview': 'Компания', '/transactions': 'Компания', '/forecast': 'Аналитика', '/scenarios': 'Аналитика', '/risks': 'Аналитика', '/calendar': 'Планирование', '/sources': 'Планирование', '/counterparties': 'Компания', '/notifications': 'Компания', '/settings': 'Компания', '/documents': 'Планирование', '/recurring': 'Планирование', '/plan-fact': 'Аналитика', '/methodology': 'Аналитика' };
+  const groups = { '/overview': 'Обязательное', '/transactions': 'Обязательное', '/forecast': 'Обязательное', '/scenarios': 'Звёздочки', '/risks': 'Обязательное', '/calendar': 'Дополнительно', '/sources': 'Звёздочки', '/counterparties': 'Дополнительно', '/notifications': 'Дополнительно', '/settings': 'Дополнительно', '/documents': 'Звёздочки', '/recurring': 'Обязательное', '/plan-fact': 'Звёздочки', '/methodology': 'Дополнительно' };
   const link = page.locator(`a[href="${route}"]`).first();
   if (!await link.isVisible()) await page.getByRole('button', { name: groups[route], exact: true }).click();
   await link.click();
@@ -229,20 +229,22 @@ test('synthetic CSV drives dashboard, forecast and a persistent manual event', a
   await page.getByLabel('Месяц', { exact: true }).fill(eventDate.slice(0, 7));
   await selectEventDay();
   await expect(page.locator('main')).toContainText('E2E manual payment');
-  for (const [route, heading] of [['/transactions', 'История операций'], ['/scenarios', 'Базовый и негативный прогноз']]) {
+  for (const [route, heading] of [['/transactions', 'История операций'], ['/scenarios', 'Сценарии']]) {
     await navigate(page, route);
     await expect(page.getByRole('heading', { name: heading })).toBeVisible();
   }
+  await page.getByRole('button', { name: 'Внеплановый расход', exact: true }).click();
   const [scenarioResponse] = await Promise.all([
     page.waitForResponse(response => response.url().includes('/scenarios/preview') && response.request().method() === 'POST'),
     page.getByRole('slider', { name: /Внеплановый расход/ }).press('ArrowRight'),
   ]);
   expect(scenarioResponse.status()).toBe(200);
-  await page.getByRole('button', { name: 'Сохранить сценарий', exact: true }).click();
+  await page.locator('main').getByRole('button', { name: 'Сохранить', exact: true }).click();
+  await page.getByRole('dialog').getByLabel('Название сценария', { exact: true }).fill('E2E negative scenario');
+  await page.getByRole('dialog').getByRole('button', { name: 'Сохранить', exact: true }).click();
   await expect(page.getByRole('status').filter({ hasText: 'Сценарий сохранён' })).toBeVisible();
   await navigate(page, '/risks');
-  await page.getByRole('button', { name: 'Причины и действия' }).first().click();
-  await expect(page.getByRole('heading', { name: /Что влияет на разрыв/ })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Почему не хватает денег', exact: true })).toBeVisible();
   await expect(page.locator('main')).toContainText('E2E manual payment');
   await page.screenshot({ path: path.join(screenshots, 'risk-synthetic.png') });
   for (const [route, heading] of [['/documents', 'Счета, договоры и налоги'], ['/recurring', 'Регулярные платежи'], ['/plan-fact', 'План и факт'], ['/counterparties', 'Контрагенты'], ['/notifications', 'Уведомления'], ['/settings', 'Настройки компании'], ['/methodology', 'Как мы считаем']]) {
@@ -266,7 +268,7 @@ test('synthetic CSV drives dashboard, forecast and a persistent manual event', a
   await navigate(page, '/risks');
   await page.setViewportSize({ width: 375, height: 812 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
-  for (const [route, heading] of [['/overview', /Финансовый прогноз/], ['/transactions', 'История операций'], ['/forecast', 'Денежный остаток'], ['/calendar', 'Платёжный календарь'], ['/scenarios', 'Базовый и негативный прогноз']]) {
+  for (const [route, heading] of [['/overview', /Финансовый прогноз/], ['/transactions', 'История операций'], ['/forecast', 'Денежный остаток'], ['/calendar', 'Платёжный календарь'], ['/scenarios', 'Сценарии']]) {
     await page.goto(route);
     await expect(page.getByRole('heading', { name: heading })).toBeVisible();
     await expect(page.getByText('Загружаем данные…', { exact: true })).toHaveCount(0);

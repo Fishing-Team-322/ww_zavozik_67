@@ -59,7 +59,7 @@ test('isolated sandbox: WB/Ozon financial reports, duplicate sync and secret mas
   await expect(wbSource).toContainText('Ожидает проверки');
   await wbSource.getByText('Ещё действия', { exact: true }).click();
   await wbSource.getByRole('button',{name:'Проверить',exact:true}).click();
-  await expect(wbSource).toContainText('Готово');
+  await expect(wbSource).toContainText('Подключён');
   const shots = process.env.E2E_SCREENSHOTS_DIR || path.resolve('test-results/screenshots'); mkdirSync(shots, { recursive: true });
   await page.getByRole('button', { name: /^Маркетплейсы Wildberries/ }).click();
   await workspace.screenshot({ path: path.join(shots, 'marketplace-sandbox-reports.png') });
