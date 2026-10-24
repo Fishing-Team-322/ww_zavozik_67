@@ -100,7 +100,7 @@ func pageOperations(rows []Doc, r *http.Request) (Doc, error) {
 	if end < len(rows) {
 		next = base64.RawURLEncoding.EncodeToString([]byte(key(rows[end-1])))
 	}
-	return Doc{"items": rows[start:end], "next_cursor": next}, nil
+	return Doc{"items": rows[start:end], "next_cursor": next, "total": len(rows)}, nil
 }
 
 func (s *Service) operations(ctx context.Context, op, uid, cid string, r *http.Request, b Doc) (Result, error) {

@@ -3400,6 +3400,7 @@ components:
       required:
       - items
       - next_cursor
+      - total
       properties:
         items:
           type: array
@@ -3408,6 +3409,9 @@ components:
         next_cursor:
           type: string
           nullable: true
+        total:
+          type: integer
+          minimum: 0
     RecurringPattern:
       type: object
       required:

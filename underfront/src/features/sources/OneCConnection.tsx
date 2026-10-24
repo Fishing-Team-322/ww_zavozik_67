@@ -12,6 +12,7 @@ type Props = {
   companyINN: string | null;
   sources: Source[];
   onChanged: () => void;
+  onOpenBankImport?: () => void;
 };
 
 function testMessage(result: SourceTest) {
@@ -23,7 +24,7 @@ function testMessage(result: SourceTest) {
 
 const sourceStatus = (status: string) => ({ pending: "Ожидает проверки", ok: "Подключено", error: "Ошибка", mapping_required: "Нужна настройка" })[status] ?? status;
 
-export function OneCConnection({ companyId, companyINN, sources, onChanged }: Props) {
+export function OneCConnection({ companyId, companyINN, sources, onChanged, onOpenBankImport }: Props) {
   const [address, setAddress] = useState("");
   const [inn, setInn] = useState(companyINN || "");
   const [account, setAccount] = useState("");
@@ -135,7 +136,7 @@ export function OneCConnection({ companyId, companyINN, sources, onChanged }: Pr
         </ContentText>
       </div>
       <div className="flex flex-wrap gap-2"><Button type="button" variant={mode === "network" ? "default" : "outline"} onClick={() => setMode("network")}>Подключить 1С по сети</Button><Button type="button" variant={mode === "file" ? "default" : "outline"} onClick={() => setMode("file")}>Импортировать файлы из 1С</Button></div>
-      {mode === "file" ? <div className="space-y-3 text-sm"><p>Выгрузите банковскую выписку из 1С в формате 1CClientBankExchange, CSV или XLSX и загрузите её в разделе банковских операций. Адрес OData, логин и пароль для этого не нужны.</p><Button type="button" variant="outline" onClick={() => document.querySelector('input[accept=".csv,.xlsx,.txt,.1c"]')?.closest("section")?.scrollIntoView({ behavior: "smooth" })}>Перейти к импорту банковской выписки</Button></div> : <>
+      {mode === "file" ? <div className="space-y-3 text-sm"><p>Выгрузите банковскую выписку из 1С в формате 1CClientBankExchange, CSV или XLSX и загрузите её в разделе банковских операций. Адрес OData, логин и пароль для этого не нужны.</p><Button type="button" variant="outline" onClick={() => onOpenBankImport ? onOpenBankImport() : document.querySelector('input[accept=".csv,.xlsx,.txt,.1c"]')?.closest("section")?.scrollIntoView({ behavior: "smooth" })}>Перейти к импорту банковской выписки</Button></div> : <>
       <ol className="list-decimal space-y-1 pl-5 text-sm text-[color:var(--text-secondary)]"><li>Администратор вашей 1С публикует базу на веб-сервере и включает стандартный интерфейс OData. Универсального адреса для всех организаций нет.</li><li>Получите URL публикации и отдельного пользователя с правом чтения. Это адрес сервера, а не API-ключ. Сервер ПУЛЬС должен иметь доступ к адресу; локальная база потребует защищённого подключения и разрешения оператора.</li><li>Укажите адрес и учётную запись, нажмите «Найти организацию и счета», затем выберите найденный счёт.</li></ol>
       <form className="grid gap-4 sm:grid-cols-2" onSubmit={connect}>
         {discovered && foundAccounts.length > 0 && <Select density="form" label="Найденный счёт организации" value={account} options={foundAccounts.map(item => ({ value: item.number, label: `${item.number} · ${item.name}` }))} onChange={event => setAccount(event.target.value)} />}

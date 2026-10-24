@@ -16,13 +16,14 @@ import Link from "next/link";
 import type { Schemas } from "@/src/shared/api";
 import { alertLink } from "@/src/features/notifications";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/src/shared/ui/table";
-import { useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   Activity,
   AlertTriangle,
   ArrowDownRight,
   ArrowUpRight,
   CalendarDays,
+  ChevronLeft,
   ChevronRight,
   CircleHelp,
   Clock3,
@@ -45,6 +46,7 @@ import {
 } from "recharts";
 import { Button } from "@/src/shared/ui/button";
 import { Tabs } from "@/src/shared/ui/tabs";
+import { SectionCard } from "@/src/widgets/cabinet-shell/ui/SectionCard";
 export type ScenarioKey = "base" | "delay" | "downturn";
 export type EventCategory = "revenue" | "payroll" | "suppliers" | "taxes" | "other";
 export type ForecastDay = {
@@ -342,7 +344,7 @@ function FinancialStatus({ data, onOpenGap }: { data: PulsOverviewData; onOpenGa
       : null;
 
   return (
-    <section aria-label="Финансовое состояние" className="mb-5 min-w-0 border-y border-[color:var(--puls-border)] py-3">
+    <section aria-label="Финансовое состояние" className="mb-7 min-w-0 border-y border-[color:var(--puls-border)] py-3">
       <div className={`flex min-w-0 flex-col gap-3 border-l-2 pl-3 sm:flex-row sm:items-center sm:justify-between ${marker}`}>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
@@ -425,7 +427,7 @@ export function ForecastChart({ data, selected, horizon, onChangeHorizon, onChan
   ];
   const ticks = chartPoints.filter((_, index) => index === 0 || index === chartPoints.length - 1 || index % Math.max(6, Math.round(chartPoints.length / 6)) === 0).map(p => p.date);
   const eventPoints = data.events.filter(event => event.day >= 0 && event.day <= horizon && visible[event.day]);
-  return <section aria-label="Прогноз денежных средств" className="mt-7 min-w-0">
+  return <SectionCard aria-label="Прогноз денежных средств" className="mt-9">
     <header className="mb-3 flex flex-wrap items-start justify-between gap-x-5 gap-y-3">
       <div><ContentHeading level={2} >Финансовый прогноз <span className="font-normal text-[color:var(--puls-text-faint)]">/ {horizon} дней</span></ContentHeading><p className="mt-0.5 text-[12px] text-[color:var(--puls-text-muted)]">История, {data.isDemo ? "демо-коридор" : "прогнозный коридор"} и сравнение сценариев</p></div>
       <div className="flex max-w-full flex-wrap items-center gap-2">
@@ -486,7 +488,7 @@ export function ForecastChart({ data, selected, horizon, onChangeHorizon, onChan
       </ResponsiveContainer>
     </div>
     {onOpenDay && <p className="mt-2 text-[11px] text-[color:var(--puls-text-muted)]">Наведите на день и нажмите на график, чтобы открыть подробности.</p>}
-  </section>;
+  </SectionCard>;
 }
 function formatAxisMoney(value: number) {
   const abs = Math.abs(value);
@@ -511,28 +513,44 @@ function NearTermFlows({ data, onOpenCalendar, onOpenEvent }: { data: PulsOvervi
     { title: "Ближайшие платежи", items: events.filter(event => event.amount < 0), color: "text-[color:var(--puls-text-strong)]" },
     { title: "Ожидаемые поступления", items: events.filter(event => event.amount > 0), color: "text-[color:var(--puls-positive-text)]" },
   ];
-  return <div className="mt-6 grid min-w-0 gap-5 lg:grid-cols-2 lg:gap-7">
-    {groups.map(group => <section key={group.title} className="min-w-0 border-t border-[color:var(--puls-border)]">
+  return <SectionCard className="mt-8 grid gap-5 lg:grid-cols-2 lg:gap-7">
+    {groups.map(group => <section key={group.title} className="min-w-0">
       <header className="flex items-center justify-between gap-3 py-3"><div><ContentHeading level={2} >{group.title}</ContentHeading><ContentText variant="description" className="mt-0.5">На ближайшие 14 дней</ContentText></div>{onOpenCalendar && <Button type="button" variant="ghost" size="sm" onClick={onOpenCalendar}>Календарь <ChevronRight aria-hidden="true"/></Button>}</header>
-      <div className="border-y border-[color:var(--puls-border)]">{group.items.length ? group.items.slice(0, 4).map(event => <div key={event.id} className="grid grid-cols-[55px_minmax(0,1fr)_auto] items-center gap-2 border-b border-[color:var(--puls-border)] px-1 py-2.5 text-[13px] last:border-b-0 hover:bg-[color:var(--puls-surface-soft)] sm:gap-3">
-        <span className="text-[12px] text-[color:var(--puls-text-muted)]">{displayDate(data.forecast[event.day].date)}</span>
-        <span className="min-w-0"><span className="block truncate font-medium text-[color:var(--puls-text)]">{onOpenEvent ? <Button type="button" variant="ghost" className="max-w-full" onClick={() => onOpenEvent(event.id)}>{event.title}</Button> : event.title}</span><span className="block truncate text-[12px] text-[color:var(--puls-text-secondary)]">{event.counterparty ?? "Контрагент не указан"}</span><span className="block truncate text-[11px] text-[color:var(--puls-text-muted)]" title={event.amount < 0 ? sourceLabel(event.source) : event.paymentDiscipline ?? "Истории оплат пока нет"}>{event.amount < 0 ? `Источник: ${sourceLabel(event.source)}` : `Дисциплина: ${event.paymentDiscipline ?? "истории оплат нет"}`}</span></span>
-        <strong className={`whitespace-nowrap text-right font-medium tabular-nums ${group.color}`}>{event.amount > 0 ? "+" : ""}{formatMoney(event.amount)}</strong>
-      </div>) : <ContentText variant="description" className="px-1 py-4">Событий на ближайшие 14 дней нет.</ContentText>}</div>
+      <Table className="min-w-[440px]"><TableHeader><TableRow><TableHead>Дата</TableHead><TableHead>Платёж</TableHead><TableHead numeric>Сумма</TableHead></TableRow></TableHeader><TableBody>{group.items.length ? group.items.slice(0, 4).map(event => <TableRow key={event.id}>
+        <TableCell className="whitespace-nowrap text-[color:var(--puls-text-secondary)]">{displayDate(data.forecast[event.day].date)}</TableCell>
+        <TableCell className="min-w-[140px] max-w-[260px]"><div className="truncate font-medium" title={event.title}>{onOpenEvent ? <button type="button" className="max-w-full truncate align-bottom text-left underline decoration-transparent underline-offset-2 hover:text-[color:var(--accent)] hover:decoration-current focus-visible:outline-2 focus-visible:outline-[color:var(--accent)]" onClick={() => onOpenEvent(event.id)}>{event.title}</button> : event.title}</div><div className="truncate text-[12px] text-[color:var(--puls-text-secondary)]" title={event.counterparty ?? undefined}>{event.counterparty ?? "Контрагент не указан"}</div></TableCell>
+        <TableCell numeric className={`whitespace-nowrap font-medium tabular-nums ${group.color}`}>{event.amount > 0 ? "+" : ""}{formatMoney(event.amount)}</TableCell>
+      </TableRow>) : <TableRow><TableCell colSpan={3} tone="muted">Событий на ближайшие 14 дней нет.</TableCell></TableRow>}</TableBody></Table>
     </section>)}
-  </div>;
+  </SectionCard>;
+}
+function WarningCarousel({ items, footer }: { items: ReactNode[]; footer?: ReactNode }) {
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const [canScrollBack, setCanScrollBack] = useState(false);
+  const [canScrollForward, setCanScrollForward] = useState(false);
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+    const update = () => {
+      setCanScrollBack(viewport.scrollLeft > 1);
+      setCanScrollForward(viewport.scrollLeft + viewport.clientWidth < viewport.scrollWidth - 1);
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(viewport);
+    return () => observer.disconnect();
+  }, [items.length]);
+  if (!items.length) return null;
+  return <SectionCard className="mt-9">
+    <header className="mb-4 flex items-center justify-between gap-3"><div><ContentHeading level={2}>Предупреждения</ContentHeading><ContentText variant="description" className="mt-0.5">События, которые стоит проверить</ContentText></div><div className="flex shrink-0 gap-1"><Button type="button" variant="outline" size="icon" aria-label="Предыдущие предупреждения" disabled={!canScrollBack} onClick={() => viewportRef.current?.scrollBy({ left: -316, behavior: "smooth" })}><ChevronLeft aria-hidden="true" /></Button><Button type="button" variant="outline" size="icon" aria-label="Следующие предупреждения" disabled={!canScrollForward} onClick={() => viewportRef.current?.scrollBy({ left: 316, behavior: "smooth" })}><ChevronRight aria-hidden="true" /></Button></div></header>
+    <div ref={viewportRef} onScroll={event => { const viewport = event.currentTarget; setCanScrollBack(viewport.scrollLeft > 1); setCanScrollForward(viewport.scrollLeft + viewport.clientWidth < viewport.scrollWidth - 1); }} className="flex snap-x snap-mandatory gap-3 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">{items}</div>
+    {footer}
+  </SectionCard>;
 }
 function OverviewAlerts({ alerts }: { alerts: Schemas["Alert"][] }) {
-  if (!alerts.length) return null;
-  return <section aria-label="Предупреждения" className="mt-7 min-w-0">
-    <header className="mb-3"><ContentHeading level={2} >Предупреждения</ContentHeading><ContentText variant="description" className="mt-0.5">События, которые стоит проверить</ContentText></header>
-    <div className="border-y border-[color:var(--puls-border)]">{alerts.slice(0, 3).map(alert => <div key={alert.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-[color:var(--puls-border)] px-1 py-3 last:border-b-0">
-      <AlertTriangle size={16} aria-label={alert.severity === "danger" ? "Опасно" : alert.severity === "warning" ? "Внимание" : "Информация"} className={`shrink-0 ${alert.severity === "danger" ? "text-[color:var(--puls-chart-zero)]" : alert.severity === "warning" ? "text-[color:var(--puls-demo-text)]" : "text-[color:var(--puls-text-secondary)]"}`} />
-      <div className="min-w-[180px] flex-1 text-[13px]"><strong className="font-medium text-[color:var(--puls-text)]">{alert.title}</strong>{!alert.read && <span className="ml-2 text-[11px] text-[color:var(--puls-text-muted)]">Новое</span>}<ContentText variant="description" className="mt-0.5">{alert.body}</ContentText></div>
-      <Link href={alertLink(alert.ref)} className="inline-flex items-center gap-1 text-[12px] text-[color:var(--puls-text-secondary)] underline underline-offset-2">Подробнее <ChevronRight size={12} aria-hidden="true" /></Link>
-    </div>)}</div>
-    {alerts.length > 3 && <Link href="/notifications" className="mt-2 inline-flex items-center gap-1 text-[12px] text-[color:var(--puls-text-secondary)] hover:text-[color:var(--puls-text)]">Все уведомления ({alerts.length}) <ChevronRight size={13} /></Link>}
-  </section>;
+  const priority = (severity: string) => severity === "danger" || severity === "critical" ? 0 : severity === "warning" ? 1 : 2;
+  const ordered = [...alerts].sort((first, second) => priority(first.severity) - priority(second.severity));
+  return <WarningCarousel items={ordered.map(alert => <article key={alert.id} className="flex min-h-36 w-[300px] shrink-0 snap-start flex-col rounded-md border border-[color:var(--puls-border)] p-3 text-[13px]"><div className="flex items-start gap-2"><AlertTriangle size={16} aria-label={priority(alert.severity) === 0 ? "Опасно" : alert.severity === "warning" ? "Внимание" : "Информация"} className={`mt-0.5 shrink-0 ${priority(alert.severity) === 0 ? "text-[color:var(--puls-chart-zero)]" : alert.severity === "warning" ? "text-[color:var(--puls-demo-text)]" : "text-[color:var(--puls-text-secondary)]"}`} /><div className="min-w-0"><strong className="font-medium text-[color:var(--puls-text)]">{alert.title}</strong>{!alert.read && <span className="ml-2 text-[11px] text-[color:var(--puls-text-muted)]">Новое</span>}<ContentText variant="description" className="mt-1 line-clamp-3" title={alert.body}>{alert.body}</ContentText></div></div><Link href={alertLink(alert.ref)} className="mt-auto inline-flex items-center gap-1 self-start pt-3 text-[12px] text-[color:var(--puls-text-secondary)] underline underline-offset-2">Подробнее <ChevronRight size={12} aria-hidden="true" /></Link></article>)} footer={alerts.length > 0 && <Link href="/notifications" className="mt-3 inline-flex items-center gap-1 text-[12px] text-[color:var(--puls-text-secondary)] hover:text-[color:var(--puls-text)]">Все уведомления ({alerts.length}) <ChevronRight size={13} /></Link>} />;
 }
 function DemoWarnings({ data, selected, onOpenGap, onOpenCalendar }: { data: PulsOverviewData; selected: ScenarioKey; onOpenGap?: () => void; onOpenCalendar?: () => void }) {
   const period = data.forecast.slice(0, (data.horizon ?? 30) + 1);
@@ -541,14 +559,12 @@ function DemoWarnings({ data, selected, onOpenGap, onOpenCalendar }: { data: Pul
   const unusual = data.events.filter(event => data.unusualExpenseIds?.includes(event.id) && event.amount < 0);
   const overdue = data.overdueReceipts ?? [];
   if (!firstGap && overdue.length === 0 && unusual.length === 0) return null;
-  return <section aria-label="Предупреждения" className="mt-7 min-w-0">
-    <header className="mb-3"><ContentHeading level={2} >Предупреждения</ContentHeading><ContentText variant="description" className="mt-0.5">События, которые стоит проверить</ContentText></header>
-    <div className="border-y border-[color:var(--puls-border)]">
-      {firstGap && <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-[color:var(--puls-border)] px-1 py-3 last:border-b-0"><AlertTriangle size={16} className="shrink-0 text-[color:var(--puls-chart-zero)]"/><div className="min-w-[180px] flex-1 text-[13px]"><strong className="font-medium text-[color:var(--puls-text)]">Возможная нехватка денег · {displayDate(firstGap.date)}</strong><ContentText variant="description" className="mt-0.5">Максимальный дефицит по выбранному сценарию: {formatMoney(stats.deficit)}</ContentText></div>{onOpenGap && <Button type="button" variant="ghost" size="sm" onClick={onOpenGap}>Подробнее <ChevronRight aria-hidden="true"/></Button>}</div>}
-      {overdue.map(item => <div key={`${item.dueDate}-${item.counterparty}`} className="flex items-start gap-3 border-b border-[color:var(--puls-border)] px-1 py-3 last:border-b-0"><Clock3 size={16} className="mt-0.5 shrink-0 text-[color:var(--puls-demo-text)]"/><div className="min-w-0 text-[13px]"><strong className="font-medium text-[color:var(--puls-text)]">Просроченное поступление · {item.counterparty}</strong><ContentText variant="description" className="mt-0.5">{item.title}: {formatMoney(item.amount)}, срок {displayDate(item.dueDate)}. Не включено в прогноз.</ContentText></div></div>)}
-      {unusual.map(event => <div key={event.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-[color:var(--puls-border)] px-1 py-3 last:border-b-0"><Activity size={16} className="shrink-0 text-[color:var(--puls-demo-text)]"/><div className="min-w-[180px] flex-1 text-[13px]"><strong className="font-medium text-[color:var(--puls-text)]">Необычное списание · {event.title}</strong><ContentText variant="description" className="mt-0.5">{event.counterparty ?? "Контрагент не указан"} · {data.forecast[event.day] ? displayDate(data.forecast[event.day].date) : `День ${event.day}`} · {formatMoney(event.amount)}{data.isDemo ? " · демо-метка" : ""}</ContentText></div>{onOpenCalendar && <Button type="button" variant="ghost" size="sm" onClick={onOpenCalendar}>Календарь <ChevronRight aria-hidden="true"/></Button>}</div>)}
-    </div>
-  </section>;
+  const cardClassName = "flex min-h-36 w-[300px] shrink-0 snap-start flex-col rounded-md border border-[color:var(--puls-border)] p-3 text-[13px]";
+  return <WarningCarousel items={[
+    ...(firstGap ? [<article key="gap" className={cardClassName}><div className="flex items-start gap-2"><AlertTriangle size={16} className="mt-0.5 shrink-0 text-[color:var(--puls-chart-zero)]"/><div className="min-w-0"><strong className="font-medium text-[color:var(--puls-text)]">Возможная нехватка денег · {displayDate(firstGap.date)}</strong><ContentText variant="description" className="mt-1">Максимальный дефицит: {formatMoney(stats.deficit)}</ContentText></div></div>{onOpenGap && <Button type="button" variant="ghost" size="sm" className="mt-auto self-start" onClick={onOpenGap}>Подробнее <ChevronRight aria-hidden="true"/></Button>}</article>] : []),
+    ...overdue.map(item => <article key={`${item.dueDate}-${item.counterparty}`} className={cardClassName}><div className="flex items-start gap-2"><Clock3 size={16} className="mt-0.5 shrink-0 text-[color:var(--puls-demo-text)]"/><div className="min-w-0"><strong className="font-medium text-[color:var(--puls-text)]">Просроченное поступление · {item.counterparty}</strong><ContentText variant="description" className="mt-1">{item.title}: {formatMoney(item.amount)}, срок {displayDate(item.dueDate)}. Не включено в прогноз.</ContentText></div></div></article>),
+    ...unusual.map(event => <article key={event.id} className={cardClassName}><div className="flex items-start gap-2"><Activity size={16} className="mt-0.5 shrink-0 text-[color:var(--puls-demo-text)]"/><div className="min-w-0"><strong className="font-medium text-[color:var(--puls-text)]">Необычное списание · {event.title}</strong><ContentText variant="description" className="mt-1">{event.counterparty ?? "Контрагент не указан"} · {data.forecast[event.day] ? displayDate(data.forecast[event.day].date) : `День ${event.day}`} · {formatMoney(event.amount)}{data.isDemo ? " · демо-метка" : ""}</ContentText></div></div>{onOpenCalendar && <Button type="button" variant="ghost" size="sm" className="mt-auto self-start" onClick={onOpenCalendar}>Календарь <ChevronRight aria-hidden="true"/></Button>}</article>),
+  ]} />;
 }
 function OverviewPreviews({ data, selected, onChangeScenario, onOpenCalendar, onOpenScenarios }: {
   data: PulsOverviewData;
@@ -558,22 +574,25 @@ function OverviewPreviews({ data, selected, onChangeScenario, onOpenCalendar, on
   onOpenScenarios?: () => void;
 }) {
   const near = data.events.filter(event => event.day >= 0 && event.day <= 14);
-  const incoming = near.reduce((total, event) => total + Math.max(0, event.amount), 0);
-  const outgoing = near.reduce((total, event) => total + Math.max(0, -event.amount), 0);
+  const calendarEvents = near.filter(event => data.forecast[event.day]).sort((a, b) => a.day - b.day).slice(0, 5);
   const period = data.forecast.slice(0, (data.horizon ?? 30) + 1);
-  return <div className="mt-9 grid min-w-0 gap-5 lg:grid-cols-2 lg:gap-7">
-    <section aria-label="Превью платёжного календаря" className="min-w-0 border-t border-[color:var(--puls-border)]">
+  return <SectionCard className="mt-11 grid gap-5 lg:grid-cols-2 lg:gap-7">
+    <section aria-label="Превью платёжного календаря" className="min-w-0">
       <header className="flex items-center justify-between gap-3 py-3"><div><ContentHeading level={2} >Платёжный календарь</ContentHeading><ContentText variant="description" className="mt-0.5">План на ближайшие 14 дней</ContentText></div>{onOpenCalendar && <Button type="button" variant="ghost" size="sm" onClick={onOpenCalendar}>Открыть <ChevronRight aria-hidden="true"/></Button>}</header>
-      <div className="grid grid-cols-3 gap-2 border-t border-[color:var(--puls-border)] py-3 text-[12px]"><div><span className="block text-[color:var(--puls-text-muted)]">Событий</span><strong className={`mt-1 block text-[color:var(--puls-text)] ${contentTypography.financial}`}>{near.length}</strong></div><div><span className="block text-[color:var(--puls-text-muted)]">Поступления</span><strong className={`mt-1 block text-[color:var(--puls-positive-text)] ${contentTypography.financial}`}>{compactMoney(incoming)}</strong></div><div><span className="block text-[color:var(--puls-text-muted)]">Списания</span><strong className={`mt-1 block text-[color:var(--puls-text)] ${contentTypography.financial}`}>{compactMoney(outgoing)}</strong></div></div>
+      <Table className="min-w-[440px]"><TableHeader><TableRow><TableHead>Дата</TableHead><TableHead>Событие</TableHead><TableHead numeric>Сумма</TableHead></TableRow></TableHeader><TableBody>{calendarEvents.length ? calendarEvents.map(event => <TableRow key={event.id}>
+        <TableCell className="whitespace-nowrap text-[color:var(--puls-text-secondary)]">{displayDate(data.forecast[event.day].date)}</TableCell>
+        <TableCell className="min-w-[140px] max-w-[260px]"><div className="truncate font-medium" title={event.title}>{event.title}</div><div className="truncate text-[12px] text-[color:var(--puls-text-secondary)]">{event.counterparty ?? sourceLabel(event.source)}</div></TableCell>
+        <TableCell numeric className={`whitespace-nowrap font-medium tabular-nums ${event.amount > 0 ? "text-[color:var(--puls-positive-text)]" : "text-[color:var(--puls-text-strong)]"}`}>{event.amount > 0 ? "+" : ""}{formatMoney(event.amount)}</TableCell>
+      </TableRow>) : <TableRow><TableCell colSpan={3} tone="muted">Событий на ближайшие 14 дней нет.</TableCell></TableRow>}</TableBody></Table>
     </section>
-    <section aria-label="Превью сравнения сценариев" className="min-w-0 border-t border-[color:var(--puls-border)]">
+    <section aria-label="Превью сравнения сценариев" className="min-w-0">
       <header className="flex items-center justify-between gap-3 py-3"><div><ContentHeading level={2} >Сценарии</ContentHeading><ContentText variant="description" className="mt-0.5">Остаток в конце периода</ContentText></div>{onOpenScenarios && <Button type="button" variant="ghost" size="sm" onClick={onOpenScenarios}>Сравнить <ChevronRight aria-hidden="true"/></Button>}</header>
       <div className="divide-y divide-[color:var(--puls-border)] border-t border-[color:var(--puls-border)]">{SCENARIOS.filter(scenario => scenarioSupported(data, scenario.key)).map(scenario => {
         const stats = getForecastStats(period, scenario.key);
         return <Button variant="ghost" key={scenario.key} type="button" aria-pressed={selected === scenario.key} onClick={() => onChangeScenario(scenario.key)} className="w-full"><span className="min-w-0 truncate">{scenario.label}</span><strong className="shrink-0 font-medium tabular-nums text-[color:var(--puls-text-strong)]">{compactMoney(stats.last)}</strong></Button>;
       })}</div>
     </section>
-  </div>;
+  </SectionCard>;
 }
 
 export function PaymentTimeline({ data, onOpenCalendar }: { data: PulsOverviewData; onOpenCalendar?: () => void }) {

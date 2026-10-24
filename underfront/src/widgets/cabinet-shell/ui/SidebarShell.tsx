@@ -2,9 +2,9 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { CircleHelp, Folder, Menu, Moon, Sun } from "lucide-react";
+import { CircleHelp, Folder, LogOut, Menu, Moon, Settings2, Shield, Sun } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
 import { NotificationBell } from "@/src/features/notifications";
-import CompanyIdenticonAvatar from "@/src/shared/ui/AbstractAvatar/AbstractAvatar";
 import { Breadcrumbs, type BreadcrumbItem } from "@/src/shared/ui/breadcrumbs/breadcrumbs";
 import { Button } from "@/src/shared/ui/button";
 import { Select, type SelectOption } from "@/src/shared/ui/select";
@@ -70,6 +70,8 @@ export function SidebarShell({children, navItems = defaultCabinetNav, appTitle =
   const [profileError, setProfileError] = useState("");
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const profileRef = useRef<HTMLDivElement>(null);
+  const profileLabel = user?.email ?? userName;
+  const profileInitials = Array.from(profileLabel.trim()).slice(0, 2).join("").toLocaleUpperCase("ru-RU");
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -113,7 +115,7 @@ export function SidebarShell({children, navItems = defaultCabinetNav, appTitle =
       {close ? <SidebarBrand title={appTitle} subtitle={appSubtitle} onClose={close} /> : null}
       <SidebarNav items={navItems} onNavigate={close} />
       <div className="shrink-0 space-y-0.5 border-t border-[color:var(--border)] px-3 pb-3 pt-2">
-        <SidebarUtilityNav item={navItems.find((item) => item.href === "/sources")} onNavigate={close} />
+        <SidebarUtilityNav item={navItems.find((item) => item.href === "/settings")} onNavigate={close} />
         {(sidebarFooter ?? topRight) ? <div className="py-1">{sidebarFooter ?? topRight}</div> : null}
         <button
           type="button"
@@ -175,22 +177,24 @@ export function SidebarShell({children, navItems = defaultCabinetNav, appTitle =
               onClick={() => setProfileOpen(true)}
               className="flex h-9 w-9 items-center justify-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--focus-ring-strong)]"
             >
-              <CompanyIdenticonAvatar seed={selectedCompany?.name ?? organizationName} size={32} rounded={16} className="h-8 w-8" />
+              <span aria-hidden="true" className="flex size-8 items-center justify-center rounded-full bg-[color:var(--accent-soft)] text-xs font-semibold text-[color:var(--accent)]">{profileInitials}</span>
             </button>
-            {profileOpen ? (
-              <div id="header-profile-popover" className="absolute right-0 top-full z-50 w-60 pt-2">
-                <div className="rounded-md border border-[color:var(--border)] bg-[color:var(--surface-elevated)] p-4 shadow-[var(--shadow-md)]">
-                  <p className="text-xs font-medium text-[color:var(--text-secondary)]">Профиль</p>
-                  <p className="mt-1 truncate text-sm font-semibold text-[color:var(--text-primary)]">{user?.email ?? userName}</p>
-                  {user && <p className="mt-1 text-xs text-[color:var(--text-secondary)]">{user.role === "admin" ? "Администратор" : "Владелец"}</p>}
-                  <p className="mt-1 truncate text-xs text-[color:var(--text-secondary)]">{selectedCompany?.name ?? organizationName}</p>
-                  <Button type="button" variant="ghost" size="sm" onClick={() => { setProfileOpen(false); router.push("/settings"); }}>Настройки и профиль</Button>
-                  {user?.role === "admin" && <Button type="button" variant="ghost" size="sm" onClick={() => router.push("/admin")}>Администрирование</Button>}
-                  {profileError && <p role="alert" className="mt-2 text-[11px] text-[color:var(--danger)]">{profileError}</p>}
-                  {companyStatus === "ready" && <Button type="button" variant="ghost" size="sm" className="mt-3" onClick={async () => { setProfileError(""); try { await signOut(); setProfileOpen(false); router.replace("/login"); } catch (cause) { setProfileError(cause instanceof Error ? cause.message : "Не удалось выйти"); } }}>Выйти</Button>}
+            <AnimatePresence>
+              {profileOpen && <motion.div id="header-profile-popover" initial={{ opacity: 0, y: -5, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -5, scale: 0.98 }} transition={{ duration: 0.15 }} className="absolute right-0 top-full z-50 w-[264px] max-w-[calc(100vw-24px)] origin-top-right pt-2 motion-reduce:transform-none">
+                <div className="overflow-hidden rounded-[6px] border border-[color:var(--border)] bg-[color:var(--surface-elevated)] shadow-[var(--shadow-md)]">
+                  <div className="flex items-center gap-3 border-b border-[color:var(--border)] px-4 py-4">
+                    <span aria-hidden="true" className="flex size-10 shrink-0 items-center justify-center rounded-full bg-[color:var(--accent-soft)] text-sm font-semibold text-[color:var(--accent)]">{profileInitials}</span>
+                    <div className="min-w-0"><p className="truncate text-sm font-semibold text-[color:var(--text-primary)]" title={profileLabel}>{profileLabel}</p><p className="mt-0.5 text-xs text-[color:var(--text-secondary)]">{user?.role === "admin" ? "Администратор" : "Владелец"}</p>{selectedCompany?.name && <p className="mt-0.5 truncate text-xs text-[color:var(--text-secondary)]" title={selectedCompany.name}>{selectedCompany.name}</p>}</div>
+                  </div>
+                  <div className="space-y-1 p-2">
+                    <Button type="button" variant="ghost" size="lg" className="!h-9 w-full !justify-start !gap-3 !px-3 text-[13px] [&>svg]:!size-4" onClick={() => { setProfileOpen(false); router.push("/settings"); }}><Settings2 aria-hidden="true" />Настройки и профиль</Button>
+                    {user?.role === "admin" && <Button type="button" variant="ghost" size="lg" className="!h-9 w-full !justify-start !gap-3 !px-3 text-[13px] [&>svg]:!size-4" onClick={() => { setProfileOpen(false); router.push("/admin"); }}><Shield aria-hidden="true" />Администрирование</Button>}
+                    {companyStatus === "ready" && <><div className="my-1 border-t border-[color:var(--border)]" /><Button type="button" variant="ghost" size="lg" className="!h-9 w-full !justify-start !gap-3 !px-3 text-[13px] hover:!bg-[color:color-mix(in_srgb,var(--danger)_10%,transparent)] hover:!text-[color:var(--danger)] [&>svg]:!size-4" onClick={async () => { setProfileError(""); try { await signOut(); setProfileOpen(false); router.replace("/login"); } catch (cause) { setProfileError(cause instanceof Error ? cause.message : "Не удалось выйти"); } }}><LogOut aria-hidden="true" />Выйти</Button></>}
+                    {profileError && <p role="alert" className="px-3 py-1 text-xs text-[color:var(--danger)]">{profileError}</p>}
+                  </div>
                 </div>
-              </div>
-            ) : null}
+              </motion.div>}
+            </AnimatePresence>
           </div>
           <button
             type="button"

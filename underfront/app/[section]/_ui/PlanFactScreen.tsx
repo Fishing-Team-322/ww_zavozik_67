@@ -16,8 +16,40 @@ export function PlanFactScreen() {
   const { company } = useSession();
   const base = `/v1/companies/${company!.id}`;
   const [granularity, setGranularity] = useState("day"); const [from, setFrom] = useState(""); const [to, setTo] = useState("");
+  const [page, setPage] = useState(1);
+  const [missedPage, setMissedPage] = useState(1);
+  const [unexpectedPage, setUnexpectedPage] = useState(1);
   const rows = useApiResource<Schemas["PlanFactPoint"][]>(`${base}/plan-fact?${queryParams({ granularity, from, to })}`);
   const missed = useApiResource<Missed>(`${base}/plan-fact/missed`);
-  return <div className="space-y-4"><SectionCard className="space-y-4"><ContentHeading level={1} >План и факт</ContentHeading><div className="grid gap-3 sm:grid-cols-3"><Select density="form" label="Группировка" value={granularity} options={[{ value: "day", label: "По дням" }, { value: "week", label: "По неделям" }]} onChange={e => setGranularity(e.target.value)} /><Input label="С даты" type="date" value={from} max={to || undefined} onChange={e => setFrom(e.target.value)} /><Input label="По дату" type="date" value={to} min={from || undefined} onChange={e => setTo(e.target.value)} /></div><FinanceState loading={rows.loading} error={rows.error} retry={rows.refresh} />{rows.data?.length === 0 && <EmptyState title="Нет данных для сравнения" />}{!!rows.data?.length && <Table><TableHeader><TableRow>{["Период", "План: поступления", "Факт: поступления", "План: списания", "Факт: списания", "Отклонение потока"].map((x, index) => <TableHead numeric={index > 0} key={x}>{x}</TableHead>)}</TableRow></TableHeader><TableBody>{rows.data.map(row => <TableRow key={row.period}><TableCell>{row.period}</TableCell>{[row.plan_in, row.fact_in, row.plan_out, row.fact_out, row.deviation].map((n, i) => <TableCell numeric key={i}>{money(n)}</TableCell>)}</TableRow>)}</TableBody></Table>}</SectionCard>
-    <SectionCard className="space-y-4"><ContentHeading level={2} >Несопоставленные платежи</ContentHeading><ContentText variant="description" tone="muted" >За последние 30 дней относительно актуальности выписки. Неоднозначные совпадения требуют проверки.</ContentText><FinanceState loading={missed.loading} error={missed.error} retry={missed.refresh} />{missed.data && <><ContentText variant="body" >Данные на {missed.data.data_as_of}</ContentText><ContentHeading level={3} >Ожидались, но не пришли</ContentHeading>{missed.data.missed.length === 0 && <EmptyState title="Пропущенных платежей нет" />}{missed.data.missed.map(event => <div key={event.id} className="flex flex-wrap justify-between gap-2 border-b border-[color:var(--border)] py-2"><span>{event.title} · {money(event.amount)} · {event.days_late} дн.</span><Link className={linkClass} href={`/calendar?date=${event.date}&event=${event.id}`}>{event.editable ? "Проверить и изменить" : "Открыть событие"}</Link></div>)}<ContentHeading level={3} >Факт без однозначного плана</ContentHeading>{missed.data.unexpected.length === 0 && <EmptyState title="Неожиданных операций нет" />}{missed.data.unexpected.map(row => <p key={row.id}>{row.date} · {row.counterparty.name} · {row.direction === "in" ? "+" : "−"}{money(row.amount)} · {row.purpose}</p>)}</>}</SectionCard></div>;
+  const totalPages = Math.max(1, Math.ceil((rows.data?.length ?? 0) / 10));
+  const currentPage = Math.min(page, totalPages);
+  const missedTotalPages = Math.max(1, Math.ceil((missed.data?.missed.length ?? 0) / 10));
+  const unexpectedTotalPages = Math.max(1, Math.ceil((missed.data?.unexpected.length ?? 0) / 10));
+  const currentMissedPage = Math.min(missedPage, missedTotalPages);
+  const currentUnexpectedPage = Math.min(unexpectedPage, unexpectedTotalPages);
+  return <div className="space-y-4"><SectionCard className="space-y-4"><ContentHeading level={1} >План и факт</ContentHeading><div className="grid gap-3 sm:grid-cols-3"><Select density="form" label="Группировка" value={granularity} options={[{ value: "day", label: "По дням" }, { value: "week", label: "По неделям" }]} onChange={e => { setGranularity(e.target.value); setPage(1); }} /><Input label="С даты" type="date" value={from} max={to || undefined} onChange={e => { setFrom(e.target.value); setPage(1); }} /><Input label="По дату" type="date" value={to} min={from || undefined} onChange={e => { setTo(e.target.value); setPage(1); }} /></div><FinanceState loading={rows.loading} error={rows.error} retry={rows.refresh} />{rows.data?.length === 0 && <EmptyState title="Нет данных для сравнения" />}{!!rows.data?.length && <Table pagination={{ page: currentPage, totalPages, onPageChange: setPage }}><TableHeader><TableRow>{["Период", "План: поступления", "Факт: поступления", "План: списания", "Факт: списания", "Отклонение потока"].map((x, index) => <TableHead numeric={index > 0} key={x}>{x}</TableHead>)}</TableRow></TableHeader><TableBody>{rows.data.slice((currentPage - 1) * 10, currentPage * 10).map(row => <TableRow key={row.period}><TableCell>{row.period}</TableCell>{[row.plan_in, row.fact_in, row.plan_out, row.fact_out, row.deviation].map((n, i) => <TableCell numeric key={i}>{money(n)}</TableCell>)}</TableRow>)}</TableBody></Table>}</SectionCard>
+    <SectionCard className="space-y-4">
+      <ContentHeading level={2}>Несопоставленные платежи</ContentHeading>
+      <ContentText variant="description" tone="muted">За последние 30 дней относительно актуальности выписки. Неоднозначные совпадения требуют проверки.</ContentText>
+      <FinanceState loading={missed.loading} error={missed.error} retry={missed.refresh} />
+      {missed.data && <>
+        <ContentText variant="body">Данные на {missed.data.data_as_of}</ContentText>
+        <ContentHeading level={3}>Ожидались, но не пришли</ContentHeading>
+        {missed.data.missed.length === 0 ? <EmptyState title="Пропущенных платежей нет" /> :
+          <Table pagination={{ page: currentMissedPage, totalPages: missedTotalPages, onPageChange: setMissedPage }}>
+            <TableHeader><TableRow><TableHead>Платёж</TableHead><TableHead>Дата</TableHead><TableHead numeric>Сумма</TableHead><TableHead numeric>Просрочка</TableHead><TableHead>Действие</TableHead></TableRow></TableHeader>
+            <TableBody>{missed.data.missed.slice((currentMissedPage - 1) * 10, currentMissedPage * 10).map(event =>
+              <TableRow key={event.id}><TableCell>{event.title}</TableCell><TableCell>{event.date}</TableCell><TableCell numeric>{money(event.amount)}</TableCell><TableCell numeric>{event.days_late} дн.</TableCell><TableCell><Link className={linkClass} href={`/calendar?date=${event.date}&event=${event.id}`}>{event.editable ? "Проверить и изменить" : "Открыть событие"}</Link></TableCell></TableRow>
+            )}</TableBody>
+          </Table>}
+        <ContentHeading level={3}>Факт без однозначного плана</ContentHeading>
+        {missed.data.unexpected.length === 0 ? <EmptyState title="Неожиданных операций нет" /> :
+          <Table pagination={{ page: currentUnexpectedPage, totalPages: unexpectedTotalPages, onPageChange: setUnexpectedPage }}>
+            <TableHeader><TableRow><TableHead>Дата</TableHead><TableHead>Контрагент</TableHead><TableHead>Назначение</TableHead><TableHead numeric>Сумма</TableHead></TableRow></TableHeader>
+            <TableBody>{missed.data.unexpected.slice((currentUnexpectedPage - 1) * 10, currentUnexpectedPage * 10).map(row =>
+              <TableRow key={row.id}><TableCell>{row.date}</TableCell><TableCell>{row.counterparty.name}</TableCell><TableCell>{row.purpose}</TableCell><TableCell numeric>{row.direction === "in" ? "+" : "−"}{money(row.amount)}</TableCell></TableRow>
+            )}</TableBody>
+          </Table>}
+      </>}
+    </SectionCard></div>;
 }

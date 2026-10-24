@@ -2,6 +2,7 @@
 import { ContentHeading, ContentText } from "@/src/shared/ui/content";
 import Link from "next/link";
 import { useState } from "react";
+import { ArrowRightLeft, CalendarClock, CircleHelp, ReceiptText, SlidersHorizontal, TrendingDown, Wallet } from "lucide-react";
 import { useSession } from "@/src/features/auth";
 import {
   api,
@@ -11,18 +12,31 @@ import {
   type PlannedEvent,
 } from "@/src/shared/api";
 import { useApiResource } from "@/src/shared/api/use-api-resource";
-import { Button, Input, Select, ConfirmDialog } from "@/src/shared/ui";
-import { SectionCard } from "@/src/widgets/cabinet-shell";
+import { Button, Input, Select, ConfirmDialog, Dialog } from "@/src/shared/ui";
 import {
   CashflowForecastChart,
   DEFAULT_SCENARIO,
   ScenarioControls,
   type ScenarioParams,
-  RiskCard,
 } from "@/src/widgets/finance-panels";
-import { chartDays, riskView } from "@/src/entities/forecast";
+import { chartDays, displayDate, fallbackNotice } from "@/src/entities/forecast";
 import { money, percent } from "./finance-utils";
-import { FinanceState, ForecastNotice } from "./FinanceState";
+import { FinanceState } from "./FinanceState";
+
+const presetIcons = {
+  delay_counterparty: CalendarClock,
+  scale_revenue: TrendingDown,
+  add_expense: ReceiptText,
+  scale_fixed_costs: Wallet,
+  move_event: ArrowRightLeft,
+};
+type ReadyCondition = "delay_counterparty" | "scale_revenue" | "add_expense" | "scale_fixed_costs";
+const readyConditions: Array<{ kind: ReadyCondition; label: string }> = [
+  { kind: "delay_counterparty", label: "Задержка оплаты" },
+  { kind: "scale_revenue", label: "Падение выручки" },
+  { kind: "add_expense", label: "Внеплановый расход" },
+  { kind: "scale_fixed_costs", label: "Постоянные расходы" },
+];
 
 export function ScenariosScreen() {
   const { company } = useSession();
@@ -37,33 +51,35 @@ export function ScenariosScreen() {
   const presets = useApiResource<Array<{ kind: Schemas["ScenarioStep"]["kind"]; title: string }>>("/v1/scenario-presets");
   const [selectedId, setSelectedId] = useState("");
   const [customSteps, setCustomSteps] = useState<Schemas["ScenarioStep"][] | null>(null);
+  const [selectedCondition, setSelectedCondition] = useState<ReadyCondition | null>(null);
   const [dirty, setDirty] = useState(false);
   const [fixedIncrease, setFixedIncrease] = useState(0);
   const [deleting, setDeleting] = useState(false);
   const [saved, setSaved] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [saveOpen, setSaveOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const sliderSteps: Schemas["ScenarioStep"][] = [];
-  if (params.revenueDropPercent)
+  if (selectedCondition === "scale_revenue" && params.revenueDropPercent)
     sliderSteps.push({
       kind: "scale_revenue",
       factor: 1 - params.revenueDropPercent / 100,
     });
-  if (params.unexpectedExpense && forecast.data)
+  if (selectedCondition === "add_expense" && params.unexpectedExpense && forecast.data)
     sliderSteps.push({
       kind: "add_expense",
       amount: params.unexpectedExpense,
       date: date || forecast.data.points[0]?.date || "",
     });
-  if (params.paymentDelayDays && counterparty)
+  if (selectedCondition === "delay_counterparty" && params.paymentDelayDays && counterparty)
     sliderSteps.push({
       kind: "delay_counterparty",
       counterparty_id: counterparty,
       delay_days: params.paymentDelayDays,
     });
-  if (fixedIncrease) sliderSteps.push({ kind: "scale_fixed_costs", factor: 1 + fixedIncrease / 100 });
+  if (selectedCondition === "scale_fixed_costs" && fixedIncrease) sliderSteps.push({ kind: "scale_fixed_costs", factor: 1 + fixedIncrease / 100 });
   const steps = customSteps ?? sliderSteps;
-  const missingClient = customSteps === null && params.paymentDelayDays > 0 && !counterparty;
+  const missingClient = customSteps === null && selectedCondition === "delay_counterparty" && params.paymentDelayDays > 0 && !counterparty;
   const savedCompare = useApiResource<Schemas["ScenarioComparison"]>(selectedId && !dirty ? `/v1/scenarios/${selectedId}/compare` : null);
   const compare = useApiResource<Schemas["ScenarioComparison"]>(
     steps.length && forecast.data && !missingClient && (!selectedId || dirty)
@@ -88,145 +104,168 @@ export function ScenariosScreen() {
     ).values(),
   ];
   const comparison = selectedId && !dirty ? savedCompare : compare;
+  const recalculating = comparison.loading && steps.length > 0 && !missingClient;
   const result = comparison.data?.scenario;
-  const riskForecast = result || forecast.data;
+  const baseForecast = comparison.data?.base || forecast.data;
+  const baseGap = baseForecast?.gaps[0];
+  const scenarioGap = result?.gaps[0];
+  const baseMinimum = baseForecast?.points.reduce<Forecast["points"][number] | null>((minimum, point) => !minimum || point.p50 < minimum.p50 ? point : minimum, null);
+  const scenarioMinimum = result?.points.reduce<Forecast["points"][number] | null>((minimum, point) => !minimum || point.p50 < minimum.p50 ? point : minimum, null);
+  const minimumChange = baseMinimum && scenarioMinimum ? scenarioMinimum.p50 - baseMinimum.p50 : null;
+  const reserve = company!.reserve;
+  const limitedProbability = Boolean(baseForecast?.fallback_used || baseForecast?.low_confidence || result?.fallback_used || result?.low_confidence);
+  const modelNotice = baseForecast?.fallback_used ? fallbackNotice(baseForecast.warnings) : baseForecast?.low_confidence ? "Надёжность оценки ограничена полнотой истории." : "Прогноз построен по доступным финансовым данным.";
+  const chartPoints = baseForecast ? chartDays(baseForecast, result).filter(day => day.date >= baseForecast.as_of).slice(0, 31) : [];
+  const gapChange = scenarioGap && baseGap
+    ? scenarioGap.shortfall === baseGap.shortfall ? "Для первых дат нехватки сумма не изменилась." : `Для первых дат нехватки сумма ${scenarioGap.shortfall > baseGap.shortfall ? "увеличилась" : "уменьшилась"} на ${money(Math.abs(scenarioGap.shortfall - baseGap.shortfall))}.`
+    : scenarioGap ? "В базовом плане нехватки не было." : baseGap ? "Нехватка базового плана устранена." : "Нехватки нет в обоих прогнозах.";
+
+  function chooseCondition(kind: ReadyCondition) {
+    setSelectedId(""); setCustomSteps(null); setSelectedCondition(kind);
+    setParams({ paymentDelayDays: kind === "delay_counterparty" ? 7 : 0, revenueDropPercent: kind === "scale_revenue" ? 20 : 0, unexpectedExpense: kind === "add_expense" ? 25000 : 0 });
+    setFixedIncrease(kind === "scale_fixed_costs" ? 10 : 0);
+    setCounterparty(""); setDate(""); setTitle("Мой сценарий"); setDirty(true); setSaved(null);
+  }
+
+  function startCustomScenario() {
+    setSelectedId(""); setSelectedCondition(null); setCustomSteps([]);
+    setTitle("Мой сценарий"); setDirty(true); setSaved(null);
+  }
+
+  function addPreset(kind: Schemas["ScenarioStep"]["kind"]) {
+    setCustomSteps(steps.some(step => step.kind === kind)
+      ? steps.filter(step => step.kind !== kind)
+      : [...steps, kind === "scale_revenue" ? { kind, factor: 0.8 } : kind === "scale_fixed_costs" ? { kind, factor: 1.1 } : kind === "delay_counterparty" ? { kind, delay_days: 7, counterparty_id: clients[0]?.value } : kind === "move_event" ? { kind, event_id: events.data?.find(event => event.editable)?.id, date: forecast.data?.points[0]?.date ?? "" } : { kind, amount: 0, date: forecast.data?.points[0]?.date ?? "" }]);
+    setDirty(true);
+    setSaved(null);
+  }
+
+  function resetScenario() {
+    setSelectedId(""); setCustomSteps(null); setParams(DEFAULT_SCENARIO);
+    setSelectedCondition(null);
+    setCounterparty(""); setDate(""); setFixedIncrease(0);
+    setTitle("Мой сценарий"); setDirty(false); setSaved(null);
+  }
+  async function saveScenario() {
+    if (!title.trim() || !steps.length || missingClient || !comparison.data || comparison.loading) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const stored = await api.request<Schemas["Scenario"]>(selectedId ? `/v1/scenarios/${selectedId}` : `${base}/scenarios`, {
+        method: selectedId ? "PATCH" : "POST",
+        json: { title, steps },
+      });
+      setSelectedId(stored.id); setCustomSteps(stored.steps); setSelectedCondition(null); setDirty(false);
+      setSaved("Сценарий сохранён.");
+      setSaveOpen(false);
+      scenarios.refresh();
+    } catch (cause) {
+      setError(message(cause));
+    } finally {
+      setSaving(false);
+    }
+  }
   return (
     <>
-      <ContentHeading level={1} className="mb-6">Сценарии</ContentHeading>
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+        <ContentHeading level={1}>Сценарии</ContentHeading>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="lg" onClick={resetScenario}>Сбросить</Button>
+          <Button
+            size="lg"
+            disabled={!steps.length || missingClient || !comparison.data || comparison.loading}
+            onClick={() => { setError(null); setSaveOpen(true); }}
+          >Сохранить</Button>
+        </div>
+      </div>
       <FinanceState
-        loading={forecast.loading || scenarios.loading || presets.loading}
-        error={forecast.error || comparison.error || scenarios.error || presets.error || events.error || error}
+        loading={forecast.loading && !forecast.data}
+        error={forecast.error || comparison.error || scenarios.error || presets.error || events.error || (!saveOpen && error)}
         retry={() => {
           forecast.refresh();
           compare.refresh(); savedCompare.refresh(); scenarios.refresh(); presets.refresh(); events.refresh();
         }}
       />
-      <div className="grid min-w-0 grid-cols-1 items-start gap-4 xl:grid-cols-[330px_minmax(0,1fr)]">
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 items-end gap-3">
-            <Select density="form" size="md" label="Сохранённый сценарий" value={selectedId} options={[{ value: "", label: "Новый сценарий" }, ...(scenarios.data ?? []).map(s => ({ value: s.id, label: s.title }))]} onChange={e => { const scenario = scenarios.data?.find(s => s.id === e.target.value); setSelectedId(scenario?.id ?? ""); setCustomSteps(scenario?.steps ?? null); setTitle(scenario?.title ?? "Мой сценарий"); setDirty(false); setSaved(null); }} />
-            <Select density="form" size="md" label="Добавить из пресета" value="" options={[{ value: "", label: "Выберите условие" }, ...(presets.data ?? []).map(p => ({ value: p.kind, label: p.title }))]} onChange={e => { const kind = e.target.value as Schemas["ScenarioStep"]["kind"]; if (!kind) return; setCustomSteps([...steps, kind === "scale_revenue" ? { kind, factor: 0.8 } : kind === "scale_fixed_costs" ? { kind, factor: 1.1 } : kind === "delay_counterparty" ? { kind, delay_days: 7, counterparty_id: clients[0]?.value } : { kind, amount: 0, date: forecast.data?.points[0]?.date ?? "" }]); setDirty(true); }} />
-          </div>
-          {customSteps ? <div className="space-y-3">{customSteps.map((step, index) => <StepEditor key={index} step={step} clients={clients} events={events.data ?? []} onChange={value => { setCustomSteps(customSteps.map((s, i) => i === index ? value : s)); setDirty(true); setSaved(null); }} onRemove={() => { setCustomSteps(customSteps.filter((_, i) => i !== index)); setDirty(true); }} />)}<Button variant="outline" onClick={() => { setCustomSteps([...customSteps, { kind: "move_event", event_id: events.data?.find(e => e.editable)?.id, date: forecast.data?.points[0]?.date ?? "" }]); setDirty(true); }}>Добавить перенос события</Button><Button variant="ghost" onClick={() => { setSelectedId(""); setCustomSteps(null); setDirty(true); }}>Новый сценарий с ползунками</Button></div> : <><ScenarioControls
-            value={params}
-            onChange={(value) => {
-              setParams(value); setDirty(true);
-              setSaved(null);
-            }}
-          />
-          {params.paymentDelayDays > 0 && (
-            <Select density="form"
-              size="md"
-              label="Клиент с плановым поступлением"
-              placeholder="Выберите клиента"
-              value={counterparty}
-              onChange={(event) => setCounterparty(event.target.value)}
-              options={clients}
-            />
-          )}
-          {missingClient && (
-            <ContentText variant="description" tone="muted" >
-              Для переноса выберите клиента с ожидаемым поступлением. Его можно
-              добавить в календаре.
-            </ContentText>
-          )}
-          {params.unexpectedExpense > 0 && (
-            <Input
-              type="date"
-              label="Дата внепланового расхода"
-              min={forecast.data?.points[0]?.date}
-              max={forecast.data?.points.at(-1)?.date}
-              value={date || forecast.data?.points[0]?.date || ""}
-              onChange={(event) => setDate(event.target.value)}
-            />
-          )}
-          </>}
-          <div className={customSteps ? "space-y-3" : "grid grid-cols-2 gap-3"}>
-            {!customSteps && <Input label="Фикс. расходы +%" type="number" min="0" max="900" value={fixedIncrease} onChange={e => { setFixedIncrease(Number(e.target.value)); setDirty(true); }} />}
-            <Input
-              label="Название сценария"
-              value={title}
-              onChange={(event) => setTitle(event.target.value)}
-              maxLength={200}
-            />
-          </div>
-          <Button
-            disabled={!title.trim() || !steps.length || missingClient || !comparison.data || comparison.loading}
-            loading={saving}
-            onClick={async () => {
-              setSaving(true);
-              setError(null);
-              try {
-                const stored = await api.request<Schemas["Scenario"]>(selectedId ? `/v1/scenarios/${selectedId}` : `${base}/scenarios`, {
-                  method: selectedId ? "PATCH" : "POST",
-                  json: { title, steps },
-                });
-                setSelectedId(stored.id); setCustomSteps(stored.steps); setDirty(false);
-                setSaved("Сценарий сохранён.");
-              } catch (error) {
-                setError(message(error));
-              } finally {
-                setSaving(false);
-              }
-            }}
-          >
-            Сохранить сценарий
-          </Button>
-          {selectedId && !dirty && <Link className="block text-sm text-[color:var(--accent)] underline" href={`/forecast?scenario=${encodeURIComponent(selectedId)}`}>Открыть прогноз по сценарию</Link>}
-          {selectedId && <Button variant="ghost" onClick={() => setDeleting(true)}>Удалить сценарий</Button>}
-          {saved && (
-            <ContentText variant="body" role="status" >
-              {saved}
-            </ContentText>
-          )}
-        </div>
-        <SectionCard className="min-w-0">
-          <ContentHeading level={2} className="mb-4">
-            Базовый и негативный прогноз
-          </ContentHeading>
-          <ForecastNotice forecast={comparison.data?.base || forecast.data} />
-          <CashflowForecastChart
-            days={
-              forecast.data
-                ? chartDays(comparison.data?.base || forecast.data, result)
-                : []
-            }
-            showBounds
-          />
-          {!steps.length && (
-            <ContentText variant="description" tone="muted" className="mt-4">
-              Измените параметры, чтобы рассчитать сценарий.
-            </ContentText>
-          )}
-          <div className={`mt-4 grid gap-3 ${comparison.data ? "sm:grid-cols-2 lg:grid-cols-3" : ""}`}>
-            {comparison.data && [{ label: "Было", forecast: comparison.data.base }, { label: "Стало", forecast: comparison.data.scenario }].map(({ label, forecast: f }) => { const minimum = f.points.reduce<(typeof f.points)[number] | null>((min, p) => !min || p.p50 < min.p50 ? p : min, null); return <div key={label} className="min-w-0 space-y-1 rounded-md border border-[color:var(--border)] p-3 text-sm leading-5"><ContentHeading level={3} >{label}</ContentHeading><p>Минимум: {money(minimum?.p50)} · {minimum?.date ?? "Нет даты"}</p><p>Разрыв: {f.gaps[0] ? `${f.gaps[0].date} · ${money(f.gaps[0].shortfall)}` : "Не найден"}</p><p>Вероятность: {percent(f.gaps[0]?.probability)}</p></div>; })}
-            <div className="min-w-0 [&>section]:h-full">
-            <RiskCard
-              compact
-              risk={
-                riskForecast?.gaps[0] ? riskView(riskForecast.gaps[0]) : null
-              }
-              status={
-                riskForecast && !riskForecast.gaps.length ? "clear" : "unknown"
-              }
-            />
-            </div>
-          </div>
-        </SectionCard>
+      <div className="mb-5 flex flex-wrap items-center gap-2" role="group" aria-label="Выбор условий">
+        {readyConditions.map(condition => {
+          const Icon = presetIcons[condition.kind];
+          const active = customSteps === null && selectedCondition === condition.kind;
+          return <button key={condition.kind} type="button" aria-pressed={active} onClick={() => chooseCondition(condition.kind)} className={`inline-flex min-h-10 items-center gap-2 rounded-[6px] border px-3 text-sm font-medium transition-colors hover:border-[color:var(--accent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--focus-ring-strong)] ${active ? "border-[color:var(--accent)] bg-[color:var(--surface-subtle)] text-[color:var(--text-primary)]" : "border-[color:var(--border)] text-[color:var(--text-secondary)]"}`}><Icon size={16} aria-hidden="true" />{condition.label}</button>;
+        })}
+        <button type="button" aria-pressed={customSteps !== null} onClick={startCustomScenario} className={`inline-flex min-h-10 items-center gap-2 rounded-[6px] border px-3 text-sm font-medium transition-colors hover:border-[color:var(--accent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--focus-ring-strong)] ${customSteps !== null ? "border-[color:var(--accent)] bg-[color:var(--surface-subtle)] text-[color:var(--text-primary)]" : "border-[color:var(--border)] text-[color:var(--text-secondary)]"}`}><SlidersHorizontal size={16} aria-hidden="true" />Свой сценарий</button>
       </div>
-      <ConfirmDialog open={deleting} title="Удалить сценарий?" description={title} loading={saving} onCancel={() => { if (!saving) setDeleting(false); }} onConfirm={async () => { setSaving(true); setError(null); try { await api.request(`/v1/scenarios/${selectedId}`, { method: "DELETE" }); setDeleting(false); setSelectedId(""); setCustomSteps(null); setDirty(false); } catch (cause) { setError(message(cause)); } finally { setSaving(false); } }}>{error && <p role="alert">{error}</p>}</ConfirmDialog>
+      <div className="grid min-w-0 grid-cols-1 items-start gap-6 lg:grid-cols-[320px_minmax(0,1fr)] lg:gap-7 xl:grid-cols-[340px_minmax(0,1fr)]">
+        <section className="min-w-0 space-y-4 lg:border-r lg:border-[color:var(--border)] lg:pr-6" aria-label="Параметры сценария">
+          <Select density="form" size="md" label="Сохранённый сценарий" value={selectedId} options={[{ value: "", label: "Новый сценарий" }, ...(scenarios.data ?? []).map(scenario => ({ value: scenario.id, label: scenario.title }))]} onChange={event => { const scenario = scenarios.data?.find(item => item.id === event.target.value); setSelectedId(scenario?.id ?? ""); setCustomSteps(scenario?.steps ?? null); setSelectedCondition(null); setTitle(scenario?.title ?? "Мой сценарий"); setDirty(false); setSaved(null); }} />
+          <div className="border-t border-[color:var(--border)] pt-4">
+            <ContentHeading level={2}>{customSteps ? "Комбинация условий" : selectedCondition ? readyConditions.find(item => item.kind === selectedCondition)?.label : "Настройка сценария"}</ContentHeading>
+            {customSteps && <ContentText variant="description" className="mt-1">Добавляйте и настраивайте несколько условий вместе.</ContentText>}
+            {!customSteps && !selectedCondition && <ContentText variant="description" className="mt-2">Выберите готовое условие выше или создайте свой сценарий.</ContentText>}
+            {selectedCondition && customSteps === null && <div className="mt-4 space-y-4">
+              {selectedCondition !== "scale_fixed_costs" && <ScenarioControls bare visibleKeys={[selectedCondition === "delay_counterparty" ? "paymentDelayDays" : selectedCondition === "scale_revenue" ? "revenueDropPercent" : "unexpectedExpense"]} value={params} onChange={value => { setParams(value); setDirty(true); setSaved(null); }} />}
+              {selectedCondition === "delay_counterparty" && <><Select density="form" size="md" label="Клиент с плановым поступлением" placeholder="Выберите клиента" value={counterparty} onChange={event => { setCounterparty(event.target.value); setDirty(true); }} options={clients} />{missingClient && <ContentText variant="description">Выберите клиента, чтобы рассчитать задержку поступления.</ContentText>}</>}
+              {selectedCondition === "add_expense" && <Input type="date" label="Дата расхода" min={forecast.data?.points[0]?.date} max={forecast.data?.points.at(-1)?.date} value={date || forecast.data?.points[0]?.date || ""} onChange={event => { setDate(event.target.value); setDirty(true); }} />}
+              {selectedCondition === "scale_fixed_costs" && <Input label="Рост постоянных расходов, %" type="number" min="0" max="900" value={fixedIncrease} onChange={event => { setFixedIncrease(Number(event.target.value)); setDirty(true); }} />}
+            </div>}
+            {customSteps && <div className="mt-3 space-y-3">
+              {customSteps.length === 0 && <ContentText variant="description">Добавьте одно или несколько условий.</ContentText>}
+              {customSteps.map((step, index) => <StepEditor key={index} step={step} clients={clients} events={events.data ?? []} onChange={value => { setCustomSteps(customSteps.map((item, stepIndex) => stepIndex === index ? value : item)); setDirty(true); setSaved(null); }} onRemove={() => { setCustomSteps(customSteps.filter((_, stepIndex) => stepIndex !== index)); setDirty(true); setSaved(null); }} />)}
+              <div className="flex flex-wrap gap-2">{readyConditions.map(condition => <Button key={condition.kind} variant="outline" size="sm" disabled={customSteps.some(step => step.kind === condition.kind)} onClick={() => addPreset(condition.kind)}>+ {presets.data?.find(preset => preset.kind === condition.kind)?.title ?? condition.label}</Button>)}</div>
+              <Button variant="ghost" size="sm" disabled={customSteps.some(step => step.kind === "move_event")} onClick={() => addPreset("move_event")}>+ Перенос события</Button>
+            </div>}
+          </div>
+          {saved && <ContentText variant="description" role="status" tone="success">{saved}</ContentText>}
+          {selectedId && !dirty && <Link className="block text-xs text-[color:var(--accent)] underline underline-offset-2" href={`/forecast?scenario=${encodeURIComponent(selectedId)}`}>Открыть прогноз по сценарию</Link>}
+          {selectedId && <Button variant="ghost" size="sm" onClick={() => setDeleting(true)}>Удалить сценарий</Button>}
+        </section>
+        <section className="min-w-0" aria-label="Сравнение прогнозов">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <ContentHeading level={2}>Прогноз на 30 дней</ContentHeading>
+            {baseForecast && <details className="relative text-xs text-[color:var(--text-secondary)]"><summary className="inline-flex cursor-pointer list-none items-center gap-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--focus-ring-strong)]"><CircleHelp size={14} aria-hidden="true" />{baseForecast.fallback_used ? "Упрощённый прогноз" : "О прогнозе"}</summary><p className="absolute right-0 top-full z-10 mt-2 w-64 border border-[color:var(--border)] bg-[color:var(--surface-elevated)] p-3 leading-5 shadow-[var(--shadow-md)]">{modelNotice}</p></details>}
+          </div>
+          <div className="mt-4 flex flex-wrap gap-x-5 gap-y-1 text-xs text-[color:var(--text-secondary)]"><span className="inline-flex items-center gap-1.5"><i className="h-0.5 w-4 bg-[color:var(--accent)]" />Базовый прогноз</span><span className={`inline-flex items-center gap-1.5 ${result ? "" : "opacity-45"}`}><i className="w-4 border-t-2 border-dashed border-[color:var(--warning)]" />С изменениями</span><span className="inline-flex items-center gap-1.5"><i className="w-4 border-t border-dashed border-[color:var(--danger)]" />Нулевой остаток</span></div>
+          <div className="relative" aria-busy={recalculating}>
+            <CashflowForecastChart days={chartPoints} height={280} compactDates showScenario={Boolean(result)} scenarioLabel="С изменениями" hideSeries={recalculating} animate={false} showDeficitDots={false} showScenarioDelta firstGapDate={[baseGap?.date, scenarioGap?.date].filter((value): value is string => Boolean(value)).sort()[0]} />
+            {recalculating && <div className="absolute inset-0 flex items-center justify-center"><span role="status" className="inline-flex items-center gap-2 border border-[color:var(--border)] bg-[color:var(--surface-elevated)] px-3 py-2 text-sm font-medium text-[color:var(--text-primary)] shadow-[var(--shadow-md)]"><span className="size-4 animate-spin rounded-full border-2 border-[color:var(--border)] border-t-[color:var(--accent)]" aria-hidden="true" />Пересчитываем прогноз…</span></div>}
+          </div>
+          <div className="mt-4" aria-live="polite">
+            {recalculating ? null : result ? <>
+              <div className="overflow-x-auto border-y border-[color:var(--border)] text-sm"><div className="min-w-[460px]">
+                <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)] gap-2 border-b border-[color:var(--border)] py-2 text-xs font-medium text-[color:var(--text-secondary)]"><span>Показатель</span><span>Без изменений</span><span>С изменениями</span></div>
+                <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)] gap-2 py-2"><span className="text-[color:var(--text-secondary)]">Минимальный остаток</span><span className="tabular-nums">{money(baseMinimum?.p50)}</span><span className="font-medium tabular-nums">{money(scenarioMinimum?.p50)}</span></div>
+                <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)] gap-2 py-2"><span className="text-[color:var(--text-secondary)]">Дата нехватки</span><span>{baseGap ? displayDate(baseGap.date) : "Нет"}</span><span className="font-medium">{scenarioGap ? displayDate(scenarioGap.date) : "Нет"}</span></div>
+                <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)] gap-2 py-2"><span className="text-[color:var(--text-secondary)]">Вероятность{limitedProbability ? "*" : ""}</span><span>{baseGap ? percent(baseGap.probability) : "—"}</span><span className="font-medium">{scenarioGap ? percent(scenarioGap.probability) : "—"}</span></div>
+                <p className="border-t border-[color:var(--border)] py-2 text-xs font-medium text-[color:var(--text-secondary)]">Изменение минимального остатка: <span className={`tabular-nums ${minimumChange != null && minimumChange < 0 ? "text-[color:var(--danger)]" : minimumChange != null && minimumChange > 0 ? "text-[color:var(--success)]" : "text-[color:var(--text-primary)]"}`}>{minimumChange == null ? "—" : `${minimumChange > 0 ? "+" : ""}${money(minimumChange)}`}</span></p>
+              </div></div>
+              <p className="mt-3 text-sm text-[color:var(--text-secondary)]"><span className="font-medium text-[color:var(--text-primary)]">Итог: </span>{gapChange}{scenarioGap ? ` По сценарию не хватает ${money(scenarioGap.shortfall)} с ${displayDate(scenarioGap.date)}.` : ""}</p>
+              {(baseGap || scenarioGap) && <p className="mt-1 text-xs text-[color:var(--text-secondary)]">Неснижаемый резерв: {money(reserve)}. Нехватка — разница между резервом и минимальным прогнозным остатком начиная с первой даты риска; поэтому она не равна модулю отрицательного остатка.</p>}
+              {limitedProbability && <p className="mt-1 text-xs text-[color:var(--text-secondary)]">* Вероятность — ориентировочная оценка: прогноз упрощён или данных недостаточно для надёжной оценки.</p>}
+            </> : <div className="border-t border-[color:var(--border)] py-3 text-sm"><p className="font-medium text-[color:var(--text-primary)]">Базовый прогноз</p><p className="mt-1 text-[color:var(--text-secondary)]">Минимальный остаток: {money(baseMinimum?.p50)}{baseGap ? ` · нехватка с ${displayDate(baseGap.date)}` : " · нехватки не прогнозируется"}</p>{baseGap && <p className="mt-1 text-xs text-[color:var(--text-secondary)]">Нехватка считается относительно неснижаемого резерва {money(reserve)}, а не нулевого остатка.</p>}{limitedProbability && <p className="mt-1 text-xs text-[color:var(--text-secondary)]">Вероятность риска при упрощённом прогнозе или неполных данных — только ориентир.</p>}<p className="mt-2 text-xs text-[color:var(--text-secondary)]">Выберите условие и настройте его, чтобы увидеть сравнение.</p></div>}
+          </div>
+        </section>
+      </div>
+      <Dialog open={saveOpen} title={selectedId ? "Сохранить изменения" : "Сохранить сценарий"} className="max-w-sm" onClose={() => setSaveOpen(false)} dismissDisabled={saving}>
+        <form className="space-y-4" onSubmit={event => { event.preventDefault(); void saveScenario(); }}>
+          <Input label="Название сценария" value={title} onChange={event => setTitle(event.target.value)} maxLength={200} required />
+          {error && <p role="alert" className="text-sm text-[color:var(--danger)]">{error}</p>}
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" disabled={saving} onClick={() => setSaveOpen(false)}>Отмена</Button>
+            <Button type="submit" loading={saving} disabled={!title.trim()}>Сохранить</Button>
+          </div>
+        </form>
+      </Dialog>
+      <ConfirmDialog open={deleting} title="Удалить сценарий?" description={title} loading={saving} onCancel={() => { if (!saving) setDeleting(false); }} onConfirm={async () => { setSaving(true); setError(null); try { await api.request(`/v1/scenarios/${selectedId}`, { method: "DELETE" }); setDeleting(false); resetScenario(); scenarios.refresh(); } catch (cause) { setError(message(cause)); } finally { setSaving(false); } }}>{error && <p role="alert">{error}</p>}</ConfirmDialog>
     </>
   );
 }
 
 function StepEditor({ step, clients, events, onChange, onRemove }: { step: Schemas["ScenarioStep"]; clients: Array<{ value: string; label: string }>; events: PlannedEvent[]; onChange: (step: Schemas["ScenarioStep"]) => void; onRemove: () => void }) {
   const titles = { delay_counterparty: "Клиент заплатит позже", scale_revenue: "Изменение выручки", add_expense: "Новый расход", scale_fixed_costs: "Постоянные расходы", move_event: "Перенос события" };
-  return <div className="space-y-2 rounded-md border border-[color:var(--border)] p-3"><ContentHeading level={3} >{titles[step.kind]}</ContentHeading>
-    {(step.kind === "scale_revenue" || step.kind === "scale_fixed_costs") && <Input label="Множитель (1 = без изменения)" type="number" min="0" max="10" step="0.01" value={step.factor ?? 1} onChange={e => onChange({ ...step, factor: Number(e.target.value) })} />}
+  return <div className="space-y-3 border-b border-[color:var(--border)] pb-4"><div className="flex items-center justify-between gap-2"><ContentHeading level={3}>{titles[step.kind]}</ContentHeading><Button size="sm" variant="ghost" onClick={onRemove}>Убрать</Button></div>
+    {(step.kind === "scale_revenue" || step.kind === "scale_fixed_costs") && <Input label={step.kind === "scale_revenue" ? "Изменение поступлений, %" : "Изменение фикс. расходов, %"} type="number" min="-100" max="900" step="1" value={Math.round(((step.factor ?? 1) - 1) * 100)} onChange={e => onChange({ ...step, factor: 1 + Number(e.target.value) / 100 })} />}
     {step.kind === "delay_counterparty" && <><Select density="form" label="Клиент" value={step.counterparty_id ?? ""} options={[{ value: "", label: "Выберите клиента" }, ...clients]} onChange={e => onChange({ ...step, counterparty_id: e.target.value })} /><Input label="Задержка, дней" type="number" min="0" max="365" value={step.delay_days ?? 0} onChange={e => onChange({ ...step, delay_days: Number(e.target.value) })} /></>}
     {step.kind === "add_expense" && <Input label="Сумма, ₽" type="number" min="0" max="10000000000000" step="0.01" value={step.amount ?? 0} onChange={e => onChange({ ...step, amount: Number(e.target.value) })} />}
-    {step.kind === "move_event" && <Select density="form" label="Событие" value={step.event_id ?? ""} options={[{ value: "", label: "Выберите событие" }, ...events.filter(e => e.editable).map(e => ({ value: e.id, label: `${e.date} · ${e.title}` }))]} onChange={e => onChange({ ...step, event_id: e.target.value })} />}
+    {step.kind === "move_event" && <Select density="form" label="Событие" value={step.event_id ?? ""} options={[{ value: "", label: "Выберите событие" }, ...events.filter(e => e.editable).map(e => ({ value: e.id, label: `${displayDate(e.date)} · ${e.title}` }))]} onChange={e => onChange({ ...step, event_id: e.target.value })} />}
     {(step.kind === "add_expense" || step.kind === "move_event") && <Input label="Дата" type="date" value={step.date ?? ""} onChange={e => onChange({ ...step, date: e.target.value })} />}
-    <Button size="sm" variant="ghost" onClick={onRemove}>Удалить условие</Button>
   </div>;
 }

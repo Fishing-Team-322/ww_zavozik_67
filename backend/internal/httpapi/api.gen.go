@@ -990,6 +990,7 @@ type Operation struct {
 type OperationPage struct {
 	Items      []Operation `json:"items"`
 	NextCursor *string     `json:"next_cursor"`
+	Total      int         `json:"total"`
 }
 
 // OperationsSummary defines model for OperationsSummary.

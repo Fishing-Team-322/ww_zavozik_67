@@ -56,7 +56,6 @@ export function ForecastScreen() {
             showScenario={false}
             onDayClick={setDay}
           />
-          {forecast && <Select density="form" label="Подробности дня" value={day ?? ""} options={[{ value: "", label: "Выберите день" }, ...forecast.points.map(p => ({ value: p.date, label: p.date }))]} onChange={e => setDay(e.target.value || null)} />}
           {forecast && (
             <ContentText variant="body" className="mt-4">
               Можно потратить с учётом резерва:{" "}

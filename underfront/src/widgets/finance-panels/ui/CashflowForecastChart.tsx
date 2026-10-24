@@ -24,13 +24,22 @@ export type CashflowForecastChartProps = {
   showScenario?: boolean;
   showBounds?: boolean;
   onDayClick?: (date: string) => void;
+  compactDates?: boolean;
+  scenarioLabel?: string;
+  hideSeries?: boolean;
+  animate?: boolean;
+  showDeficitDots?: boolean;
+  firstGapDate?: string;
+  showScenarioDelta?: boolean;
 };
 
 function amount(value: number, currency: string) {
   return `${Math.round(value).toLocaleString("ru-RU")} ${currency}`;
 }
 
-export function CashflowForecastChart({days, height = 330, currency = "₽", showScenario = true, showBounds = false, onDayClick}: CashflowForecastChartProps) {
+const shortDate = (date: string) => new Date(`${date.slice(0, 10)}T00:00:00Z`).toLocaleDateString("ru-RU", { day: "numeric", month: "short", timeZone: "UTC" });
+
+export function CashflowForecastChart({days, height = 330, currency = "₽", showScenario = true, showBounds = false, onDayClick, compactDates = false, scenarioLabel = "Негативный сценарий", hideSeries = false, animate = true, showDeficitDots = true, firstGapDate, showScenarioDelta = false}: CashflowForecastChartProps) {
   const uid = useId().replace(/:/g, "");
   const deficitPeriods: Array<{start: string; end: string; minimum: number}> = [];
   const deficitPoints: Array<{date: string; value: number}> = [];
@@ -64,28 +73,36 @@ export function CashflowForecastChart({days, height = 330, currency = "₽", sho
             </linearGradient>
           </defs>
           <CartesianGrid strokeDasharray="3 6" vertical={false} stroke="var(--divider)"/>
-          <XAxis dataKey="date" minTickGap={18} tickLine={false} axisLine={false} tick={{fontSize:11, fill:"var(--text-secondary)"}}/>
-          <YAxis tickLine={false} axisLine={false} width={56} tick={{fontSize:11, fill:"var(--text-secondary)"}} tickFormatter={(v:number)=>Math.abs(v)>=1000000?`${(v/1000000).toFixed(1)}м`:`${Math.round(v/1000)}к`}/>
+          <XAxis dataKey="date" minTickGap={18} tickLine={false} axisLine={false} tick={{fontSize:11, fill:"var(--text-secondary)"}} tickFormatter={compactDates ? shortDate : undefined}/>
+          <YAxis tickLine={false} axisLine={false} width={56} tick={{fontSize:11, fill:"var(--text-secondary)"}} tickFormatter={(value:number)=>Math.abs(value)>=1000000?`${(value/1000000).toFixed(1)}м`:Math.abs(value)>=10000?`${Math.round(value/1000)}к`:Math.abs(value)>=1000?`${(value/1000).toLocaleString("ru-RU", { maximumFractionDigits: 1 })}к`:`${Math.round(value).toLocaleString("ru-RU")}`}/>
           <ReferenceLine y={0} stroke="var(--danger)" strokeWidth={1.5} strokeDasharray="5 4" label={{value:"0 ₽", position:"insideTopRight", fill:"var(--danger)", fontSize:11}}/>
-          {deficitPeriods.map((period) => <ReferenceArea key={`period-${period.start}`} x1={period.start} x2={period.end} y1={period.minimum} y2={0} fill="var(--danger)" fillOpacity={0.12} strokeOpacity={0} />)}
-          {deficitPoints.map((point) => <ReferenceDot key={`point-${point.date}`} x={point.date} y={point.value} r={5} fill="var(--danger)" stroke="var(--surface)" strokeWidth={2} />)}
-          <Tooltip content={({active,payload,label})=>active && payload?.length ? (
+          {!hideSeries && firstGapDate && days.some(day => day.date === firstGapDate) && <ReferenceLine x={firstGapDate} stroke="var(--danger)" strokeDasharray="3 4" label={{value:"Первая нехватка", position:"insideTopLeft", fill:"var(--danger)", fontSize:11}} />}
+          {!hideSeries && deficitPeriods.map((period) => <ReferenceArea key={`period-${period.start}`} x1={period.start} x2={period.end} y1={period.minimum} y2={0} fill="var(--danger)" fillOpacity={0.12} strokeOpacity={0} />)}
+          {!hideSeries && showDeficitDots && deficitPoints.map((point) => <ReferenceDot key={`point-${point.date}`} x={point.date} y={point.value} r={5} fill="var(--danger)" stroke="var(--surface)" strokeWidth={2} />)}
+          {!hideSeries && <Tooltip content={({active,payload,label})=>active && payload?.length ? (
             <div className="rounded-xl border border-[color:var(--border)] bg-[color:var(--surface-elevated)] p-3 shadow-[var(--shadow-md)]">
-              <div className="mb-2 text-xs font-semibold text-[color:var(--text-primary)]">{label}</div>
+              <div className="mb-2 text-xs font-semibold text-[color:var(--text-primary)]">{compactDates && typeof label === "string" ? shortDate(label) : label}</div>
               {payload.filter(p=>p.value!=null).map((entry,index)=>(
                 <div key={`${String(entry.dataKey)}-${index}`} className="flex items-center justify-between gap-5 py-0.5 text-xs">
                   <span className="flex items-center gap-2 text-[color:var(--text-secondary)]"><i className="h-2 w-2 rounded-full" style={{background: String(entry.color ?? 'var(--accent)')}}/>{entry.name}</span>
                   <span className="font-semibold text-[color:var(--text-primary)] tabular-nums">{amount(Number(entry.value),currency)}</span>
                 </div>
               ))}
+              {showScenarioDelta && (() => {
+                const day = days.find(item => item.date === label);
+                if (day?.baseline == null || day.scenario == null) return null;
+                const difference = day.scenario - day.baseline;
+                return <div className="mt-1 flex items-center justify-between gap-5 border-t border-[color:var(--border)] pt-1 text-xs"><span className="text-[color:var(--text-secondary)]">Разница</span><span className={`font-semibold tabular-nums ${difference < 0 ? "text-[color:var(--danger)]" : difference > 0 ? "text-[color:var(--success)]" : "text-[color:var(--text-primary)]"}`}>{difference > 0 ? "+" : ""}{amount(difference, currency)}</span></div>;
+              })()}
               {days.find((day) => day.date === label)?.events?.map((event, index) => <p key={index} className="mt-2 max-w-64 text-xs leading-4 text-[color:var(--text-secondary)]">{event}</p>)}
             </div>
-          ):null}/>
-          {showBounds ? <Area dataKey="upperBound" name="Верхняя граница" type="monotone" stroke="var(--text-muted)" fill="none" strokeDasharray="2 4" dot={false} connectNulls={false} strokeWidth={1}/> : null}
-          {showBounds ? <Area dataKey="lowerBound" name="Нижняя граница" type="monotone" stroke="var(--text-muted)" fill="none" strokeDasharray="2 4" dot={false} connectNulls={false} strokeWidth={1}/> : null}
-          <Area dataKey="baseline" name="Базовый прогноз" stroke="var(--accent)" strokeWidth={2.5} fill={`url(#pulsCashflow-${uid})`} dot={false} type="monotone" connectNulls={false}/>
-          <Line dataKey="actual" name="История / факт" stroke="var(--chart-series-primary)" strokeWidth={2.5} dot={false} type="monotone" connectNulls={false}/>
-          {showScenario ? <Line dataKey="scenario" name="Негативный сценарий" stroke="var(--warning)" strokeWidth={2.5} strokeDasharray="5 4" dot={false} type="monotone" connectNulls={false}/> : null}
+          ):null}/>}
+          {!hideSeries && showBounds ? <Area dataKey="upperBound" name="Верхняя граница" type="monotone" stroke="var(--text-muted)" fill="none" strokeDasharray="2 4" dot={false} connectNulls={false} strokeWidth={1} isAnimationActive={animate}/> : null}
+          {!hideSeries && showBounds ? <Area dataKey="lowerBound" name="Нижняя граница" type="monotone" stroke="var(--text-muted)" fill="none" strokeDasharray="2 4" dot={false} connectNulls={false} strokeWidth={1} isAnimationActive={animate}/> : null}
+          {hideSeries && <Area dataKey="baseline" type="monotone" stroke="none" fill="none" dot={false} isAnimationActive={false} />}
+          {!hideSeries && <Area dataKey="baseline" name="Базовый прогноз" stroke="var(--accent)" strokeWidth={2.5} fill={`url(#pulsCashflow-${uid})`} dot={false} type="monotone" connectNulls={false} isAnimationActive={animate}/>}
+          {!hideSeries && <Line dataKey="actual" name="История / факт" stroke="var(--chart-series-primary)" strokeWidth={2.5} dot={false} type="monotone" connectNulls={false} isAnimationActive={animate}/>}
+          {!hideSeries && showScenario ? <Line dataKey="scenario" name={scenarioLabel} stroke="var(--warning)" strokeWidth={2.5} strokeDasharray="5 4" dot={false} type="monotone" connectNulls={false} isAnimationActive={animate}/> : null}
         </ComposedChart>
       </ResponsiveContainer>
     </div>

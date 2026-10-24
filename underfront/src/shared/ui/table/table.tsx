@@ -12,6 +12,7 @@ import {
   useState,
 } from "react";
 import { motion } from "motion/react";
+import Link from "next/link";
 import { cn } from "@/src/shared/lib/cn";
 import { Pagination } from "@/src/shared/ui/pagination";
 
@@ -47,6 +48,7 @@ export interface SortState<T> {
 export interface TablePaginationOptions {
   page: number;
   totalPages: number;
+  label?: ReactNode;
   disabled?: boolean;
   onPageChange: (page: number) => void;
 }
@@ -109,7 +111,7 @@ export function Table({
           totalPages={totalPages}
           disabled={pagination?.disabled}
           onPageChange={pagination?.onPageChange ?? (() => undefined)}
-          label={`${page}/${totalPages}`}
+          label={pagination.label ?? `${page}/${totalPages}`}
         />
       </nav>}
     </div>
@@ -129,7 +131,7 @@ export function TableHeader({
   return (
     <thead
       className={cn(
-        !unstyled && "sticky top-0 z-[1] border-b border-[color:var(--divider)] bg-[color:var(--surface)] [&_tr:hover]:bg-transparent",
+        !unstyled && "sticky top-0 z-[1] border-b border-[color:var(--divider)] bg-transparent [&_tr:hover]:bg-transparent",
         className
       )}
       {...props}
@@ -155,16 +157,23 @@ export function TableBody({
 export function TableRow({
   className,
   unstyled = false,
+  href,
+  hrefLabel = "Открыть запись",
+  children,
   ...props
-}: TableElementProps<HTMLAttributes<HTMLTableRowElement>>) {
+}: TableElementProps<HTMLAttributes<HTMLTableRowElement>> & { href?: string; hrefLabel?: string }) {
   return (
     <tr
       className={cn(
         !unstyled && "border-b border-[color:var(--divider)] transition-colors hover:bg-[color:var(--table-row-hover)]",
+        href && "group relative cursor-pointer",
         className
       )}
       {...props}
-    />
+    >
+      {children}
+      {href && <TableCell verticalAlign="middle" className="w-10 px-2 text-right"><Link href={href} aria-label={hrefLabel} className="inline-flex after:absolute after:inset-0 focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-inset focus-visible:after:ring-[color:var(--focus-ring-strong)]"><svg width="18" height="18" viewBox="0 0 16 16" fill="none" aria-hidden="true" className="ml-auto text-[color:var(--text-secondary)] transition-colors group-hover:text-[color:var(--accent)]"><path d="M2.5 8H12.5M8.5 4L12.5 8L8.5 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg></Link></TableCell>}
+    </tr>
   );
 }
 
@@ -207,7 +216,7 @@ export function TableHead({
   return (
     <th
       className={cn(
-        !unstyled && cn(cellSpacing[density], "align-middle text-xs font-medium leading-5", numeric ? "text-right tabular-nums" : "text-left", cellTone[tone ?? "muted"]),
+        !unstyled && cn(cellSpacing[density], "align-top text-[13px] font-medium leading-5", numeric ? "text-right tabular-nums" : "text-left", cellTone[tone ?? "muted"]),
         className
       )}
       aria-sort={isInteractive ? ariaSort : undefined}
@@ -267,13 +276,14 @@ export function TableCell({
   numeric = false,
   highlighted = false,
   tone = "default",
+  verticalAlign = "top",
   ...props
-}: TableElementProps<TdHTMLAttributes<HTMLTableCellElement>> & { numeric?: boolean; tone?: CellTone; highlighted?: boolean }) {
+}: TableElementProps<TdHTMLAttributes<HTMLTableCellElement>> & { numeric?: boolean; tone?: CellTone; highlighted?: boolean; verticalAlign?: "top" | "middle" }) {
   const density = useContext(DensityContext);
   return (
     <td
       className={cn(
-        !unstyled && cn(cellSpacing[density], "align-middle text-[13px] font-normal leading-5", cellTone[tone], numeric && "text-right tabular-nums", highlighted && "bg-[color:var(--accent-soft)]"),
+        !unstyled && cn(cellSpacing[density], verticalAlign === "middle" ? "align-middle" : "align-top", "text-[13px] font-normal leading-5", cellTone[tone], numeric && "text-right tabular-nums", highlighted && "bg-[color:var(--accent-soft)]"),
         className
       )}
       {...props}

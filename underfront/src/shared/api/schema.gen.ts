@@ -1833,6 +1833,7 @@ export interface components {
         OperationPage: {
             items: components["schemas"]["Operation"][];
             next_cursor: string | null;
+            total: number;
         };
         RecurringPattern: {
             /** Format: uuid */
