@@ -36,7 +36,9 @@ func List(oneCODataConfigured, daDataConfigured bool) []Status {
 		{"onecbank", "file", "ready"},
 		{"onecodata", "pull", oneCODataStatus},
 		{"dadata", "lookup", daDataStatus},
-		{"fnsopendata", "pull", "not_implemented"},
-		{"wb", "pull", "not_implemented"},
+		{"fnsopendata", "archive_import", "ready"},
+		{"wb", "pull", "mock_ready"},
+		{"ozon", "pull", "mock_ready"},
+		{"csv", "file", "ready"},
 	}
 }

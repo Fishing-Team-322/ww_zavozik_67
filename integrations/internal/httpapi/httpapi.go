@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"crypto/subtle"
 	"encoding/json"
 	"errors"
@@ -21,7 +22,9 @@ import (
 const maxRequestBytes = onecbank.MaxFileBytes + 64<<10
 
 type API struct {
-	Store          *store.Memory
+	Store          store.Repository
+	CompanyID      string
+	Ready          func(context.Context) error
 	OneCConfig     *onecodata.Config
 	OneCPlanConfig *onecodata.PlanConfig
 	OneCClient     onecodata.Client
@@ -34,17 +37,96 @@ func (a API) Handler() http.Handler {
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	})
+	mux.HandleFunc("GET /readyz", func(w http.ResponseWriter, r *http.Request) {
+		if a.Ready != nil && a.Ready(r.Context()) != nil {
+			writeError(w, 503, "not_ready", "Storage unavailable")
+			return
+		}
+		writeJSON(w, 200, map[string]string{"status": "ready"})
+	})
 	mux.HandleFunc("GET /v1/providers", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, providers.List(a.OneCConfig != nil, a.DaDataClient != nil))
 	})
+	mux.HandleFunc("GET /v1/integrations/capabilities", func(w http.ResponseWriter, r *http.Request) {
+		if !authorized(r, a.SyncToken) {
+			writeError(w, 401, "unauthorized", "Invalid authorization")
+			return
+		}
+		writeJSON(w, 200, map[string]any{"schema_version": contracts.SchemaVersion, "company_id": a.CompanyID, "sources": []string{"onec_bank_file", "onec_odata", "dadata_party", "fns_debt_snapshot", "tax_calendar", "wildberries_finance", "ozon_finance", "csv"}, "storage": "postgresql"})
+	})
 	mux.HandleFunc("POST /v1/import/onec-bank", a.importOneC)
 	mux.HandleFunc("POST /v1/import/csv", a.importCSV)
-	mux.HandleFunc("POST /v1/sync/onec-odata", a.syncOneC)
-	mux.HandleFunc("POST /v1/sync/onec-plans", a.syncOneCPlans)
+	mux.HandleFunc("POST /v1/sync/onec-odata", a.trackSync("onec_odata", a.syncOneC))
+	mux.HandleFunc("POST /v1/sync/onec-plans", a.trackSync("onec_plans", a.syncOneCPlans))
 	mux.HandleFunc("POST /v1/enrich/dadata-party", a.enrichDaData)
 	mux.HandleFunc("GET /v1/batches/{companyId}", a.batches)
+	mux.HandleFunc("GET /v1/operations/{companyId}", a.operations)
 	mux.HandleFunc("GET /v1/planned-events/{companyId}", a.plannedEvents)
+	mux.HandleFunc("GET /v1/sync-runs/{companyId}", a.syncRuns)
 	return mux
+}
+
+type statusWriter struct {
+	http.ResponseWriter
+	status int
+}
+
+func (w *statusWriter) WriteHeader(code int) { w.status = code; w.ResponseWriter.WriteHeader(code) }
+func (a API) trackSync(source string, next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if !authorized(r, a.SyncToken) {
+			next(w, r)
+			return
+		}
+		tracked := &statusWriter{ResponseWriter: w, status: 200}
+		next(tracked, r)
+		if a.Store != nil && a.CompanyID != "" {
+			_ = a.Store.RecordRun(a.CompanyID, source, tracked.status)
+		}
+	}
+}
+
+func (a API) companyAllowed(w http.ResponseWriter, r *http.Request) bool {
+	id := r.PathValue("companyId")
+	if !authorized(r, a.SyncToken) {
+		writeError(w, 401, "unauthorized", "Invalid authorization")
+		return false
+	}
+	if id == "" || len(id) > 128 || strings.TrimSpace(id) != id {
+		writeError(w, 400, "invalid_company_id", "Invalid company ID")
+		return false
+	}
+	if a.CompanyID != "" && id != a.CompanyID {
+		writeError(w, 403, "forbidden", "Company access denied")
+		return false
+	}
+	return true
+}
+
+func (a API) operations(w http.ResponseWriter, r *http.Request) {
+	if !a.companyAllowed(w, r) {
+		return
+	}
+	id := r.PathValue("companyId")
+	items, err := a.Store.GetOperations(id)
+	if err != nil {
+		writeError(w, 500, "storage_error", "Cannot read operations")
+		return
+	}
+	writeJSON(w, 200, map[string]any{"company_id": id, "operations": items})
+}
+
+func (a API) syncRuns(w http.ResponseWriter, r *http.Request) {
+	if !a.companyAllowed(w, r) {
+		return
+	}
+	id := r.PathValue("companyId")
+	items, err := a.Store.GetRuns(id)
+	if err != nil {
+		writeError(w, 500, "storage_error", "Cannot read sync runs")
+		return
+	}
+	writeJSON(w, 200, map[string]any{"company_id": id, "sync_runs": items})
 }
 
 func (a API) importCSV(w http.ResponseWriter, r *http.Request) {
@@ -59,6 +141,10 @@ func (a API) importCSV(w http.ResponseWriter, r *http.Request) {
 	}
 	if r.MultipartForm != nil {
 		defer r.MultipartForm.RemoveAll()
+	}
+	if a.CompanyID != "" && r.FormValue("company_id") != a.CompanyID {
+		writeError(w, 403, "forbidden", "Company access denied")
+		return
 	}
 	var mapping importcsv.Mapping
 	if err := json.Unmarshal([]byte(r.FormValue("mapping")), &mapping); err != nil {
@@ -86,7 +172,11 @@ func (a API) importCSV(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, 422, preview)
 			return
 		}
-		preview.Batch = a.Store.Add(preview.Batch)
+		preview.Batch, err = a.Store.Save(preview.Batch)
+		if err != nil {
+			writeError(w, 500, "storage_error", "Cannot save CSV import")
+			return
+		}
 	} else if r.FormValue("mode") != "preview" {
 		writeError(w, 400, "invalid_mode", "Expected preview or commit")
 		return
@@ -101,6 +191,10 @@ func (a API) syncOneCPlans(w http.ResponseWriter, r *http.Request) {
 	}
 	if !authorized(r, a.SyncToken) {
 		writeError(w, 401, "unauthorized", "Invalid authorization")
+		return
+	}
+	if a.CompanyID != "" && a.OneCPlanConfig.CompanyID != a.CompanyID {
+		writeError(w, 403, "forbidden", "Company access denied")
 		return
 	}
 	if r.ContentLength > 0 {
@@ -128,11 +222,20 @@ func (a API) plannedEvents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := r.PathValue("companyId")
+	if a.CompanyID != "" && id != a.CompanyID {
+		writeError(w, 403, "forbidden", "Company access denied")
+		return
+	}
 	if id == "" || len(id) > 128 || strings.TrimSpace(id) != id {
 		writeError(w, 400, "invalid_company_id", "Invalid company ID")
 		return
 	}
-	writeJSON(w, 200, map[string]any{"company_id": id, "planned_events": a.Store.Plans(id)})
+	plans, err := a.Store.GetPlans(id)
+	if err != nil {
+		writeError(w, 500, "storage_error", "Cannot read plans")
+		return
+	}
+	writeJSON(w, 200, map[string]any{"company_id": id, "planned_events": plans})
 }
 
 func (a API) syncOneC(w http.ResponseWriter, r *http.Request) {
@@ -142,6 +245,10 @@ func (a API) syncOneC(w http.ResponseWriter, r *http.Request) {
 	}
 	if !authorized(r, a.SyncToken) {
 		writeError(w, 401, "unauthorized", "Invalid authorization")
+		return
+	}
+	if a.CompanyID != "" && a.OneCConfig.CompanyID != a.CompanyID {
+		writeError(w, 403, "forbidden", "Company access denied")
 		return
 	}
 	if r.ContentLength > 0 {
@@ -244,6 +351,10 @@ func (a API) importOneC(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := contracts.Identity{CompanyID: r.FormValue("company_id"), CompanyINN: r.FormValue("company_inn"), CompanyAccount: r.FormValue("company_account")}
+	if a.CompanyID != "" && id.CompanyID != a.CompanyID {
+		writeError(w, 403, "forbidden", "Company access denied")
+		return
+	}
 	if err := id.Validate(); err != nil {
 		writeError(w, 400, "invalid_identity", err.Error())
 		return
@@ -286,11 +397,20 @@ func (a API) batches(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := r.PathValue("companyId")
+	if a.CompanyID != "" && id != a.CompanyID {
+		writeError(w, 403, "forbidden", "Company access denied")
+		return
+	}
 	if id == "" || len(id) > 128 || strings.TrimSpace(id) != id {
 		writeError(w, 400, "invalid_company_id", "Invalid company ID")
 		return
 	}
-	writeJSON(w, 200, map[string]any{"company_id": id, "batches": a.Store.Batches(id)})
+	batches, err := a.Store.GetBatches(id)
+	if err != nil {
+		writeError(w, 500, "storage_error", "Cannot read batches")
+		return
+	}
+	writeJSON(w, 200, map[string]any{"company_id": id, "batches": batches})
 }
 
 func writeJSON(w http.ResponseWriter, status int, value any) {
