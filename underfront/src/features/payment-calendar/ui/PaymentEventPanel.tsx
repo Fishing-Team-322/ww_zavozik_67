@@ -1,4 +1,5 @@
 "use client";
+import { ContentHeading } from "@/src/shared/ui/content";
 
 import { useEffect, useRef } from "react";
 import { Button } from "@/src/shared/ui/button";
@@ -48,7 +49,7 @@ export function PaymentEventPanel({ event, editing, draft, onDraftChange, onClos
       <button type="button" aria-label="Закрыть сведения о событии" onClick={onClose} className="absolute inset-0 bg-[color:var(--page-bg)]/70" />
       <aside ref={panelRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label={`Событие: ${event.title}`} className="absolute inset-y-0 right-0 flex w-full max-w-[420px] flex-col border-l border-[color:var(--border)] bg-[color:var(--surface)] text-[color:var(--text-primary)] outline-none sm:shadow-none">
         <div className="flex items-start justify-between gap-3 border-b border-[color:var(--border)] px-5 py-4">
-          <div className="min-w-0"><p className="text-[11px] font-medium uppercase tracking-wide text-[color:var(--text-muted)]">Финансовое событие</p><h2 className="mt-1 text-base font-semibold">{event.title}</h2></div>
+          <div className="min-w-0"><p className="text-[11px] font-medium uppercase tracking-wide text-[color:var(--text-muted)]">Финансовое событие</p><ContentHeading level={2} className="mt-1">{event.title}</ContentHeading></div>
           <Button type="button" variant="ghost" size="lg" aria-label="Закрыть" onClick={onClose}>×</Button>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto p-5">

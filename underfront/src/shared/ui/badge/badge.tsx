@@ -15,15 +15,15 @@ export interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
 }
 
 const sizeClasses: Record<BadgeSize, string> = {
-  sm: "gap-2 text-[16px]",
-  md: "gap-2 text-[16px]",
-  lg: "gap-2 text-[16px]",
+  sm: "gap-1.5 text-[11px] leading-4",
+  md: "gap-1.5 text-xs leading-4",
+  lg: "gap-2 text-[13px] leading-5",
 };
 
 const dotSizeClasses: Record<BadgeSize, string> = {
-  sm: "h-[9px] w-[9px]",
-  md: "h-[9px] w-[9px]",
-  lg: "h-[9px] w-[9px]",
+  sm: "h-1.5 w-1.5",
+  md: "h-2 w-2",
+  lg: "h-2 w-2",
 };
 
 const toneClasses: Record<BadgeVariant, Record<BadgeTone, string>> = {
@@ -107,10 +107,13 @@ export function Badge({
   children,
   ...props
 }: BadgeProps) {
+  // Legacy API props are intentionally consumed without changing the current badge appearance.
+  void _dot;
+  void _icon;
   return (
     <span
       className={cn(
-        "inline-flex shrink-0 items-center justify-center whitespace-nowrap !border-0 !bg-transparent !p-0 !text-[16px] !font-normal !text-[color:var(--text-primary)] !shadow-none",
+        "inline-flex shrink-0 items-center justify-center whitespace-nowrap border-0 bg-transparent p-0 font-normal text-[color:var(--text-primary)] shadow-none",
         "select-none",
         sizeClasses[size],
         toneClasses[variant][tone],

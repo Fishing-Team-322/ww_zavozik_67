@@ -1,6 +1,8 @@
 "use client";
 
 import {
+  createContext,
+  useContext,
   HTMLAttributes,
   ReactNode,
   TableHTMLAttributes,
@@ -12,6 +14,19 @@ import {
 import { motion } from "motion/react";
 import { cn } from "@/src/shared/lib/cn";
 import { Pagination } from "@/src/shared/ui/pagination";
+
+export type TableDensity = "compact" | "comfortable";
+const DensityContext = createContext<TableDensity>("compact");
+const cellSpacing: Record<TableDensity, string> = {
+  compact: "px-3 py-2",
+  comfortable: "px-4 py-3",
+};
+type CellTone = "default" | "muted" | "danger";
+const cellTone: Record<CellTone, string> = {
+  default: "text-[color:var(--text-primary)]",
+  muted: "text-[color:var(--text-secondary)]",
+  danger: "text-[color:var(--danger)]",
+};
 
 export type SortDirection = "none" | "desc" | "asc";
 
@@ -41,6 +56,10 @@ type TableElementProps<T> = T & { unstyled?: boolean };
 interface TableProps extends TableHTMLAttributes<HTMLTableElement> {
   /** Keep a composed table’s existing layout while reusing the shared overflow container. */
   unstyled?: boolean;
+  /** Compact analytical rows by default; comfortable adds space for multiline content. */
+  density?: TableDensity;
+  /** Scenario/forecast comparison matrix with subtle alternating rows. */
+  variant?: "default" | "matrix";
   pagination?: TablePaginationOptions;
 }
 
@@ -51,6 +70,8 @@ interface TableProps extends TableHTMLAttributes<HTMLTableElement> {
 export function Table({
   className,
   pagination,
+  density = "compact",
+  variant = "default",
   unstyled = false,
   ...props
 }: TableProps) {
@@ -58,6 +79,7 @@ export function Table({
   const page = Math.min(Math.max(1, pagination?.page ?? 1), totalPages);
 
   return (
+    <DensityContext.Provider value={density}>
     <div className="flex h-full min-h-0 min-w-0 w-full flex-col">
       <div
         className={cn(
@@ -76,7 +98,7 @@ export function Table({
         )}
       >
         <table
-          className={cn(!unstyled && "w-full border-collapse text-sm", className)}
+          className={cn(!unstyled && "w-full border-collapse text-[13px] leading-5", !unstyled && variant === "matrix" && "[&_tbody_tr:nth-child(odd)]:bg-[color:var(--surface-subtle)] [&_tbody_tr:hover]:bg-[color:var(--table-row-hover)]", className)}
           {...props}
         />
       </div>
@@ -91,6 +113,7 @@ export function Table({
         />
       </nav>}
     </div>
+    </DensityContext.Provider>
   );
 }
 
@@ -106,7 +129,7 @@ export function TableHeader({
   return (
     <thead
       className={cn(
-        !unstyled && "sticky top-0 z-[1] border-b border-[color:var(--divider)] bg-transparent [&_tr:hover]:bg-transparent",
+        !unstyled && "sticky top-0 z-[1] border-b border-[color:var(--divider)] bg-[color:var(--surface)] [&_tr:hover]:bg-transparent",
         className
       )}
       {...props}
@@ -151,6 +174,8 @@ interface TableHeadProps extends ThHTMLAttributes<HTMLTableCellElement> {
   sortDirection?: SortDirection;
   active?: boolean;
   onSortToggle?: () => void;
+  numeric?: boolean;
+  tone?: CellTone;
 }
 
 /**
@@ -165,8 +190,11 @@ export function TableHead({
   sortDirection = "none",
   active = false,
   onSortToggle,
+  numeric = false,
+  tone,
   ...props
 }: TableHeadProps) {
+  const density = useContext(DensityContext);
   const isInteractive = sortable && typeof onSortToggle === "function";
 
   const ariaSort =
@@ -179,7 +207,7 @@ export function TableHead({
   return (
     <th
       className={cn(
-        !unstyled && "px-4 py-2 text-left align-middle text-[16px] font-medium leading-6 text-[color:var(--text-secondary)]",
+        !unstyled && cn(cellSpacing[density], "align-middle text-xs font-medium leading-5", numeric ? "text-right tabular-nums" : "text-left", cellTone[tone ?? "muted"]),
         className
       )}
       aria-sort={isInteractive ? ariaSort : undefined}
@@ -198,7 +226,8 @@ export function TableHead({
             mass: 0.35,
           }}
           className={cn(
-            "group inline-flex items-center gap-2 whitespace-nowrap text-left text-inherit font-[inherit] leading-[inherit] transition-colors duration-200",
+            "group inline-flex items-center gap-2 whitespace-nowrap text-inherit font-[inherit] leading-[inherit] transition-colors duration-200",
+            numeric && "justify-end",
             "cursor-pointer hover:text-[color:var(--text-primary)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring-strong)]"
           )}
         >
@@ -235,12 +264,16 @@ export function TableHead({
 export function TableCell({
   className,
   unstyled = false,
+  numeric = false,
+  highlighted = false,
+  tone = "default",
   ...props
-}: TableElementProps<TdHTMLAttributes<HTMLTableCellElement>>) {
+}: TableElementProps<TdHTMLAttributes<HTMLTableCellElement>> & { numeric?: boolean; tone?: CellTone; highlighted?: boolean }) {
+  const density = useContext(DensityContext);
   return (
     <td
       className={cn(
-        !unstyled && "px-4 py-3 align-middle text-[16px] leading-6 text-[color:var(--text-primary)]",
+        !unstyled && cn(cellSpacing[density], "align-middle text-[13px] font-normal leading-5", cellTone[tone], numeric && "text-right tabular-nums", highlighted && "bg-[color:var(--accent-soft)]"),
         className
       )}
       {...props}

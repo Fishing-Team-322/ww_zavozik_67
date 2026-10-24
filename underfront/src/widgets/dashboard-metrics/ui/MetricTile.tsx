@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 
+import { contentTypography } from "@/src/shared/ui/content";
 import { cn } from "@/src/shared/lib/cn";
 
 import { Sparkline } from "./Sparkline";
@@ -61,7 +62,8 @@ export function MetricTile({
       <div>
         <div
           className={cn(
-            "text-[30px] font-semibold leading-none tracking-tight tabular-nums text-[color:var(--text-primary)]",
+            contentTypography.kpi,
+            "text-[color:var(--text-primary)]",
             loading && "animate-pulse text-[color:var(--text-secondary)]/40"
           )}
         >

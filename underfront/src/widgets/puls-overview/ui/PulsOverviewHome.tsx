@@ -87,7 +87,7 @@ export function PulsOverviewHome() {
       {(resource.error || extended.error) && (
         <p role="alert" className="mb-4 text-sm text-[color:var(--danger)]">
           {resource.error || extended.error}{" "}
-          <Button variant="ghost" className="h-auto! border-0! p-0! text-[length:inherit]! text-inherit! underline hover:bg-transparent!" onClick={() => { resource.refresh(); extended.refresh(); }}>
+          <Button variant="ghost" onClick={() => { resource.refresh(); extended.refresh(); }}>
             Повторить
           </Button>
         </p>

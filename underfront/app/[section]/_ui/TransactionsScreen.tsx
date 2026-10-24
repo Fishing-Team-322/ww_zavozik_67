@@ -1,4 +1,5 @@
 "use client";
+import { ContentHeading, ContentText } from "@/src/shared/ui/content";
 import { queryParams } from "@/src/shared/api/query";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -6,7 +7,7 @@ import { useEffect, useState } from "react";
 import { useSession } from "@/src/features/auth";
 import { api, message, type Schemas } from "@/src/shared/api";
 import { useApiResource } from "@/src/shared/api/use-api-resource";
-import { Input, Select, Button, Dialog, Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/src/shared/ui";
+import { Input, SearchInput, Select, Button, Dialog, Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/src/shared/ui";
 import { SectionCard } from "@/src/widgets/cabinet-shell";
 import { rubles, displayDate } from "@/src/entities/forecast";
 import { FinanceState } from "./FinanceState";
@@ -71,15 +72,15 @@ export function TransactionsScreen() {
     }
   }
   return (
-    <SectionCard className="space-y-4 p-5">
+    <SectionCard className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-lg font-semibold">История операций</h2>
+        <ContentHeading level={1} >История операций</ContentHeading>
         <Button variant="outline" loading={busy} onClick={exportFile}>
           Выгрузить XLSX
         </Button>
       </div>
       <div className="grid gap-3 sm:grid-cols-3">
-        <Input
+        <SearchInput
           label="Поиск по операциям"
           value={query}
           onChange={(event) => {
@@ -88,7 +89,7 @@ export function TransactionsScreen() {
           }}
           placeholder="Контрагент или назначение"
         />
-        <Select
+        <Select density="form"
           label="Направление"
           value={direction}
           onChange={(event) => {
@@ -101,7 +102,7 @@ export function TransactionsScreen() {
             { value: "out", label: "Списания" },
           ]}
         />
-        <Select
+        <Select density="form"
           label="Категория"
           value={category}
           onChange={(event) => {
@@ -117,7 +118,7 @@ export function TransactionsScreen() {
           ]}
         />
       </div>
-      <div className="grid gap-3 sm:grid-cols-3"><Input label="С даты" type="date" value={from} max={to || undefined} onChange={e => { setFrom(e.target.value); reset(); }} /><Input label="По дату" type="date" value={to} min={from || undefined} onChange={e => { setTo(e.target.value); reset(); }} /><Select label="Источник" value={source} options={[{ value: "", label: "Все" }, ...Array.from(new Set((sources.data ?? []).map(x => x.kind))).map(kind => ({ value: kind, label: kind }))]} onChange={e => { setSource(e.target.value); reset(); }} /></div>
+      <div className="grid gap-3 sm:grid-cols-3"><Input label="С даты" type="date" value={from} max={to || undefined} onChange={e => { setFrom(e.target.value); reset(); }} /><Input label="По дату" type="date" value={to} min={from || undefined} onChange={e => { setTo(e.target.value); reset(); }} /><Select density="form" label="Источник" value={source} options={[{ value: "", label: "Все" }, ...Array.from(new Set((sources.data ?? []).map(x => x.kind))).map(kind => ({ value: kind, label: kind }))]} onChange={e => { setSource(e.target.value); reset(); }} /></div>
       {counterpartyId && <Link href="/transactions" className="text-[color:var(--accent)] underline">Сбросить фильтр контрагента</Link>}
       {notice && <p role="status">{notice}</p>}
       <FinanceState
@@ -128,25 +129,25 @@ export function TransactionsScreen() {
       {summary.data && (
         <div className="flex flex-wrap gap-5 text-sm">
           <p>
-            Поступления: <strong>{rubles(summary.data.total_in)}</strong>
+            Поступления: <ContentText as="span" variant="financial">{rubles(summary.data.total_in)}</ContentText>
           </p>
           <p>
-            Списания: <strong>{rubles(summary.data.total_out)}</strong>
+            Списания: <ContentText as="span" variant="financial">{rubles(summary.data.total_out)}</ContentText>
           </p>
           <p>
-            Чистый поток: <strong>{rubles(summary.data.net)}</strong>
+            Чистый поток: <ContentText as="span" variant="financial">{rubles(summary.data.net)}</ContentText>
           </p>
         </div>
       )}
-      {summary.data && <details className="text-sm"><summary className="cursor-pointer">Сводка по категориям</summary><p className="my-2 text-xs text-[color:var(--text-secondary)]">Внутренние переводы исключены из поступлений и списаний. Переводы: {rubles(summary.data.internal_total)}.</p><Table><TableHeader><TableRow><TableHead>Категория</TableHead><TableHead>Пришло</TableHead><TableHead>Ушло</TableHead><TableHead>Операций</TableHead></TableRow></TableHeader><TableBody>{summary.data.by_category.map(row => <TableRow key={row.category}><TableCell>{categories.data?.find(c => c.key === row.category)?.title ?? row.category}</TableCell><TableCell>{rubles(row.in)}</TableCell><TableCell>{rubles(row.out)}</TableCell><TableCell>{row.count}</TableCell></TableRow>)}</TableBody></Table></details>}
+      {summary.data && <details className="text-sm"><summary className="cursor-pointer">Сводка по категориям</summary><ContentText variant="description" tone="muted" className="my-2">Внутренние переводы исключены из поступлений и списаний. Переводы: {rubles(summary.data.internal_total)}.</ContentText><Table><TableHeader><TableRow><TableHead>Категория</TableHead><TableHead numeric>Пришло</TableHead><TableHead numeric>Ушло</TableHead><TableHead numeric>Операций</TableHead></TableRow></TableHeader><TableBody>{summary.data.by_category.map(row => <TableRow key={row.category}><TableCell>{categories.data?.find(c => c.key === row.category)?.title ?? row.category}</TableCell><TableCell numeric>{rubles(row.in)}</TableCell><TableCell numeric>{rubles(row.out)}</TableCell><TableCell numeric>{row.count}</TableCell></TableRow>)}</TableBody></Table></details>}
       {rows.data && (
         <div className="overflow-x-auto">
-          <Table unstyled className="w-full text-left text-sm">
-            <TableHeader unstyled>
-              <TableRow unstyled className="border-b border-[color:var(--border)] text-xs text-[color:var(--text-secondary)]">
+          <Table density="compact">
+            <TableHeader>
+              <TableRow>
                 {["Дата", "Контрагент / назначение", "Сумма", "Категория"].map(
                   (label) => (
-                    <TableHead unstyled className="p-3" key={label}>
+                    <TableHead numeric={label === "Сумма"} key={label}>
                       {label}
                     </TableHead>
                   ),
@@ -155,28 +156,27 @@ export function TransactionsScreen() {
             </TableHeader>
             <TableBody>
               {rows.data.items.map((row) => (
-                <TableRow unstyled
+                <TableRow
                   key={row.id}
-                  className="border-b border-[color:var(--border)]"
                 >
-                  <TableCell unstyled className="whitespace-nowrap p-3">
+                  <TableCell className="whitespace-nowrap">
                     {displayDate(row.date)}
                   </TableCell>
-                  <TableCell unstyled className="min-w-48 p-3">
-                    <p>{row.counterparty.id ? <Link className="text-[color:var(--accent)] underline" href={`/counterparties/${row.counterparty.id}`}>{row.counterparty.name}</Link> : row.counterparty.name || "Без контрагента"}</p><p className="text-xs">Источник: {row.source}</p>
-                    <p className="mt-1 max-w-lg text-xs text-[color:var(--text-secondary)]">
+                  <TableCell className="min-w-48">
+                    <p>{row.counterparty.id ? <Link className="text-[color:var(--accent)] underline" href={`/counterparties/${row.counterparty.id}`}>{row.counterparty.name}</Link> : row.counterparty.name || "Без контрагента"}</p><ContentText variant="meta">Источник: {row.source}</ContentText>
+                    <ContentText variant="description" className="mt-1 max-w-lg">
                       {row.purpose}
-                    </p>
+                    </ContentText>
                     {row.is_internal && (
-                      <p className="text-xs">Внутренний перевод</p>
+                      <ContentText variant="meta">Внутренний перевод</ContentText>
                     )}
                   </TableCell>
-                  <TableCell unstyled className="whitespace-nowrap p-3 tabular-nums">
+                  <TableCell numeric className="whitespace-nowrap">
                     {row.direction === "in" ? "+" : "−"}
                     {rubles(row.amount)}
                   </TableCell>
-                  <TableCell unstyled className="min-w-48 p-3">
-                    <Select
+                  <TableCell className="min-w-48">
+                    <Select density="form" size="sm"
                       aria-label={`Категория операции ${row.id}`}
                       value={row.category}
                       options={(categories.data || []).map((c) => ({
@@ -202,16 +202,16 @@ export function TransactionsScreen() {
                       }}
                     />
                     {row.counterparty.id && <Button variant="ghost" size="sm" disabled={busy} onClick={() => { setRule(row); setRuleCategory(row.category); }}>Правило для контрагента</Button>}
-                    <p className="text-xs text-[color:var(--text-secondary)]">{row.category_method === "manual" ? "Указана вручную" : "Определена автоматически"}</p>
+                    <ContentText variant="description" tone="muted" >{row.category_method === "manual" ? "Указана вручную" : "Определена автоматически"}</ContentText>
                   </TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
           {rows.data.items.length === 0 && (
-            <p className="p-5 text-sm text-[color:var(--text-secondary)]">
+            <ContentText variant="description" tone="muted" className="p-5">
               Операций по выбранным условиям нет.
-            </p>
+            </ContentText>
           )}
         </div>
       )}
@@ -237,7 +237,7 @@ export function TransactionsScreen() {
           Следующая страница
         </Button>
       </div>
-      <Dialog open={!!rule} title="Категория операций контрагента" onClose={() => setRule(null)} dismissDisabled={busy}><div className="space-y-4"><p>{rule?.counterparty.name}</p><Select label="Категория" value={ruleCategory} options={(categories.data ?? []).map(c => ({ value: c.key, label: c.title }))} onChange={e => setRuleCategory(e.target.value as Schemas["Category"])} /><Select label="Применить" value={applyTo} options={[{ value: "future", label: "К будущим операциям" }, { value: "all", label: "К существующим и будущим" }]} onChange={e => setApplyTo(e.target.value)} />{error && <p role="alert">{error}</p>}<Button loading={busy} onClick={async () => { if (!rule?.counterparty.id) return; setBusy(true); setError(null); try { await api.request(`${base}/operations/recategorize`, { method: "POST", json: { counterparty_id: rule.counterparty.id, category: ruleCategory, apply_to: applyTo } }); setRule(null); setNotice("Правило категории сохранено."); } catch (cause) { setError(message(cause)); } finally { setBusy(false); } }}>Применить правило</Button></div></Dialog>
+      <Dialog open={!!rule} title="Категория операций контрагента" onClose={() => setRule(null)} dismissDisabled={busy}><div className="space-y-4"><p>{rule?.counterparty.name}</p><Select density="form" label="Категория" value={ruleCategory} options={(categories.data ?? []).map(c => ({ value: c.key, label: c.title }))} onChange={e => setRuleCategory(e.target.value as Schemas["Category"])} /><Select density="form" label="Применить" value={applyTo} options={[{ value: "future", label: "К будущим операциям" }, { value: "all", label: "К существующим и будущим" }]} onChange={e => setApplyTo(e.target.value)} />{error && <p role="alert">{error}</p>}<Button loading={busy} onClick={async () => { if (!rule?.counterparty.id) return; setBusy(true); setError(null); try { await api.request(`${base}/operations/recategorize`, { method: "POST", json: { counterparty_id: rule.counterparty.id, category: ruleCategory, apply_to: applyTo } }); setRule(null); setNotice("Правило категории сохранено."); } catch (cause) { setError(message(cause)); } finally { setBusy(false); } }}>Применить правило</Button></div></Dialog>
     </SectionCard>
   );
 }

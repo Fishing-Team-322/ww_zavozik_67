@@ -1,4 +1,5 @@
 "use client";
+import { ContentHeading } from "@/src/shared/ui/content";
 
 import { useState } from "react";
 import { Button } from "@/src/shared/ui/button";
@@ -43,7 +44,7 @@ export function PaymentTimeline({ days, selectedDate, today, onSelectDate, onOpe
   return (
     <div className="min-w-0">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[color:var(--border-muted)] px-4 py-3">
-        <div><h2 className="text-[16px] font-semibold leading-5 text-[color:var(--text-primary)]">План платежей</h2><p className="mt-1 text-[12px] leading-4 text-[color:var(--nav-item-text)]">События можно переносить между днями</p></div>
+        <div><ContentHeading level={2} >План платежей</ContentHeading><p className="mt-1 text-[12px] leading-4 text-[color:var(--nav-item-text)]">События можно переносить между днями</p></div>
         <div className="flex items-center gap-1">
           <Button type="button" size="md" variant="outline" aria-label="Предыдущие 7 дней" disabled={startIndex === 0} onClick={() => changePeriod(-1)}>‹</Button>
           <span className="min-w-[126px] text-center text-[12px] font-medium tabular-nums">{periodLabel}</span>

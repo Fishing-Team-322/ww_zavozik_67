@@ -5,9 +5,10 @@ import {
   type ReactNode,
 } from "react";
 import { Button, type ButtonProps } from "@/src/shared/ui/button";
+import { contentTypography } from "../content";
 import { cn } from "@/src/shared/lib/cn";
 
-export type CardVariant = "default" | "text" | "kpi";
+export type CardVariant = "default" | "text" | "kpi" | "content";
 
 export interface CardProps
   extends Omit<HTMLAttributes<HTMLDivElement>, "title"> {
@@ -18,6 +19,7 @@ export interface CardProps
 }
 
 const variantClasses: Record<CardVariant, string> = {
+  content: "min-w-0 rounded-md border border-[color:var(--border)] bg-[color:var(--card-bg)] p-4 text-[13px] leading-5 shadow-none",
   default: "bg-[color:var(--card-bg)]",
   text: "bg-[color:var(--surface-subtle)] p-5",
   kpi: "bg-[color:var(--border)] p-5",
@@ -41,7 +43,8 @@ export function Card({
   return (
     <div
       className={cn(
-        "rounded-[18px] border-0 text-[color:var(--card-foreground)]",
+        "text-[color:var(--card-foreground)]",
+        variant !== "content" && "rounded-[18px] border-0",
         variantClasses[variant],
         className
       )}
@@ -52,7 +55,7 @@ export function Card({
         <>
           <div className="flex items-start justify-between gap-4">
             {title != null ? (
-              <h3 className="min-w-0 text-[18px] font-semibold leading-6 text-[color:var(--text-primary)]">
+              <h3 className={cn("min-w-0", contentTypography.section)}>
                 {title}
               </h3>
             ) : (
@@ -196,14 +199,14 @@ export function KpiCard({
       className={cn("min-h-32", className)}
       {...props}
     >
-      <p className="text-[16px] leading-6 text-[color:var(--text-secondary)]">
+      <p className={contentTypography.description}>
         {label}
       </p>
-      <p className="mt-3 text-[32px] font-semibold leading-none tracking-[-0.02em] text-[color:var(--text-primary)]">
+      <p className={cn("mt-3 text-[color:var(--text-primary)]", contentTypography.kpi)}>
         {value}
       </p>
       {caption != null ? (
-        <p className="mt-3 text-sm leading-5 text-[color:var(--text-secondary)]">
+        <p className={cn("mt-3", contentTypography.description)}>
           {caption}
         </p>
       ) : null}

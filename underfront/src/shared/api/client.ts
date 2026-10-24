@@ -175,7 +175,10 @@ export class ApiClient {
     }
     if (!response.ok) {
       if (response.status === 401 && authenticated) this.clearSession();
-      const payload = await response.json().catch(() => ({}));
+      const body: unknown = await response.json().catch(() => null);
+      const payload = body !== null && typeof body === "object"
+        ? body as Record<string, unknown>
+        : {};
       throw new ApiError(
         response.status,
         typeof payload.code === "string" ? payload.code : "request_failed",

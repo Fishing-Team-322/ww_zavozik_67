@@ -1,4 +1,5 @@
 "use client";
+import { ContentText } from "@/src/shared/ui/content";
 import { useState } from "react";
 import { api, message } from "@/src/shared/api";
 import { Button, Dialog, Input, Select } from "@/src/shared/ui";
@@ -19,8 +20,8 @@ export function SourceCredentials({ id, kind, onChanged }: { id: string; kind: s
     try{await api.request(`/v1/sources/${id}`,{method:"PATCH",json:{config}});setKey("");setOpen(false);onChanged();}
     catch(cause){setError(message(cause));}finally{setBusy(false);}
   }
-  return <><Button size="sm" variant="ghost" onClick={()=>setOpen(true)}>Доступ и параметры</Button><Dialog open={open} title="Обновить подключение" onClose={close} dismissDisabled={busy}><form onSubmit={save} className="space-y-3"><p className="text-sm">Заполненные поля заменят сохранённые значения. Пустые поля сохраняют прежние настройки. Секреты не показываются. После сохранения нажмите «Проверить» у источника.</p>
-    {kind==="gsheets"&&<><Input label="Новый ID таблицы" value={sheet} onChange={e=>setSheet(e.target.value)}/><Input label="Новый диапазон таблицы" value={range} onChange={e=>setRange(e.target.value)}/><Select label="Тип нового ключа" value={access} onChange={e=>setAccess(e.target.value)} options={[{value:"api_key",label:"API key"},{value:"access_token",label:"Access token"}]}/></>}
+  return <><Button size="sm" variant="ghost" onClick={()=>setOpen(true)}>Доступ и параметры</Button><Dialog open={open} title="Обновить подключение" onClose={close} dismissDisabled={busy}><form onSubmit={save} className="space-y-3"><ContentText variant="body" >Заполненные поля заменят сохранённые значения. Пустые поля сохраняют прежние настройки. Секреты не показываются. После сохранения нажмите «Проверить» у источника.</ContentText>
+    {kind==="gsheets"&&<><Input label="Новый ID таблицы" value={sheet} onChange={e=>setSheet(e.target.value)}/><Input label="Новый диапазон таблицы" value={range} onChange={e=>setRange(e.target.value)}/><Select density="form" label="Тип нового ключа" value={access} onChange={e=>setAccess(e.target.value)} options={[{value:"api_key",label:"API key"},{value:"access_token",label:"Access token"}]}/></>}
     {(kind==="ozon"||kind==="onec_odata")&&<Input label={kind==="ozon"?"Новый Client ID":"Новый логин 1С"} value={account} onChange={e=>setAccount(e.target.value)} autoComplete="off"/>}
     <Input label={kind==="onec_odata"?"Новый пароль 1С":"Новый ключ доступа"} type="password" autoComplete="new-password" value={key} onChange={e=>setKey(e.target.value)}/>
     {(kind==="wb"||kind==="ozon")&&<><Input label="Новый период с" type="date" value={from} onChange={e=>setFrom(e.target.value)}/><Input label="Новый период по" type="date" value={to} onChange={e=>setTo(e.target.value)}/></>}

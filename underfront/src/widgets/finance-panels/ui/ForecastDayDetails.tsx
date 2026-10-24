@@ -1,5 +1,6 @@
 "use client";
 
+import { contentTypography } from "@/src/shared/ui/content";
 import { rubles } from "@/src/entities/forecast";
 import type { Schemas } from "@/src/shared/api";
 import { useApiResource } from "@/src/shared/api/use-api-resource";
@@ -13,7 +14,7 @@ export function ForecastDayDetails({ companyId, date, horizon, scenario }: Props
   const detail = useApiResource<Schemas["ForecastDay"]>(
     `/v1/companies/${encodeURIComponent(companyId)}/forecast/days/${encodeURIComponent(date)}?${query}`,
   );
-  return <div className="mt-3 space-y-2 text-sm">
+  return <div className={`mt-3 space-y-2 ${contentTypography.body}`}>
     {detail.loading && <p role="status">Загружаем подробности дня…</p>}
     {detail.error && <ErrorState description={detail.error} action={<Button variant="outline" onClick={detail.refresh}>Повторить</Button>} />}
     {detail.data && <>

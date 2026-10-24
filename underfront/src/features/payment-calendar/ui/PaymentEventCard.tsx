@@ -1,4 +1,5 @@
 "use client";
+import { contentTypography } from "@/src/shared/ui/content";
 
 import type { DragEvent } from "react";
 import { ArrowDownLeft, ArrowUpRight } from "lucide-react";
@@ -36,10 +37,10 @@ export function PaymentEventCard({ event, onOpen, compact = false }: PaymentEven
     >
       <span className={`flex size-6 shrink-0 items-center justify-center rounded-[4px] bg-[color:var(--sidebar-bg)] ${tone}`}><Icon size={14} strokeWidth={1.8} aria-hidden="true" /></span>
       <span className="min-w-0 flex-1">
-        <span className={`block truncate text-[13px] font-medium leading-4 text-[color:var(--nav-item-active-text)] ${event.status === "cancelled" ? "line-through" : ""}`}>{event.title}</span>
-        <span className="block truncate text-[12px] leading-4 text-[color:var(--nav-item-text)]">{event.counterparty} · {event.category} · {status}</span>
+        <span className={`block truncate ${contentTypography.financial} text-[color:var(--nav-item-active-text)] ${event.status === "cancelled" ? "line-through" : ""}`}>{event.title}</span>
+        <span className={`block truncate text-[color:var(--nav-item-text)] ${contentTypography.meta}`}>{event.counterparty} · {event.category} · {status}</span>
       </span>
-      <span className={`shrink-0 text-right text-[13px] font-semibold leading-4 tabular-nums ${tone}`}>
+      <span className={`shrink-0 text-right ${contentTypography.financial} ${tone}`}>
         <span className="hidden sm:inline">{income ? "+" : "−"}{formatMoney(event.amount)}</span>
         <span className="sm:hidden">{income ? "+" : "−"}{formatCompactMoney(event.amount)} ₽</span>
       </span>

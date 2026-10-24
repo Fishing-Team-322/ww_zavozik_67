@@ -11,7 +11,7 @@ export function Label({ className, ...props }: LabelProps) {
   return (
     <label
       className={cn(
-        "text-sm font-medium leading-none text-[color:var(--text-primary)]",
+        "text-xs font-medium leading-4 text-[color:var(--input-label)]",
         className
       )}
       {...props}

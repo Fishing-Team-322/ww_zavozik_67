@@ -1,6 +1,7 @@
 "use client";
 
 import { cn } from "@/src/shared/lib/cn";
+import type { FieldSize } from "../field-contract";
 import { DateField } from "./date-field";
 
 export type DateRangeFieldProps = {
@@ -14,6 +15,7 @@ export type DateRangeFieldProps = {
   minDate?: Date;
   maxDate?: Date;
   disabled?: boolean;
+  inputSize?: FieldSize;
 };
 
 /**
@@ -36,10 +38,12 @@ export function DateRangeField({
   minDate,
   maxDate,
   disabled,
+  inputSize = "md",
 }: DateRangeFieldProps) {
   return (
     <div className={cn("grid grid-cols-2 gap-3", containerClassName)}>
       <DateField
+        inputSize={inputSize}
         label={fromLabel}
         value={fromValue}
         disabled={disabled}
@@ -49,6 +53,7 @@ export function DateRangeField({
       />
 
       <DateField
+        inputSize={inputSize}
         label={toLabel}
         value={toValue}
         disabled={disabled}

@@ -1,4 +1,5 @@
 "use client";
+import { ContentHeading, ContentText } from "@/src/shared/ui/content";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useState } from "react";
@@ -28,6 +29,7 @@ export function RisksScreen() {
   const selected = chosen ?? query.get("gap");
   return (
     <>
+      <ContentHeading level={1} className="mb-6">Риски</ContentHeading>
       <FinanceState
         loading={forecast.loading}
         error={forecast.error}
@@ -37,7 +39,7 @@ export function RisksScreen() {
       {forecast.data?.gaps.length === 0 && (
         <RiskCard risk={null} status="clear" />
       )}
-      {selected && forecast.data && !forecast.data.gaps.some(gap => gap.id === selected) && <p role="status" className="my-3 text-sm">Этот разрыв больше не найден в текущем прогнозе. Выберите актуальный риск ниже.</p>}
+      {selected && forecast.data && !forecast.data.gaps.some(gap => gap.id === selected) && <ContentText variant="body" role="status" className="my-3">Этот разрыв больше не найден в текущем прогнозе. Выберите актуальный риск ниже.</ContentText>}
       <div className="grid gap-4 lg:grid-cols-2">
         {forecast.data?.gaps.map((gap) => (
           <div key={gap.id}>
@@ -93,10 +95,10 @@ function GapDetails({
     { method: "POST", json: { action_ids: ids } },
   );
   return (
-    <SectionCard className="mt-5 space-y-4 p-5">
-      <h2 className="text-lg font-semibold">Что влияет на разрыв · {gap.date}</h2>
-      {forecast.points.length > 0 && <p className="text-sm">Минимальный остаток за период: {rubles(Math.min(...forecast.points.map(point => point.p50)))}</p>}
-      <p className="text-sm">Изменения относятся только к плану: кредит не оформляется, сообщения контрагентам не отправляются.</p>
+    <SectionCard className="mt-5 space-y-4">
+      <ContentHeading level={2} >Что влияет на разрыв · {gap.date}</ContentHeading>
+      {forecast.points.length > 0 && <ContentText variant="body" >Минимальный остаток за период: {rubles(Math.min(...forecast.points.map(point => point.p50)))}</ContentText>}
+      <ContentText variant="body" >Изменения относятся только к плану: кредит не оформляется, сообщения контрагентам не отправляются.</ContentText>
       {notice && <p role="status">{notice}</p>}
       <FinanceState
         loading={detail.loading || simulated.loading}
@@ -116,10 +118,10 @@ function GapDetails({
               </li>
             ))}
           </ul>
-          <p className="text-sm text-[color:var(--text-secondary)]">
+          <ContentText variant="description" tone="muted" >
             Также учитывается ожидаемый поток бизнеса по модели. Выберите
             действия, чтобы проверить их эффект.
-          </p>
+          </ContentText>
           {detail.data.actions.map((action) => (
             <div
               key={action.id}
@@ -152,8 +154,8 @@ function GapDetails({
               >
                 Применить к плану
               </Button>
-              <p className="mt-2 text-xs">Стоимость: {rubles(action.cost)} · ожидаемая нехватка после действия: {rubles(action.effect.new_shortfall)}</p>
-              {action.draft_message && <p className="mt-2 whitespace-pre-wrap text-sm">Черновик сообщения: {action.draft_message}</p>}
+              <ContentText variant="meta" className="mt-2">Стоимость: {rubles(action.cost)} · ожидаемая нехватка после действия: {rubles(action.effect.new_shortfall)}</ContentText>
+              {action.draft_message && <ContentText variant="body" className="mt-2 whitespace-pre-wrap">Черновик сообщения: {action.draft_message}</ContentText>}
             </div>
           ))}
         </>

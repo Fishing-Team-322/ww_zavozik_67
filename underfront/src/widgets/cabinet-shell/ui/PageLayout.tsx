@@ -3,6 +3,7 @@
 import { Fragment, type ReactNode, useContext } from "react";
 import { createPortal } from "react-dom";
 import { Tabs, type TabItem } from "@/src/shared/ui/tabs";
+import { contentTypography } from "@/src/shared/ui/content";
 import { cn } from "@/src/shared/lib/cn";
 import { PageSidePanelSlotContext } from "./PageSidePanelSlot";
 
@@ -51,7 +52,7 @@ export function PageLayout({
   );
 
   const page = (
-    <div className={cn("min-w-0 space-y-5", className)}>
+    <div className={cn("min-w-0 space-y-6", contentTypography.body, className)}>
       {tabs?.length ? (
         <Tabs
           tabs={tabs}
