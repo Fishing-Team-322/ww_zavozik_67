@@ -13,6 +13,7 @@ export function AccountGate({ children }: { children: ReactNode }) {
   const [name, setName] = useState("");
   const [legal, setLegal] = useState("ООО");
   const [industry, setIndustry] = useState("services");
+  const [inn, setInn] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   if (session.loading)
@@ -68,6 +69,7 @@ export function AccountGate({ children }: { children: ReactNode }) {
               name,
               legal_form: legal as "ООО" | "ИП",
               industry,
+              ...(inn.trim() ? { inn: inn.trim() } : {}),
             });
           } catch (error) {
             setError(message(error));
@@ -106,6 +108,15 @@ export function AccountGate({ children }: { children: ReactNode }) {
             { value: "manufacturing", label: "Производство" },
             { value: "other", label: "Другое" },
           ]}
+        />
+        <Input
+          label="ИНН компании"
+          helperText="Можно добавить позже; для подключения 1С обязателен."
+          inputMode="numeric"
+          pattern="[0-9]{10}([0-9]{2})?"
+          maxLength={12}
+          value={inn}
+          onChange={(event) => setInn(event.target.value)}
         />
         {error && (
           <p role="alert" className="text-sm text-[color:var(--danger)]">

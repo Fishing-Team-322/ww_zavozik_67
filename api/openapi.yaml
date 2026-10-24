@@ -3059,7 +3059,7 @@ components:
         config:
           type: object
           additionalProperties: true
-          description: Например, spreadsheet_id для gsheets. Секреты здесь не возвращаются.
+          description: Например, spreadsheet_id для gsheets; для 1С:Бухгалтерии 3.0 — template=accounting3, base_url, company_account, username, password. Backend найдёт маппинг по ИНН компании и номеру счёта. Секреты не возвращаются.
     Job:
       type: object
       required:
@@ -3721,6 +3721,35 @@ components:
           type: string
         editable:
           type: boolean
+        source_id:
+          type: string
+          format: uuid
+        external_id:
+          type: string
+        due_date:
+          type: string
+          format: date
+          nullable: true
+        total_kopecks:
+          type: integer
+          format: int64
+        paid_kopecks:
+          type: integer
+          format: int64
+        remaining_kopecks:
+          type: integer
+          format: int64
+        forecast_eligible:
+          type: boolean
+        link_status:
+          type: string
+        data_mode:
+          type: string
+        payment_status:
+          type: string
+        version:
+          type: integer
+          format: int64
     PlannedEventCreate:
       type: object
       required:
@@ -4536,6 +4565,7 @@ components:
         config:
           type: object
           additionalProperties: true
+          description: Для onec_odata шаблон accounting3 принимает base_url, company_account, username и password; сервер подбирает OData маппинг по ИНН компании и номеру счёта. Данные подключения не возвращаются в Source.
         enabled:
           type: boolean
       required:

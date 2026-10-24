@@ -45,7 +45,7 @@ func findPlan(t *testing.T, events []contracts.PlannedEvent, suffix string) cont
 func TestPlannedSnapshotPartialChangeCancelAndRepeat(t *testing.T) {
 	due := "2026-11-05"
 	paid := "100000.00"
-	cancelOut := false
+	cancelOut, cancelIn := false, false
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		switch {
@@ -56,7 +56,7 @@ func TestPlannedSnapshotPartialChangeCancelAndRepeat(t *testing.T) {
 		case strings.HasSuffix(r.URL.Path, "Document_Payment_Detail"):
 			fmt.Fprint(w, `{"value":[]}`)
 		case strings.HasSuffix(r.URL.Path, "Document_CustomerInvoice"):
-			fmt.Fprintf(w, `{"value":[{"Ref_Key":"invoice-in","Number":"10","Date":"2026-10-20","DueDate":%q,"Amount":350000,"Posted":true,"DeletionMark":false,"Organization_Key":"org-1","DataVersion":"v1"},{"Ref_Key":"foreign","Number":"11","Date":"2026-10-20","Amount":1,"Posted":true,"Organization_Key":"org-2"}]}`, due)
+			fmt.Fprintf(w, `{"value":[{"Ref_Key":"invoice-in","Number":"10","Date":"2026-10-20","DueDate":%q,"Amount":350000,"Posted":true,"DeletionMark":%t,"Organization_Key":"org-1","DataVersion":"v1"},{"Ref_Key":"foreign","Number":"11","Date":"2026-10-20","Amount":1,"Posted":true,"Organization_Key":"org-2"}]}`, due, cancelIn)
 		case strings.HasSuffix(r.URL.Path, "Document_SupplierInvoice"):
 			fmt.Fprintf(w, `{"value":[{"Ref_Key":"invoice-out","Number":"12","Date":"2026-10-20","DueDate":"2026-11-06","Amount":180000,"Posted":true,"DeletionMark":%t,"Organization_Key":"org-1"}]}`, cancelOut)
 		default:
@@ -107,6 +107,15 @@ func TestPlannedSnapshotPartialChangeCancelAndRepeat(t *testing.T) {
 	if in.Version != 3 || in.Status != "paid" || in.RemainingKopecks != 0 || in.ForecastEligible {
 		t.Fatalf("paid event: %+v", in)
 	}
+	cancelIn = true
+	fifth, err := importer.OneCPlans(context.Background(), client, cfg)
+	if err != nil || fifth.Stats.Accepted != 1 || fifth.Stats.Duplicates != 1 {
+		t.Fatalf("cancel after payment: %+v, %v", fifth.Stats, err)
+	}
+	in = findPlan(t, fifth.PlannedEvents, ":invoice-in")
+	if in.Version != 4 || in.Status != "cancelled" || in.PaidKopecks != 35_000_000 || in.RemainingKopecks != 0 {
+		t.Fatalf("cancel should retain payment provenance: %+v", in)
+	}
 }
 
 func TestPlanWithoutReliablePaymentLinkIsNotForecastEligible(t *testing.T) {
@@ -120,6 +129,32 @@ func TestPlanWithoutReliablePaymentLinkIsNotForecastEligible(t *testing.T) {
 	batch, err := (onecodata.Client{}).FetchPlans(context.Background(), cfg)
 	if err != nil || len(batch.PlannedEvents) != 1 || batch.PlannedEvents[0].LinkStatus != "unmatched" || batch.PlannedEvents[0].ForecastEligible {
 		t.Fatalf("unmatched: %+v, %v", batch, err)
+	}
+}
+
+func TestLivePlanRequiresVerifiedRUBCurrency(t *testing.T) {
+	currency := "usd-1"
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		fmt.Fprintf(w, `{"value":[{"Ref_Key":"invoice-1","Number":"1","Date":"2026-10-20","Amount":1000,"Posted":true,"Organization_Key":"org-1","Currency_Key":%q}]}`, currency)
+	}))
+	defer srv.Close()
+	cfg := planFixture(srv.URL + "/odata/")
+	cfg.DataMode = "live"
+	cfg.Invoices = cfg.Invoices[:1]
+	cfg.Payments = nil
+	if cfg.Validate() == nil {
+		t.Fatal("live mapping without verified RUB key accepted")
+	}
+	cfg.RUBCurrencyIDs = []string{"rub-1"}
+	cfg.Invoices[0].Fields.CurrencyKey = "Currency_Key"
+	foreign, err := (onecodata.Client{}).FetchPlans(context.Background(), cfg)
+	if err != nil || foreign.Stats.Rejected != 1 || len(foreign.PlannedEvents) != 0 || foreign.Issues[0].Code != "unsupported_currency" {
+		t.Fatalf("foreign currency accepted: %+v, %v", foreign, err)
+	}
+	currency = "rub-1"
+	rubles, err := (onecodata.Client{}).FetchPlans(context.Background(), cfg)
+	if err != nil || rubles.Stats.Accepted != 1 || rubles.PlannedEvents[0].Currency != "RUB" {
+		t.Fatalf("RUB rejected: %+v, %v", rubles, err)
 	}
 }
 

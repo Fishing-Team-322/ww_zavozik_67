@@ -92,6 +92,16 @@ func (s *Service) validateSourceConfig(ctx context.Context, uid, cid, kind strin
 		c.CompanyID = cid
 		c.CompanyINN = *company.INN
 		cfg["company_id"], cfg["company_inn"] = cid, *company.INN
+		if raw, ok := cfg["plan_config"]; ok {
+			var plan bridge.ODataPlanConfig
+			if e := json.Unmarshal(store.JSON(raw), &plan); e != nil {
+				return bad("Некорректная настройка обязательств 1С")
+			}
+			plan.CompanyID, plan.BaseURL = cid, c.BaseURL
+			if plan.Validate() != nil {
+				return bad("Проверьте соответствие счетов, оплат и организаций 1С")
+			}
+		}
 		if requireMapping && c.Validate() != nil {
 			return bad("Проверьте base_url, company_account, account_map и коллекции 1С")
 		}
@@ -107,6 +117,22 @@ func (s *Service) validateSourceConfig(ctx context.Context, uid, cid, kind strin
 		}
 		if !allowed {
 			return platform.Fail(403, "source_host_not_allowed", "Адрес 1С должен быть разрешён администратором в SOURCE_ALLOWED_HOSTS")
+		}
+		if template, exists := cfg["template"]; exists {
+			if template != "accounting3" {
+				return bad("Неизвестный шаблон настройки 1С")
+			}
+			suggested, plans, err := bridge.SuggestODataAccounting(ctx, c.BaseURL, cid, *company.INN, c.CompanyAccount, text(cfg, "username"), text(cfg, "password"))
+			if err != nil {
+				return platform.Fail(422, "onec_mapping_unavailable", "Не удалось подобрать настройки Бухгалтерии 3.0 по ИНН и счёту. Проверьте публикацию OData, номер счёта и доступ 1С")
+			}
+			for key, value := range store.Decode(store.JSON(suggested)) {
+				cfg[key] = value
+			}
+			if plans != nil {
+				cfg["plan_config"] = store.Decode(store.JSON(plans))
+			}
+			delete(cfg, "template")
 		}
 	case "gsheets":
 		id := text(cfg, "spreadsheet_id")
@@ -201,6 +227,36 @@ func (s *Service) sourceAction(ctx context.Context, op, uid, id string) (Result,
 						root := strings.SplitN(field, ".", 2)[0]
 						if field != "" && !fields[root] {
 							missing = append(missing, collection.EntitySet+"."+field)
+						}
+					}
+				}
+				if raw, ok := cfg["plan_config"]; ok {
+					var plan bridge.ODataPlanConfig
+					if json.Unmarshal(store.JSON(raw), &plan) != nil {
+						return Result{}, bad("Некорректная настройка обязательств 1С")
+					}
+					checkFields := func(entity string, names ...string) {
+						fields, exists := published[entity]
+						if !exists {
+							missing = append(missing, entity)
+							return
+						}
+						for _, name := range names {
+							if name != "" && !fields[name] {
+								missing = append(missing, entity+"."+name)
+							}
+						}
+					}
+					for _, invoice := range plan.Invoices {
+						f := invoice.Fields
+						checkFields(invoice.EntitySet, f.ExternalID, f.Number, f.DocumentDate, f.DueDate, f.Amount, f.Posted, f.Deleted, f.OrganizationKey, f.AccountKey, f.CurrencyKey, f.CounterpartyINN, f.SourceVersion)
+					}
+					for _, payment := range plan.Payments {
+						f := payment.Fields
+						checkFields(payment.EntitySet, f.ExternalID, f.LineNumber, f.InvoiceKey, f.Amount, f.Posted, f.Unconfirmed)
+						if payment.Parent != nil {
+							p := payment.Parent
+							checkFields(p.EntitySet, p.ExternalID, p.Posted, p.Unconfirmed, p.OrganizationKey)
 						}
 					}
 				}

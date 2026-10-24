@@ -6,6 +6,8 @@ import { useApiResource } from "@/src/shared/api/use-api-resource";
 import { Button, Select } from "@/src/shared/ui";
 import { SectionCard } from "@/src/widgets/cabinet-shell";
 import { FinanceState } from "./FinanceState";
+import { OneCConnection } from "./OneCConnection";
+import { rubles } from "@/src/entities/forecast";
 
 type ImportReport = {
   id: string;
@@ -20,6 +22,8 @@ export function SourcesScreen() {
   const base = `/v1/companies/${company!.id}`;
   const sources = useApiResource<Schemas["Source"][]>(`${base}/sources`);
   const imports = useApiResource<ImportReport[]>(`${base}/imports`);
+  const plans = useApiResource<Schemas["PlannedEvent"][]>(`${base}/events`);
+  const oneCPlans = plans.data?.filter((event) => event.source === "onec_odata") || [];
   const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const [upload, setUpload] = useState<string | null>(null);
@@ -127,6 +131,39 @@ export function SourcesScreen() {
         )}
         {upload && <MappingEditor upload={upload} busy={busy} onMap={map} />}
       </SectionCard>
+      <OneCConnection
+        key={company!.id}
+        companyId={company!.id}
+        companyINN={company!.inn}
+        sources={sources.data || []}
+        onChanged={() => {
+          sources.refresh();
+          imports.refresh();
+          plans.refresh();
+          void reload();
+        }}
+      />
+      {(sources.data?.some((source) => source.kind === "onec_odata") || oneCPlans.length > 0) && (
+        <SectionCard className="space-y-3 p-5">
+          <h2 className="text-lg font-semibold">Счета из 1С</h2>
+          <FinanceState loading={plans.loading} error={plans.error} retry={plans.refresh} />
+          {!plans.loading && oneCPlans.length === 0 && (
+            <p className="text-sm text-[color:var(--text-secondary)]">
+              Счета пока не получены. Проверьте, что они опубликованы в OData 1С.
+            </p>
+          )}
+          {oneCPlans.slice(0, 20).map((event) => (
+            <div key={event.id} className="border-t border-[color:var(--border)] pt-3 text-sm">
+              <p className="font-medium">{event.title} · остаток {rubles((event.remaining_kopecks || 0) / 100)}</p>
+              <p className="text-[color:var(--text-secondary)]">
+                Оплачено {rubles((event.paid_kopecks || 0) / 100)} · {event.due_date ? `срок ${event.due_date}` : "срок неизвестен"} · {event.payment_status || event.status}
+                {!event.forecast_eligible ? " · вне точечного прогноза" : ""}
+              </p>
+            </div>
+          ))}
+          {oneCPlans.length > 20 && <p className="text-xs">Показаны первые 20 из {oneCPlans.length} счетов.</p>}
+        </SectionCard>
+      )}
       <SectionCard className="space-y-3 p-5">
         <h2 className="text-lg font-semibold">Источники компании</h2>
         <FinanceState

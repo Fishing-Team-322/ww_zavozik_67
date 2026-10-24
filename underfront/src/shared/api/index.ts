@@ -6,4 +6,6 @@ export type {
   PlannedEvent,
   Gap,
   Job,
+  Source,
+  SourceTest,
 } from "./client";

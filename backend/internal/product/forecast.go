@@ -33,6 +33,16 @@ func horizon(r *http.Request) (int, error) {
 	}
 	return n, nil
 }
+
+// A 1C invoice without a due date is stored on its document date for audit,
+// but that date must not be presented as an expected payment in the calendar.
+func calendarEventOnDate(event Doc, day string) bool {
+	if text(event, "source_kind") == "onec_odata" && text(event, "due_date") == "" {
+		return false
+	}
+	return date(event["event_date"]) == day
+}
+
 func domainOperations(rows []Doc) []domain.Operation {
 	out := []domain.Operation{}
 	for _, d := range rows {
@@ -416,7 +426,7 @@ func (s *Service) financial(ctx context.Context, op, uid, cid string, r *http.Re
 			key := dt.Format(domain.DateLayout)
 			items := []Doc{}
 			for _, event := range events {
-				if date(event["event_date"]) == key {
+				if calendarEventOnDate(event, key) {
 					items = append(items, view("event", event))
 				}
 			}

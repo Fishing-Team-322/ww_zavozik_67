@@ -205,6 +205,9 @@ func view(kind string, d Doc) Doc {
 		}
 	case "event":
 		copyKeys("id amount direction title category probability status")
+		if text(d, "source_kind") == "onec_odata" {
+			copyKeys("source_id external_id due_date total_kopecks paid_kopecks remaining_kopecks forecast_eligible link_status data_mode payment_status version")
+		}
 		out["date"] = date(d["event_date"])
 		out["source"] = d["source_kind"]
 		out["counterparty"] = cpRef(cid, d)
