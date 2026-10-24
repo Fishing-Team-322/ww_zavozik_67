@@ -127,21 +127,32 @@ func (a API) enrichDaData(w http.ResponseWriter, r *http.Request) {
 	decoder := json.NewDecoder(r.Body)
 	decoder.DisallowUnknownFields()
 	var input struct {
-		INN string `json:"inn"`
+		INN        string `json:"inn"`
+		Identifier string `json:"identifier"`
 	}
 	if decoder.Decode(&input) != nil || decoder.Decode(new(any)) != io.EOF {
 		writeError(w, 400, "invalid_request", "Expected JSON with INN")
 		return
 	}
-	party, err := a.DaDataClient.Lookup(r.Context(), input.INN)
+	identifier := input.Identifier
+	if identifier == "" {
+		identifier = input.INN
+	}
+	if input.INN != "" && input.Identifier != "" {
+		writeError(w, 400, "invalid_request", "Specify either inn or identifier")
+		return
+	}
+	party, err := a.DaDataClient.Lookup(r.Context(), identifier)
 	if err != nil {
 		switch {
 		case errors.Is(err, dadata.ErrInvalidINN):
-			writeError(w, 400, "invalid_inn", "Invalid INN")
+			writeError(w, 400, "invalid_identifier", "Invalid INN or OGRN")
 		case errors.Is(err, dadata.ErrNotFound):
 			writeError(w, 404, "not_found", "Company not found")
 		case errors.Is(err, dadata.ErrAuth):
-			writeError(w, 502, "upstream_auth_failed", "DaData authentication or quota failed")
+			writeError(w, 502, "upstream_auth_failed", "DaData authentication failed")
+		case errors.Is(err, dadata.ErrRateLimited):
+			writeError(w, 503, "upstream_rate_limited", "DaData rate limit exceeded")
 		default:
 			writeError(w, 502, "upstream_failed", "DaData lookup failed")
 		}
