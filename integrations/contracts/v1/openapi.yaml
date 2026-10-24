@@ -102,3 +102,9 @@ paths:
         - {name: companyId, in: path, required: true, schema: {type: string}}
       responses:
         '200': {description: Dated FNS public-dataset observations}
+  /v1/counterparties/{companyId}:
+    get:
+      parameters:
+        - {name: companyId, in: path, required: true, schema: {type: string}}
+      responses:
+        '200': {description: Dated DaData party profiles}

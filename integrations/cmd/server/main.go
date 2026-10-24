@@ -57,7 +57,7 @@ func main() {
 		api.DaDataClient = &dadata.Client{Token: token, Cache: dadata.NewCache(24 * time.Hour)}
 	}
 	if token := os.Getenv("WB_API_TOKEN"); token != "" {
-		api.WBClient = &wb.Client{Token: token}
+		api.WBClient = &wb.Client{Token: token, Limiter: &wb.Limiter{}}
 	}
 	if id, key := os.Getenv("OZON_CLIENT_ID"), os.Getenv("OZON_API_KEY"); id != "" && key != "" {
 		api.OzonClient = &ozon.Client{ClientID: id, APIKey: key}

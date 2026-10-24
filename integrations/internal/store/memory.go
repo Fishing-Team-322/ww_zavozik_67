@@ -9,17 +9,18 @@ import (
 
 // Memory is process-local. All writes and reads are synchronized.
 type Memory struct {
-	mu          sync.RWMutex
-	seen        map[string]map[string]contracts.Operation
-	plans       map[string]map[string]contracts.PlannedEvent
-	batches     map[string][]contracts.ImportBatch
-	runs        map[string][]SyncRun
-	marketplace map[string]map[string]MarketplaceEntry
-	risks       map[string]map[string]RiskSignal
+	mu             sync.RWMutex
+	seen           map[string]map[string]contracts.Operation
+	plans          map[string]map[string]contracts.PlannedEvent
+	batches        map[string][]contracts.ImportBatch
+	runs           map[string][]SyncRun
+	marketplace    map[string]map[string]MarketplaceEntry
+	risks          map[string]map[string]RiskSignal
+	counterparties map[string]map[string]Counterparty
 }
 
 func NewMemory() *Memory {
-	return &Memory{seen: make(map[string]map[string]contracts.Operation), plans: make(map[string]map[string]contracts.PlannedEvent), batches: make(map[string][]contracts.ImportBatch), runs: make(map[string][]SyncRun), marketplace: make(map[string]map[string]MarketplaceEntry), risks: make(map[string]map[string]RiskSignal)}
+	return &Memory{seen: make(map[string]map[string]contracts.Operation), plans: make(map[string]map[string]contracts.PlannedEvent), batches: make(map[string][]contracts.ImportBatch), runs: make(map[string][]SyncRun), marketplace: make(map[string]map[string]MarketplaceEntry), risks: make(map[string]map[string]RiskSignal), counterparties: make(map[string]map[string]Counterparty)}
 }
 
 func (m *Memory) Add(batch contracts.ImportBatch) contracts.ImportBatch {
@@ -194,6 +195,36 @@ func (m *Memory) GetRisks(companyID string) ([]RiskSignal, error) {
 	out := make([]RiskSignal, 0, len(m.risks[companyID]))
 	for _, signal := range m.risks[companyID] {
 		out = append(out, signal)
+	}
+	return out, nil
+}
+
+func (m *Memory) SaveCounterparty(companyID string, party Counterparty) (Counterparty, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.counterparties[companyID] == nil {
+		m.counterparties[companyID] = make(map[string]Counterparty)
+	}
+	key := party.SourceKind + "\x00" + party.ExternalID
+	if old, ok := m.counterparties[companyID][key]; ok {
+		before, after := old, party
+		before.Version, after.Version = 0, 0
+		if reflect.DeepEqual(before, after) {
+			return old, nil
+		}
+		party.Version = old.Version + 1
+	} else {
+		party.Version = 1
+	}
+	m.counterparties[companyID][key] = party
+	return party, nil
+}
+func (m *Memory) GetCounterparties(companyID string) ([]Counterparty, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	out := make([]Counterparty, 0, len(m.counterparties[companyID]))
+	for _, party := range m.counterparties[companyID] {
+		out = append(out, party)
 	}
 	return out, nil
 }

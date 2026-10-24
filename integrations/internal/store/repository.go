@@ -13,6 +13,23 @@ type Repository interface {
 	GetMarketplace(companyID string) ([]MarketplaceEntry, error)
 	SaveRisks(companyID string, signals []RiskSignal) (int, int, error)
 	GetRisks(companyID string) ([]RiskSignal, error)
+	SaveCounterparty(companyID string, party Counterparty) (Counterparty, error)
+	GetCounterparties(companyID string) ([]Counterparty, error)
+}
+
+type Counterparty struct {
+	ExternalID string `json:"external_id"`
+	SourceKind string `json:"source_kind"`
+	INN        string `json:"inn"`
+	KPP        string `json:"kpp,omitempty"`
+	OGRN       string `json:"ogrn"`
+	Name       string `json:"name"`
+	Type       string `json:"type"`
+	Status     string `json:"status"`
+	CheckedAt  string `json:"checked_at"`
+	SourceURL  string `json:"source_url"`
+	DataMode   string `json:"data_mode"`
+	Version    int64  `json:"version"`
 }
 
 type RiskSignal struct {
