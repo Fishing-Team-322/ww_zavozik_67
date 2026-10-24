@@ -21,11 +21,17 @@ type MLClient struct {
 
 const BusinessFlowScope = "business_without_internal_transfers"
 
+// maxRecvBytes — потолок gRPC-сообщения, как в ml/zavozik_ml/serving/server.py:
+// 5000 путей × 366 дней не влезают в дефолтные 4 МиБ gRPC.
+const maxRecvBytes = 64 << 20
+
 // DialML не ходит в сеть: соединение ленивое, сервис может подняться позже.
 // Внутри docker-сети без TLS; наружу ML-сервис не публикуется.
 func DialML(addr string) (*MLClient, error) {
-	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(64<<20), grpc.MaxCallSendMsgSize(64<<20)))
+	conn, err := grpc.NewClient(addr,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(maxRecvBytes), grpc.MaxCallSendMsgSize(maxRecvBytes)),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("ml: dial %s: %w", addr, err)
 	}

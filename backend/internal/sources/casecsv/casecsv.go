@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -49,7 +50,7 @@ func (Parser) Parse(_ context.Context, companyID string, r io.Reader) (sources.B
 	first[0] = strings.TrimPrefix(first[0], "\uFEFF")
 	for i, h := range header {
 		if first[i] != h {
-			return sources.Batch{}, fmt.Errorf("casecsv: column %d: want %q, got %q", i, h, first[i])
+			return sources.Batch{}, fmt.Errorf("casecsv: column %d: want %q", i, h)
 		}
 	}
 
@@ -77,11 +78,14 @@ func (Parser) Parse(_ context.Context, companyID string, r io.Reader) (sources.B
 func parseRecord(rec []string) (domain.Operation, error) {
 	date, err := time.Parse(domain.DateLayout, rec[2])
 	if err != nil {
-		return domain.Operation{}, fmt.Errorf("operation_date: %w", err)
+		return domain.Operation{}, fmt.Errorf("operation_date: invalid date, want %s", domain.DateLayout)
 	}
-	amount, err := strconv.ParseFloat(rec[3], 64)
+	amount, err := parseNumber("amount", rec[3])
 	if err != nil {
-		return domain.Operation{}, fmt.Errorf("amount: %w", err)
+		return domain.Operation{}, err
+	}
+	if amount < 0 {
+		return domain.Operation{}, errors.New("amount: must be non-negative")
 	}
 	var dir domain.Direction
 	switch rec[4] {
@@ -90,7 +94,7 @@ func parseRecord(rec []string) (domain.Operation, error) {
 	case "Списание":
 		dir = domain.Out
 	default:
-		return domain.Operation{}, fmt.Errorf("direction: unknown %q", rec[4])
+		return domain.Operation{}, fmt.Errorf("direction: want %q or %q", "Поступление", "Списание")
 	}
 	op := domain.Operation{
 		ID:               rec[1],
@@ -104,12 +108,31 @@ func parseRecord(rec []string) (domain.Operation, error) {
 		Source:           domain.SrcUpload,
 	}
 	if rec[8] != "" {
-		b, err := strconv.ParseFloat(rec[8], 64)
+		b, err := parseNumber("balance_eod", rec[8])
 		if err != nil {
-			return domain.Operation{}, fmt.Errorf("balance_eod: %w", err)
+			return domain.Operation{}, err
 		}
 		m := domain.Money(b)
 		op.BalanceEOD = &m
 	}
 	return op, nil
+}
+
+// parseNumber разбирает числовую ячейку и возвращает диагностику без самого
+// значения: strconv.NumError хранит исходную строку, а суммы — чувствительные
+// данные, которым не место в логах. Отрицательный остаток допустим, знак
+// суммы проверяет parseRecord.
+func parseNumber(field, cell string) (float64, error) {
+	v, err := strconv.ParseFloat(cell, 64)
+	if err != nil {
+		var numErr *strconv.NumError
+		if errors.As(err, &numErr) && errors.Is(numErr.Err, strconv.ErrRange) {
+			return 0, fmt.Errorf("%s: out of range", field)
+		}
+		return 0, fmt.Errorf("%s: not a number", field)
+	}
+	if math.IsNaN(v) || math.IsInf(v, 0) {
+		return 0, fmt.Errorf("%s: must be finite", field)
+	}
+	return v, nil
 }
