@@ -136,6 +136,8 @@ python -m zavozik_ml.classify_v2.discovery approve \
 
 Проверка механизма: обучить отдельный run с `--hide leasing,enforcement`,
 экспортировать, затем `python -m zavozik_ml.classify_v2.novelty_experiment`.
-Discovery использует calibration-компании, оценка — test-компании. Название
+Discovery использует все операции calibration-компаний, включая ложные novel
+из известных категорий; предварительной фильтрации по скрытым gold-классам нет.
+Оценка использует test-компании. Название
 скрытого класса подтверждается симуляцией oracle по меткам discovery,
 что отдельно раскрывается в отчёте и не выдаётся за человеческое согласование.

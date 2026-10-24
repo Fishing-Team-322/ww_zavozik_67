@@ -143,3 +143,38 @@
 - Pending после E5: унифицировать verified loader с encoder_factory и runtime
   override calibration/version (убрать временную дубликацию проверки из
   serving/torch_process.py). Файлы model.py/fit sources до конца E5 не менять.
+
+## Проверки перед открытием финальных наборов, 16:25 МСК
+
+- E5 PID30469 продолжает единственный fit, epoch5; очередь PID33657
+  ml/data/classifier_v2/post_train_queue.py/session3574 ждёт calibration.json.
+  Она автоматически зафиксирует encoder_selection.json из двух завершённых
+  Torch run и запустит hidden_run1 (leasing,enforcement) с чистых pretrained
+  весов выбранной семьи, той же recipe12epochs. Не создавать дубликат.
+  Статус: ml/data/classifier_v2/post_train_state.json. Старый parent27747 жив.
+- Fit sources не редактировать ДО ОКОНЧАНИЯ E5 И hidden_run1, включая model.py
+  и calibration.py: source-hash guard завершённого run должен пройти.
+  После обоих fit запланированы loader consolidation/runtime override и
+  post-fit novelty calibration. Переобучение из-за этих изменений не нужно.
+- До итоговых предсказаний input-only audit выявил4 точных нормализованных
+  совпадения frozen182 с train (пустые/мусорные V2-153,154,155,164). Сохранён
+  исходный SHA frozen; evaluator отдельно покажет178 входов без совпадений.
+- RAW global distance threshold давал55.3% false novel внутри известного other
+  на calibration при~5% overall. До final/hidden evaluation подготовлен
+  novelty.py: rank расстояния относительно calibration-предсказанного класса,
+  min_group30, fallbackglobal для редких/новых классов, threshold.95.
+  Только known calibration использована; это геометрический rank, не posterior
+  неизвестного класса и не внешняя гарантия FPR. Диагностика Ruby: overall4.82%,
+  other6.38%. Интегрировать в calibration/model/export ПОСЛЕ обоих fit.
+- Исправлен протокол hidden discovery ДО его первого запуска: кластеризация
+  получает ВСЕ calibration-операции, включая ложные novel известных классов;
+  нельзя предварительно отбирать hidden gold. Oracle labels используются только
+  для симуляции называния уже полученного кластера, test остаётся отдельным.
+- Исправлена идентичность артефакта: nested encoder/config.json теперь влияет
+  на model_version; раньше исключение корневого config по имени захватывало
+  вложенные файлы. Новые версии будут запечатаны после окончательного export.
+- Targeted tests: selection/report8PASS; discovery/hidden/report11PASS+1SKIP;
+  novelty9PASS. Предыдущий полный train-env pytest260PASS. Final holdout и
+  hidden predictions всё ещё НЕ оценивались. Никакого live сервиса не оставлено.
+- В workspace появились внешние untracked ml/zavozik_ml/trx/ (16:17–16:19);
+  это не наша работа, не менять и не включать в classifier-v2 коммиты.

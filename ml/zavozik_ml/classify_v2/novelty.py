@@ -14,6 +14,27 @@ METHOD = "predicted_category_distance_rank_v1"
 MIN_GROUP = 30
 
 
+def validate_reference(reference: dict) -> None:
+    if not isinstance(reference, dict) or reference.get("method") != METHOD:
+        raise ValueError("unknown novelty calibration method")
+    min_group = reference.get("min_group")
+    if type(min_group) is not int or min_group < 10:
+        raise ValueError("invalid novelty minimum group")
+    groups = reference.get("by_category")
+    if not isinstance(groups, dict) or not all(isinstance(k, str) and k for k in groups):
+        raise ValueError("invalid novelty groups")
+    for name, values in [("global", reference.get("global"))] + list(groups.items()):
+        try:
+            ref = np.asarray(values, float)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("invalid novelty reference") from exc
+        if (ref.ndim != 1 or not len(ref) or not np.isfinite(ref).all()
+                or ((ref < 0) | (ref > 1)).any() or (np.diff(ref) < 0).any()):
+            raise ValueError("invalid novelty reference")
+        if name != "global" and len(ref) < min_group:
+            raise ValueError("undersized novelty group")
+
+
 def fit_reference(distances: np.ndarray, predicted: np.ndarray, categories: tuple[str, ...],
                   min_group: int = MIN_GROUP) -> dict:
     distances = np.asarray(distances, float)
@@ -32,11 +53,11 @@ def fit_reference(distances: np.ndarray, predicted: np.ndarray, categories: tupl
 
 
 def ranks(distances: np.ndarray, predicted: np.ndarray, categories: tuple[str, ...], reference: dict) -> np.ndarray:
-    if reference.get("method") != METHOD:
-        raise ValueError("unknown novelty calibration method")
+    validate_reference(reference)
     distances = np.asarray(distances, float)
     predicted = np.asarray(predicted, int)
-    if distances.ndim != 1 or distances.shape != predicted.shape or not np.isfinite(distances).all():
+    if (distances.ndim != 1 or distances.shape != predicted.shape or not np.isfinite(distances).all()
+            or ((distances < 0) | (distances > 1)).any()):
         raise ValueError("invalid novelty score input")
     global_reference = np.asarray(reference["global"], float)
     if not len(global_reference):

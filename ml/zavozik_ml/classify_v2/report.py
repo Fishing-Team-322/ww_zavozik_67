@@ -58,6 +58,14 @@ def render(evaluation: dict, benchmark: dict, novelty: dict | None, selection: d
               "", "## Каналы, теги и цифровой рубль", "",
               "| Проверка | Accuracy канала | Micro-F1 тегов | Источник меток |",
               "|---|---:|---:|---|"]
+    authored = evaluation["datasets"]["authored_holdout"]
+    if clean := authored.get("without_exact_train_input_overlap"):
+        # Keep the original182-row score intact and expose the input-only
+        # deduplication diagnostic as an additional, separately named cohort.
+        lines[lines.index("## Каналы, теги и цифровой рубль"):lines.index("## Каналы, теги и цифровой рубль")] = [
+            f"Без полного совпадения нормализованного входа с train: {clean['category']['n']} примеров, "
+            f"encoder accuracy {clean['category']['accuracy']:.6%}, linear-v1 {clean['linear_v1']['accuracy']:.6%}. "
+            "Исходный frozen-набор сохранён; совпадения пустых/мусорных входов раскрыты отдельно.", ""]
     for key in ("company_test", "authored_holdout"):
         data = evaluation["datasets"][key]
         lines.append(f"| {names[key]} | {data['channel']['accuracy']:.6%} | {data['tags']['micro_f1']:.6f} | {'weak regex' if key == 'company_test' else 'авторские, зафиксированы до fit'} |")
@@ -74,8 +82,10 @@ def render(evaluation: dict, benchmark: dict, novelty: dict | None, selection: d
         lines.append("Эксперимент скрытых категорий ещё не выполнен; критерии новизны не объявляются пройденными.")
     else:
         lines += [f"Скрыты `{', '.join(novelty['hidden_categories'])}` из всех fitting/calibration targets. "
-                  "Порог определяется только известными calibration-операциями. Кластеры/центры строятся на скрытых "
-                  "операциях calibration-компаний; качество после добавления проверяется на отдельных test-компаниях.", "",
+                  "Порог определяется только известными calibration-операциями. Discovery получает все операции "
+                  "calibration-компаний и кластеризует novel-сигналы, включая ложные сигналы известных категорий. "
+                  "Gold используется только для симуляции подтверждения уже полученных кластеров; качество после "
+                  "добавления проверяется на отдельных test-компаниях.", "",
                   f"Найдено novel: **{novelty['hidden_novel_recall']:.4%}**, ложных novel на известных: "
                   f"**{novelty['known_false_positive_rate']:.4%}**. "
                   f"Точность скрытых после расширения: **{novelty['after_extension_hidden_accuracy']:.4%}**.", "",

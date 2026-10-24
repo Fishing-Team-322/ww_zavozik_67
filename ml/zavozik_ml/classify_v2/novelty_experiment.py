@@ -1,8 +1,9 @@
 """A leakage-controlled hidden-category experiment, run after recipe freeze.
 
 The supplied model must have excluded whole categories from ALL fitting and
-calibration. Discovery uses only hidden operations of calibration companies;
-after simulated human approval, new prototypes are evaluated on test companies.
+calibration targets. Discovery sees ALL operations of calibration companies,
+including false novel alerts from known classes; oracle labels name proposals
+only after clustering. New prototypes are evaluated on separate test companies.
 Test embeddings are never used to form their own category prototype.
 """
 from __future__ import annotations
@@ -34,7 +35,9 @@ def run(model_dir: Path, prepared: Path, out: Path, min_cluster_size=5):
         raise ValueError("discovery/evaluation companies overlap")
     test = read_rows(prepared / "test.jsonl")
     cal = read_rows(prepared / "calibration_full.jsonl")
-    discovery_rows = [r for r in cal if r["label"] in hidden]
+    # Never prefilter this pool with the hidden-category gold. That would
+    # remove known-class false alerts and make cluster purity optimistic.
+    discovery_rows = cal
     hidden_test = [r for r in test if r["label"] in hidden]
     known_test = [r for r in test if r["label"] not in hidden]
     out.mkdir(parents=True)
@@ -98,6 +101,12 @@ def run(model_dir: Path, prepared: Path, out: Path, min_cluster_size=5):
               "model_manifest_sha256": sha256_file(model_dir / "manifest.json"),
               "discovery_companies": split["calibration_companies"], "test_companies": split["test_companies"],
               "discovery_rows": len(discovery_rows), "discovery_unique_texts": len({r["text"] for r in discovery_rows}),
+              "discovery_hidden_rows": sum(r["label"] in hidden for r in discovery_rows),
+              "discovery_known_rows": sum(r["label"] not in hidden for r in discovery_rows),
+              "discovery_novel_rows": sum(p.is_novel for p in discovery_pred),
+              "discovery_known_novel_rows": sum(p.is_novel and r["label"] not in hidden
+                                                 for r, p in zip(discovery_rows, discovery_pred)),
+              "discovery_prefiltered_by_gold": False,
               "hidden_test_rows": len(hidden_test), "known_test_rows": len(known_test),
               "hidden_novel_recall": float(np.mean([p.is_novel for p in hidden_pred])) if hidden_pred else None,
               "known_false_positive_rate": float(np.mean([p.is_novel for p in known_pred])),

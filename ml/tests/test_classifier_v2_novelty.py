@@ -45,3 +45,12 @@ def test_reference_rejects_invalid_numeric_state():
     ref["global"] = []
     with pytest.raises(ValueError):
         ranks(np.array([.2]), np.array([0]), ("new",), ref)
+
+
+@pytest.mark.parametrize("broken", [[.2, .1], [float("nan")], [1.1], [[.1, .2]], []])
+def test_every_reference_is_validated_even_when_category_has_own_group(broken):
+    d = np.linspace(.1, .3, 40)
+    ref = fit_reference(d, np.zeros(40, int), ("known",))
+    ref["global"] = broken
+    with pytest.raises(ValueError, match="reference"):
+        ranks(np.array([.2]), np.array([0]), ("known",), ref)

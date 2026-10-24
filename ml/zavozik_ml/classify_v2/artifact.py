@@ -16,8 +16,9 @@ def seal(directory: Path) -> str:
     config = json.loads(config_path.read_text())
     config.pop("model_version", None)
     identity = hashlib.sha256(json.dumps(config, sort_keys=True, ensure_ascii=False).encode())
+    excluded = {directory / name for name in ("config.json", "manifest.json", "README.md", "calibration_raw.npz")}
     payload = [p for p in sorted(directory.rglob("*")) if p.is_file()
-               and p.name not in ("config.json", "manifest.json", "README.md", "calibration_raw.npz")
+               and p not in excluded
                and p.suffix not in (".log",)]
     for path in payload:
         identity.update(str(path.relative_to(directory)).encode())

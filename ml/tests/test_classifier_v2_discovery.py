@@ -105,3 +105,17 @@ def test_publication_requires_card_and_never_overwrites(tmp_path):
     assert (dest / "README.md").read_text() == "Test card"
     with pytest.raises(ValueError, match="already exists"):
         publish(source, tmp_path / "models")
+
+
+def test_artifact_identity_includes_nested_encoder_configuration(tmp_path):
+    from zavozik_ml.classify_v2.artifact import seal
+    (tmp_path / "config.json").write_text(json.dumps(dict(base_source=dict(model_id="test", revision="fixed"))))
+    encoder = tmp_path / "encoder"
+    encoder.mkdir()
+    (encoder / "config.json").write_text('{"layer_norm_eps": 1e-12}')
+    version = seal(tmp_path)
+    (encoder / "config.json").write_text('{"layer_norm_eps": 1e-6}')
+    assert seal(tmp_path) != version
+    version = seal(tmp_path)
+    (tmp_path / "README.md").write_text("A human readable card does not affect predictions.")
+    assert seal(tmp_path) == version
