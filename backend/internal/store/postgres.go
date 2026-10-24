@@ -33,7 +33,7 @@ func Open(ctx context.Context, url string) (*Postgres, error) {
 		return nil, errors.New("database unavailable")
 	}
 	var ready bool
-	if err = pool.QueryRow(ctx, "SELECT to_regclass('company_state') IS NOT NULL").Scan(&ready); err != nil || !ready {
+	if err = pool.QueryRow(ctx, "SELECT to_regclass('company_state') IS NOT NULL AND to_regclass('product_jobs') IS NOT NULL").Scan(&ready); err != nil || !ready {
 		pool.Close()
 		return nil, errors.New("database migrations missing: run cmd/migrate")
 	}
@@ -66,7 +66,7 @@ func (p *Postgres) CreateUser(ctx context.Context, email string, hash *string) (
 	return scanUser(p.Pool.QueryRow(ctx, "INSERT INTO users(email,password_hash,consent_pd_at) VALUES($1,$2,now()) RETURNING "+userFields, email, hash))
 }
 func (p *Postgres) UserByEmail(ctx context.Context, email string) (platform.User, error) {
-	return scanUser(p.Pool.QueryRow(ctx, "SELECT "+userFields+" FROM users WHERE lower(email)=$1", email))
+	return scanUser(p.Pool.QueryRow(ctx, "SELECT "+userFields+" FROM users WHERE lower(email)=$1 AND status='active'", email))
 }
 func scanSession(row scanner) (s platform.Session, err error) {
 	err = row.Scan(&s.ID, &s.UserID, &s.Device, &s.CreatedAt, &s.LastSeenAt, &s.ExpiresAt)
@@ -83,7 +83,7 @@ func (p *Postgres) NewSession(ctx context.Context, user platform.User, device, h
 	defer tx.Rollback(ctx)
 	// Serialize password changes with session creation, then recheck the authenticated hash.
 	var id string
-	err = tx.QueryRow(ctx, "SELECT id::text FROM users WHERE id=$1 AND password_hash IS NOT DISTINCT FROM $2 FOR UPDATE", user.ID, user.PasswordHash).Scan(&id)
+	err = tx.QueryRow(ctx, "SELECT id::text FROM users WHERE id=$1 AND status='active' AND password_hash IS NOT DISTINCT FROM $2 FOR UPDATE", user.ID, user.PasswordHash).Scan(&id)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return platform.Session{}, platform.ErrCredentials
 	}
@@ -94,12 +94,15 @@ func (p *Postgres) NewSession(ctx context.Context, user platform.User, device, h
 	if err != nil {
 		return s, err
 	}
+	if _, err = tx.Exec(ctx, "UPDATE users SET last_login_at=now() WHERE id=$1", id); err != nil {
+		return s, dbError(err)
+	}
 	return s, dbError(tx.Commit(ctx))
 }
 func (p *Postgres) Principal(ctx context.Context, sid, uid string) (platform.Principal, error) {
 	var out platform.Principal
 	err := p.Pool.QueryRow(ctx, `SELECT u.id::text,u.email,u.role,u.created_at,u.password_hash,s.id::text,s.user_id::text,s.device,s.created_at,s.last_seen_at,s.expires_at
- FROM auth_sessions s JOIN users u ON u.id=s.user_id WHERE s.id=$1 AND s.user_id=$2 AND s.revoked_at IS NULL AND s.expires_at>now()`, sid, uid).Scan(&out.User.ID, &out.User.Email, &out.User.Role, &out.User.CreatedAt, &out.User.PasswordHash, &out.Session.ID, &out.Session.UserID, &out.Session.Device, &out.Session.CreatedAt, &out.Session.LastSeenAt, &out.Session.ExpiresAt)
+ FROM auth_sessions s JOIN users u ON u.id=s.user_id WHERE s.id=$1 AND s.user_id=$2 AND u.status='active' AND s.revoked_at IS NULL AND s.expires_at>now()`, sid, uid).Scan(&out.User.ID, &out.User.Email, &out.User.Role, &out.User.CreatedAt, &out.User.PasswordHash, &out.Session.ID, &out.Session.UserID, &out.Session.Device, &out.Session.CreatedAt, &out.Session.LastSeenAt, &out.Session.ExpiresAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return out, platform.ErrUnauthorized
 	}
@@ -117,7 +120,7 @@ func (p *Postgres) RotateSession(ctx context.Context, old, next string) (platfor
 		return platform.Principal{}, dbError(err)
 	}
 	defer tx.Rollback(ctx)
-	sess, err := scanSession(tx.QueryRow(ctx, `UPDATE auth_sessions SET refresh_hash=$2,last_seen_at=now() WHERE refresh_hash=$1 AND revoked_at IS NULL AND expires_at>now() RETURNING `+sessionFields, old, next))
+	sess, err := scanSession(tx.QueryRow(ctx, `UPDATE auth_sessions SET refresh_hash=$2,last_seen_at=now() WHERE refresh_hash=$1 AND revoked_at IS NULL AND expires_at>now() AND EXISTS(SELECT 1 FROM users WHERE users.id=auth_sessions.user_id AND users.status='active') RETURNING `+sessionFields, old, next))
 	if platform.IsStatus(err, 404) {
 		return platform.Principal{}, platform.ErrUnauthorized
 	}

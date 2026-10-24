@@ -11,11 +11,13 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/categorize"
 	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/config"
 	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/forecast"
 	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/httpapi"
 	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/logging"
 	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/platform"
+	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/product"
 	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/store"
 )
 
@@ -62,6 +64,28 @@ func main() {
 		}
 		defer ml.Close()
 		srv.ML = ml
+	}
+	var productDB *store.Postgres
+	if srv.Accounts != nil {
+		productDB = srv.Accounts.Repo.(*store.Postgres)
+	}
+	products, err := product.New(productDB, cfg, srv.ML)
+	if err != nil {
+		log.Error("product configuration", "err", err)
+		os.Exit(1)
+	}
+	srv.Products = products
+	if cfg.CategorizerMode == "hybrid" && cfg.MLAddr != "" {
+		classifier, err := categorize.DialMLCategorizer(cfg.MLAddr)
+		if err != nil {
+			log.Error("categorizer connection failed")
+			os.Exit(1)
+		}
+		defer classifier.Close()
+		products.Categorizer = categorize.Hybrid{Rules: categorize.DefaultRules, ML: classifier, MinMLConfidence: .8}
+	} else if cfg.CategorizerMode != "rules" {
+		log.Error("CATEGORIZER_MODE must be rules or hybrid")
+		os.Exit(1)
 	}
 
 	httpSrv := &http.Server{

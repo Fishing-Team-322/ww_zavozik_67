@@ -4,3 +4,4 @@
 package httpapi
 
 //go:generate go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.4.1 -config oapi.yaml ../../../api/openapi.yaml
+//go:generate go run ../../scripts/gen-product-handlers -root ../..

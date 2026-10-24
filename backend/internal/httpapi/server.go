@@ -11,6 +11,7 @@ import (
 
 	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/forecast"
 	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/platform"
+	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/product"
 )
 
 var ErrNotImplemented = errors.New("not implemented")
@@ -18,18 +19,18 @@ var ErrNotImplemented = errors.New("not implemented")
 // Server реализует StrictServerInterface. Новый эндпоинт: метод на Server
 // с той же сигнатурой, что в Unimplemented.
 type Server struct {
-	Unimplemented
-
 	ML       forecast.StochasticForecaster // nil, если ML не настроен
 	Fallback forecast.StochasticForecaster
 	Log      *slog.Logger
 	Accounts *platform.Service
+	Products *product.Service
 }
 
 var _ StrictServerInterface = (*Server)(nil)
 
 // Handler — готовый http.Handler со всеми маршрутами контракта.
 func (s *Server) Handler() http.Handler {
+	s.initProduct()
 	mux := http.NewServeMux()
 	strict := NewStrictHandlerWithOptions(s, nil, StrictHTTPServerOptions{
 		RequestErrorHandlerFunc: func(w http.ResponseWriter, r *http.Request, err error) {
