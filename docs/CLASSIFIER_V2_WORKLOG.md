@@ -178,3 +178,35 @@
   hidden predictions всё ещё НЕ оценивались. Никакого live сервиса не оставлено.
 - В workspace появились внешние untracked ml/zavozik_ml/trx/ (16:17–16:19);
   это не наша работа, не менять и не включать в classifier-v2 коммиты.
+
+## Изоляция исходников следующего fit
+
+- Для queued hidden fit сделана точная копия пакета без изменений в
+  ml/data/classifier_v2/training_snapshot_v1; все training_files_sha256
+  сверены с E5. ML_DIR внутри этого subprocess указывает на snapshot, поэтому
+  source guards проверят именно неизменяемые fitting sources. Данные/база/out
+  остаются прежними явными путями. Рецепт и encoder choice не менялись.
+- Waiting queue33657 остановлена (не E5) и перезапущена как PID34739,
+  session36339. Только hidden subprocess получит PYTHONPATH snapshot.
+  После окончания E5 можно редактировать оригинальные model/calibration/
+  train/export, не нарушая provenance продолжающегося hidden fit.
+- В ml/data/classifier_v2/runtime_staging готовятся эти runtime изменения;
+  пока они НЕ применены к рабочему пакету. Новые loader/calibration unit6PASS:
+  backend override использует свой calibration и version suffix, отсутствие
+  веса/графа/override calibration в manifest отказывается до запуска encoder,
+  rank calibration/runtime согласованы. Staging tests не являются final eval.
+- Полный штатный pytest после последнего коммита269PASS+2SKIP. Отдельные
+  benchmark/report/hidden tests7PASS. В benchmark Torch CLI включён worker IPC,
+  чтобы окончательная CPU-цифра соответствовала фактическому serving пути.
+- Добавлено исключение root tokenizer.json neural releases: E5 tokenizer16MiB,
+  не должен попасть в Git. Metadata/manifest остаются видимыми для публикации.
+- Staging revision также прошла настоящий random-BERT export/Torch/ONNX/worker
+  integration (1PASS,43.45s). Никаких final datasets эта проверка не использует.
+- install_runtime_after_e5.py/session42396 автоматически дождётся успешного E5
+  и старта hidden из snapshot, сверит исходные SHA, применит ровно5 staged
+  source files + runtime tests и запустит targeted v2 suite. Статус/лог:
+  runtime_install_state.json/runtime_revision_tests.log. При FAIL остановиться
+  и изучить причину; не запускать повторный fit. Snapshot hidden не меняется.
+- fetch_base теперь исключает собственный base_source.json и незавершённые
+  .partial из source manifest. Повторный fetch pinned cache даёт тот же SHA
+  manifest; сетевой mock regression test1PASS, actual downloads не повторялись.

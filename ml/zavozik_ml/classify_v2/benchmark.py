@@ -40,6 +40,7 @@ def benchmark(model: EncoderClassifier, rows: list[dict], repeats: int = 10) -> 
             "source": "calibration companies, fixed seed42; no final test selection",
             "includes": "normalization, tokenization, CPU encoder, all heads, probability dictionaries and attributes",
             "excludes": "process/model startup, network serialization", "warmup": 1, "repeats": repeats,
+            "torch_worker_ipc_included": type(model.encode).__name__ == "TorchProcessEncoder",
             "median_s": float(np.median(timings)), "p95_s": float(np.quantile(timings, .95)),
             "max_s": max(timings), "times_s": timings, "cpu_threads": model.config.get("cpu_threads", 4),
             "normalized_text_chars": {"median": float(np.median([len(s) for s in texts])), "max": max(map(len, texts))},
@@ -54,7 +55,17 @@ def main():
     p.add_argument("--out", type=Path, required=True)
     p.add_argument("--repeats", type=int, default=10)
     args = p.parse_args()
-    report = benchmark(EncoderClassifier.load(args.model), read_rows(args.prepared / "calibration_full.jsonl"), args.repeats)
+    runtime = json.loads((args.model / "config.json").read_text())["runtime"]
+    if runtime == "torch":
+        from zavozik_ml.serving.torch_process import load_isolated_classifier
+        model = load_isolated_classifier(args.model)
+    else:
+        model = EncoderClassifier.load(args.model)
+    try:
+        report = benchmark(model, read_rows(args.prepared / "calibration_full.jsonl"), args.repeats)
+    finally:
+        if hasattr(model.encode, "close"):
+            model.encode.close()
     report["manifest_sha256"] = sha256_file(args.model / "manifest.json")
     args.out.write_text(json.dumps(report, indent=2) + "\n")
     print(json.dumps(report), flush=True)

@@ -97,6 +97,12 @@ def run(model_dir: Path, prepared: Path, out: Path, min_cluster_size=5):
     known_before = [p.category for p in known_pred]
     known_distribution = extended.distributions(np.stack([p.embedding for p in known_pred]))["category"]
     known_after = [extended.taxonomy.categories[int(i)] for i in known_distribution.argmax(1)]
+    per_known = {}
+    for category in model.taxonomy.categories:
+        ix = [i for i, r in enumerate(known_test) if r["label"] == category]
+        if ix:
+            per_known[category] = {"n": len(ix), "false_novel": sum(known_pred[i].is_novel for i in ix),
+                                   "false_positive_rate": float(np.mean([known_pred[i].is_novel for i in ix]))}
     result = {"model_version": model.model_version, "hidden_categories": sorted(hidden),
               "model_manifest_sha256": sha256_file(model_dir / "manifest.json"),
               "discovery_companies": split["calibration_companies"], "test_companies": split["test_companies"],
@@ -110,6 +116,7 @@ def run(model_dir: Path, prepared: Path, out: Path, min_cluster_size=5):
               "hidden_test_rows": len(hidden_test), "known_test_rows": len(known_test),
               "hidden_novel_recall": float(np.mean([p.is_novel for p in hidden_pred])) if hidden_pred else None,
               "known_false_positive_rate": float(np.mean([p.is_novel for p in known_pred])),
+              "per_known_category": per_known,
               "per_hidden_category": per_category, "extensions": extensions,
               "after_extension_hidden_accuracy": float(np.mean([p == r["label"] for p, r in zip(after, hidden_test)])) if hidden_test else None,
               "known_accuracy_before": float(np.mean([p == r["label"] for p, r in zip(known_before, known_test)])),

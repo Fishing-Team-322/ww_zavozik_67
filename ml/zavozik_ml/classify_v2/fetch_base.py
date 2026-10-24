@@ -48,7 +48,8 @@ def fetch(model_id: str, out: Path, revision: str | None = None) -> Path:
         temporary.replace(path)
     source = {"model_id": model_id, "revision": revision,
               "license": metadata.get("cardData", {}).get("license"),
-              "files_sha256": {p.name: sha256_file(p) for p in sorted(local.iterdir()) if p.is_file()}}
+              "files_sha256": {p.name: sha256_file(p) for p in sorted(local.iterdir())
+                               if p.is_file() and p.name != "base_source.json" and not p.name.endswith(".partial")}}
     (local / "base_source.json").write_text(json.dumps(source, indent=2) + "\n")
     print(local, flush=True)
     return local
