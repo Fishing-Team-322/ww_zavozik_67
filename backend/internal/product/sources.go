@@ -78,6 +78,8 @@ func (s *Service) unseal(data []byte) (Doc, error) {
 }
 func (s *Service) validateSourceConfig(ctx context.Context, uid, cid, kind string, cfg Doc, requireMapping bool) error {
 	switch kind {
+	case "bank_api", "tax_api":
+		return s.validateObligationSource(cfg)
 	case "wb", "ozon":
 		if e := fields(cfg, "api_key client_id from to"); e != nil {
 			return e
@@ -205,7 +207,7 @@ func (s *Service) sourceAction(ctx context.Context, op, uid, id string) (Result,
 		return Result{}, platform.Fail(409, "source_disabled", "Источник отключён")
 	}
 	kind := text(d, "kind")
-	if !in(kind, "onec_odata gsheets fns wb ozon") {
+	if !in(kind, "onec_odata gsheets fns wb ozon bank_api tax_api") {
 		if op == "testSource" {
 			return ok(Doc{"ok": true, "message": "Файловый источник готов к загрузке"})
 		}
@@ -310,6 +312,8 @@ func (s *Service) sourceAction(ctx context.Context, op, uid, id string) (Result,
 				return Result{}, bad("Укажите ИНН компании")
 			}
 			_, e = s.lookup(ctx, uid, *company.INN)
+		case "bank_api", "tax_api":
+			_, _, e = s.fetchObligations(ctx, uid, cid, kind, cfg)
 		}
 		if e != nil {
 			_, _ = s.DB.Pool.Exec(ctx, "UPDATE sources SET status='error',error='Не удалось проверить подключение' WHERE id=$1 AND company_id=$2", id, cid)

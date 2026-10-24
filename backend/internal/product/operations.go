@@ -46,7 +46,7 @@ func (s *Service) operationRows(ctx context.Context, uid, cid string, r *http.Re
 	if v := q.Get("category"); v != "" && !knownCategory(v) {
 		return nil, bad("Неизвестная категория операции")
 	}
-	if v := q.Get("source"); v != "" && !in(v, "upload onec_bank_file excel gsheets onec_odata fns manual wb ozon") {
+	if v := q.Get("source"); v != "" && !in(v, "upload onec_bank_file excel gsheets onec_odata fns manual wb ozon bank_api tax_api") {
 		return nil, bad("Неизвестный тип источника")
 	}
 	rows, e := s.DB.ProductList(ctx, uid, cid, "operation")

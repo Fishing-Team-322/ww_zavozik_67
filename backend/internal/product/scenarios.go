@@ -95,6 +95,9 @@ func (s *Service) applyStepsAndEvents(ctx context.Context, uid, cid string, base
 	revenueKeys := map[string]bool{}
 	for _, flow := range out.Deterministic {
 		revenueKeys[flow.Key] = flow.Amount > 0
+		if strings.HasPrefix(flow.Key, "recurring:baseline:") {
+			revenueKeys[flow.Key] = strings.HasPrefix(flow.Key, "recurring:baseline:in:")
+		}
 	}
 	for _, event := range events {
 		revenueKeys["event:"+text(event, "id")] = isRevenue(event)
@@ -116,7 +119,7 @@ func (s *Service) applyStepsAndEvents(ctx context.Context, uid, cid string, base
 				found = true
 			}
 		}
-		if !found && flag(event, "additional") {
+		if !found && composedEvent(event) {
 			// Plans originally outside this horizon have no assembled component
 			// yet. Introduce their expected flow and per-path uncertainty together.
 			prob := number(event, "probability")
@@ -281,18 +284,17 @@ func (s *Service) gapResult(ctx context.Context, op, uid, cid string, gap, out D
 	// output. Persisting another forecast must never reuse an old funding amount.
 	snapshot := sha256.Sum256(store.JSON(out))
 	forecastKey := fmt.Sprintf("%s:revision:%d:%x", text(gap, "id"), res.DataRevision, snapshot)
-	events, e := s.DB.ProductList(ctx, uid, cid, "event")
+	events, e := s.eventRows(ctx, uid, cid)
 	if e != nil {
 		return Result{}, e
 	}
 	actions := []Doc{}
-	causes := []Doc{}
+	causes := docs(gap["causes"])
 	for _, event := range events {
 		dt, included := eventForecastDate(event, res.AsOf)
 		if text(event, "direction") != "out" || !included || dt.Format(domain.DateLayout) > text(gap, "date") {
 			continue
 		}
-		causes = append(causes, Doc{"title": event["title"], "amount": -number(event, "amount"), "component_key": "event:" + text(event, "id"), "items_ref": event["id"]})
 		if len(actions) >= 4 || text(event, "status") != "expected" || !in(text(event, "source_kind"), "manual recurring") {
 			continue
 		}

@@ -3339,6 +3339,8 @@ components:
       - excel
       - gsheets
       - onec_odata
+      - bank_api
+      - tax_api
       - wb
       - ozon
       - fns
@@ -3355,7 +3357,7 @@ components:
       - records
       - error
       properties:
-        data_mode: {type: string, nullable: true, enum: [live, mock]}
+        data_mode: {type: string, nullable: true, enum: [live, mock, demo, unverified]}
         id:
           type: string
           format: uuid
@@ -3739,6 +3741,16 @@ components:
       - days_left
       - headline
       properties:
+        worst_date:
+          type: string
+          format: date
+        probability_on_date:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: Probability of falling below reserve on the first risk date. probability is the risk anywhere in the horizon.
+        explanation:
+          $ref: '#/components/schemas/GapExplanation'
         id:
           type: string
         date:
@@ -3777,6 +3789,12 @@ components:
       - markers
       - gaps
       properties:
+        update_mode:
+          type: string
+          description: fresh_paths, reused_paths or updated_from_actuals. Empty for fallback.
+        model_as_of:
+          type: string
+          description: Last date observed by the model used for the stored paths. May precede as_of when new actuals rebase the forecast.
         as_of:
           type: string
           format: date
@@ -4034,6 +4052,9 @@ components:
       - status
       - editable
       properties:
+        additional:
+          type: boolean
+          description: true adds this obligation to the modeled business flow; false explicitly marks it as already covered.
         id:
           type: string
           format: uuid
@@ -4063,6 +4084,7 @@ components:
         source_id:
           type: string
           format: uuid
+          nullable: true
         external_id:
           type: string
         due_date:
@@ -4082,6 +4104,21 @@ components:
           type: boolean
         link_status:
           type: string
+        linked_event_id:
+          type: string
+          format: uuid
+          description: Canonical obligation for a linked bank payment order; the order is excluded from financial totals.
+        linked_sources:
+          type: array
+          description: Bank payment orders describing this same obligation.
+          items:
+            type: object
+            required: [event_id, source_id, source, external_id]
+            properties:
+              event_id: {type: string, format: uuid}
+              source_id: {type: string, format: uuid, nullable: true}
+              source: {type: string}
+              external_id: {type: string}
         data_mode:
           type: string
         payment_status:
@@ -4282,6 +4319,9 @@ components:
       - status
       - source
       properties:
+        additional:
+          type: boolean
+          description: true adds this obligation to the modeled business flow; false explicitly marks it as already covered.
         id:
           type: string
           format: uuid
@@ -4323,6 +4363,17 @@ components:
       - schedule
       - source
       properties:
+        start_date:
+          type: string
+          format: date
+          nullable: true
+        schedule_mode:
+          type: string
+          nullable: true
+          enum: [terms, explicit]
+        additional:
+          type: boolean
+          description: true adds this obligation to the modeled business flow; false explicitly marks it as already covered.
         id:
           type: string
           format: uuid
@@ -4725,6 +4776,10 @@ components:
       type: object
       additionalProperties: false
       properties:
+        start_date:
+          type: string
+          format: date
+          description: Advance is due on start_date, balance after deferral_days. Explicit schedule contains final dates.
         number:
           type: string
           minLength: 1
@@ -4786,11 +4841,14 @@ components:
       - number
       - direction
       - total
-      - schedule
     UpdateContractInput:
       type: object
       additionalProperties: false
       properties:
+        start_date:
+          type: string
+          format: date
+          description: Advance is due on start_date, balance after deferral_days. Explicit schedule contains final dates.
         number:
           type: string
           minLength: 1
@@ -4895,6 +4953,8 @@ components:
           - excel
           - gsheets
           - onec_odata
+          - bank_api
+          - tax_api
           - wb
           - ozon
           - fns
@@ -6039,3 +6099,60 @@ components:
         last_job_error:
           type: string
           nullable: true
+    GapExplanation:
+      type: object
+      required: [date, opening_balance, inflow, outflow, balance, reserve, shortfall, basis, summary]
+      properties:
+        date: {type: string, format: date}
+        opening_balance: {type: number}
+        inflow: {type: number}
+        outflow: {type: number}
+        balance: {type: number}
+        reserve: {type: number}
+        shortfall: {type: number}
+        basis: {type: string, enum: [median_balance_paths]}
+        summary: {type: string}
+    ExternalObligationFeed:
+      type: object
+      additionalProperties: false
+      required: [company_inn, as_of, complete, items]
+      description: Read-only GET response from an operator-approved bank_api or tax_api gateway. Bearer token is stored encrypted in source config. A complete snapshot is required; missing unpaid records are cancelled. This is a connector protocol, not a declaration of access to a particular bank.
+      properties:
+        company_inn: {type: string}
+        as_of: {type: string, format: date}
+        data_mode: {type: string, enum: [demo, live]}
+        complete: {type: boolean, enum: [true]}
+        items:
+          type: array
+          maxItems: 10000
+          items: {$ref: '#/components/schemas/ExternalObligation'}
+    ExternalObligation:
+      type: object
+      additionalProperties: false
+      required: [external_id, kind, title, amount_kopecks, direction, status]
+      properties:
+        external_id: {type: string, minLength: 1, maxLength: 200}
+        related_event_id:
+          type: string
+          format: uuid
+          description: Optional explicit reference to an existing payment event in this company. Amount, direction and date must agree.
+        document_number:
+          type: string
+          maxLength: 1024
+          description: Optional invoice number for unambiguous linking with matching party, amount, direction and date. Ambiguous orders remain separate.
+        kind: {type: string, enum: [loan_payment, salary, payment_order, tax]}
+        title: {type: string, minLength: 1, maxLength: 500}
+        due_date: {type: string, format: date}
+        amount_kopecks: {type: integer, format: int64, minimum: 0, maximum: 1000000000000000}
+        direction: {$ref: '#/components/schemas/Direction'}
+        status: {type: string, enum: [expected, paid, cancelled]}
+        counterparty_name: {type: string}
+        counterparty_inn: {type: string}
+        additional: {type: boolean, default: true}
+        tax_kind:
+          type: string
+          enum: [usn_advance, usn_annual, vat, enp, contributions, other]
+        period:
+          type: string
+          description: For ENP m01..m12 is the payment month; for employer contributions it is the accrual month, payable in the following month. Other contributions require an explicit due_date.
+        year: {type: integer, minimum: 2024, maximum: 2100}

@@ -4,10 +4,12 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"math"
 	"net/http"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 	"unicode/utf8"
 
@@ -20,6 +22,7 @@ import (
 const usnSource = "https://www.nalog.gov.ru/rn61/taxation/taxes/usn/"
 const vatSource = "https://www.nalog.gov.ru/rn77/taxation/taxes/nds/"
 const enpSource = "https://www.nalog.gov.ru/rn33/ens/"
+const contributionsSource = "https://www.nalog.gov.ru/rn77/taxation/insprem/"
 
 // Tax scheduling uses a confirmed liability, never treats all bank credits as a tax base.
 // ENP is a payment method: a manual ENP plan must not duplicate the same USN/VAT liability.
@@ -52,7 +55,24 @@ func taxDates(kind, period, legalForm, explicit string, year int) ([]time.Time, 
 			dates = append(dates, dt(year, quarter*3+i, 28))
 		}
 		source = vatSource
-	case "enp", "contributions", "other":
+	case "enp", "contributions":
+		if explicit == "" {
+			// m01..m12: ENP payment month; employer contributions accrual month.
+			month, err := strconv.Atoi(strings.TrimPrefix(period, "m"))
+			if err != nil || month < 1 || month > 12 || period != fmt.Sprintf("m%02d", month) || year < 2024 || year > 2100 {
+				return nil, "", bad("Для календарного срока укажите period=m01–m12; для индивидуального срока передайте due_date")
+			}
+			if kind == "contributions" {
+				month++
+				source = contributionsSource
+			} else {
+				source = enpSource
+			}
+			dates = []time.Time{dt(year, month, 28)}
+			break
+		}
+		fallthrough
+	case "other":
 		d, e := day(explicit)
 		if e != nil {
 			return nil, "", e
@@ -124,7 +144,7 @@ func taxDraft(company platform.Company, b Doc, confirmed bool) (Doc, error) {
 		payments = append(payments, Doc{"date": d.Format(domain.DateLayout), "amount": float64(part) / 100, "status": "expected"})
 	}
 	rule := "statutory_calendar"
-	if in(text(b, "kind"), "enp contributions other") {
+	if text(b, "due_date") != "" {
 		rule = "manual_confirmed"
 	}
 	return Doc{"kind": b["kind"], "period": b["period"], "year": y, "amount": amount, "title": b["title"], "source_ref": b["source_ref"], "source_url": source, "confirmed": flag(b, "confirmed"), "additional": b["additional"], "payments": payments, "status": "active", "calculation_basis": "confirmed_liability", "date_rule": rule}, nil
@@ -193,7 +213,7 @@ func (s *Service) taxAction(ctx context.Context, op, uid, cid string, r *http.Re
 	if saved["input_hash"] != d["input_hash"] {
 		return Result{}, platform.Fail(409, "request_conflict", "Этот request_id уже использован с другой суммой или параметрами")
 	}
-	events, e := s.DB.ProductList(ctx, uid, cid, "event")
+	events, e := s.eventRows(ctx, uid, cid)
 	if e != nil {
 		return Result{}, e
 	}
@@ -231,7 +251,16 @@ func (s *Service) taxes(ctx context.Context, uid, cid string, r *http.Request) (
 		}
 		calendar = append(calendar, Doc{"kind": rule[0], "period": rule[1], "year": year, "dates": values, "source_url": source})
 	}
-	events, e := s.DB.ProductList(ctx, uid, cid, "event")
+	for _, kind := range []string{"enp", "contributions"} {
+		for month := 1; month <= 12; month++ {
+			period := fmt.Sprintf("m%02d", month)
+			dates, source, err := taxDates(kind, period, company.LegalForm, "", year)
+			if err == nil {
+				calendar = append(calendar, Doc{"kind": kind, "period": period, "year": year, "dates": []string{dates[0].Format(domain.DateLayout)}, "source_url": source})
+			}
+		}
+	}
+	events, e := s.eventRows(ctx, uid, cid)
 	if e != nil {
 		return Result{}, e
 	}
@@ -251,6 +280,36 @@ func (s *Service) taxes(ctx context.Context, uid, cid string, r *http.Request) (
 			}
 		}
 	}
+	external := map[string]Doc{}
+	for _, event := range events {
+		if text(event, "source_kind") != "tax_api" {
+			continue
+		}
+		payment := Doc{"date": date(event["event_date"]), "amount": event["amount"], "status": event["status"], "event_id": event["id"]}
+		key := text(event, "source_id") + ":" + text(event, "external_id")
+		if external[key] == nil {
+			external[key] = Doc{"id": idFor(cid, "external-tax:"+key), "kind": event["tax_kind"], "period": event["period"], "year": event["year"], "amount": 0.0, "title": event["title"], "source": "tax_api", "source_id": event["source_id"], "external_id": event["external_id"], "source_ref": event["external_id"], "source_url": event["source_url"], "confirmed": true, "additional": event["additional"], "payments": []Doc{}, "status": "cancelled", "paid_amount": 0.0, "created_at": event["created_at"], "calculation_basis": "accounting_system_liability", "date_rule": "accounting_system", "editable": false}
+		}
+		liability := external[key]
+		liability["amount"] = money(number(liability, "amount") + number(event, "amount"))
+		liability["payments"] = append(docs(liability["payments"]), payment)
+		if text(event, "status") != "cancelled" {
+			liability["status"] = "active"
+		}
+		if text(event, "status") == "received" {
+			liability["paid_amount"] = money(number(liability, "paid_amount") + number(event, "amount"))
+		}
+		if in(text(event, "status"), "expected missed") && date(event["event_date"]) >= today().Format(domain.DateLayout) && date(event["event_date"]) < until {
+			items = append(items, Doc{"date": payment["date"], "title": event["title"], "amount_estimate": event["amount"], "how_calculated": "Подтверждённое обязательство из учётной системы", "event_id": event["id"]})
+		}
+	}
+	for _, liability := range external {
+		payments := docs(liability["payments"])
+		sort.Slice(payments, func(i, j int) bool { return text(payments[i], "date") < text(payments[j], "date") })
+		liability["payments"] = payments
+		obligations = append(obligations, liability)
+	}
+	sort.Slice(items, func(i, j int) bool { return text(items[i], "date") < text(items[j], "date") })
 	sort.Slice(obligations, func(i, j int) bool { return text(obligations[i], "created_at") > text(obligations[j], "created_at") })
 	return ok(Doc{"tax_regime": company.TaxRegime, "regime_detected": nil, "items": items, "calendar": calendar, "obligations": obligations, "year": year, "calculation_basis": "confirmed_liabilities", "notice": "Сроки общего порядка. Индивидуальные отсрочки и суммы подтвердите по учётной системе. ЕНП не добавляется повторно поверх того же обязательства."})
 }

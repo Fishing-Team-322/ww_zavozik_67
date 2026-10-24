@@ -161,5 +161,15 @@ func RemoveSourceSettlements(ctx context.Context, tx pgx.Tx, cid, sourceID strin
 			return dbError(err)
 		}
 	}
+	// Linked bank orders may retain the same receipt for provenance after its
+	// reservation moved to an invoice. Clear these remaining references too.
+	_, err = tx.Exec(ctx, `UPDATE planned_events e SET matched_operation_id=NULL,
+	 status=CASE WHEN status='received' THEN 'expected' ELSE status END,
+	 extra=e.extra||jsonb_build_object('_revision',COALESCE((e.extra->>'_revision')::int,0)+1)
+	 FROM operations o WHERE e.company_id=$1 AND o.company_id=e.company_id
+	 AND o.source_id=$2 AND e.matched_operation_id=o.id`, cid, sourceID)
+	if err != nil {
+		return dbError(err)
+	}
 	return nil
 }

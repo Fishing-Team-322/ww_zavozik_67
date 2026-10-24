@@ -9,6 +9,7 @@ import (
 	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/domain"
 	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/ingest"
 	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/store"
+	"github.com/jackc/pgx/v5"
 )
 
 // Detection is a reviewable heuristic, never an automatic confirmation.
@@ -95,6 +96,7 @@ func (s *Service) detectRecurring(ctx context.Context, uid, cid string) error {
 		if d["title"] == "" {
 			d["title"] = "Регулярный платёж"
 		}
+		rememberRecurringBaseline(d)
 		if _, e = s.DB.ProductSave(ctx, uid, cid, "recurring", id, d, true); e != nil {
 			return e
 		}
@@ -126,7 +128,7 @@ func (s *Service) reconcileFacts(ctx context.Context, uid, cid string) error {
 	for _, d := range coverage {
 		known[d.Date.Format(domain.DateLayout)] = !d.Missing
 	}
-	events, e := s.DB.ProductList(ctx, uid, cid, "event")
+	events, e := s.eventRows(ctx, uid, cid)
 	if e != nil {
 		return e
 	}
@@ -153,6 +155,47 @@ func (s *Service) reconcileFacts(ctx context.Context, uid, cid string) error {
 			used[id] = true
 		}
 	}
+	changed := false
+	byID := map[string]Doc{}
+	for _, event := range events {
+		byID[text(event, "id")] = event
+	}
+	// An invoice can arrive after its payment order was already reconciled.
+	// Move the reservation to the canonical obligation and apply its receipt once.
+	for _, alias := range events {
+		if text(alias, "status") != "linked" || text(alias, "matched_operation_id") == "" {
+			continue
+		}
+		target := byID[text(alias, "linked_event_id")]
+		if target == nil || !in(text(target, "status"), "expected missed") {
+			continue
+		}
+		var match Doc
+		for _, op := range rows {
+			if text(op, "id") == text(alias, "matched_operation_id") {
+				match = op
+				break
+			}
+		}
+		if match == nil {
+			continue
+		}
+		tag, err := tx.Exec(ctx, `INSERT INTO operation_settlements(company_id,operation_id,event_id,source_kind,document_id) VALUES($1,$2,$3,$4,$5)
+		 ON CONFLICT(company_id,operation_id) DO UPDATE SET event_id=EXCLUDED.event_id,source_kind=EXCLUDED.source_kind,document_id=EXCLUDED.document_id
+		 WHERE operation_settlements.event_id=$6::uuid`, cid, match["id"], target["id"], text(target, "source_kind"), text(target, "document_id"), alias["id"])
+		if err != nil {
+			return err
+		}
+		if tag.RowsAffected() == 0 {
+			continue
+		}
+		if e = s.applyEventReceipt(ctx, tx, cid, target, match); e != nil {
+			return e
+		}
+		target["status"] = "received"
+		target["matched_operation_id"] = match["id"]
+		changed = true
+	}
 	candidates := map[string][]Doc{}
 	possibleUses := map[string]int{}
 	for _, event := range events {
@@ -168,13 +211,13 @@ func (s *Service) reconcileFacts(ctx context.Context, uid, cid string) error {
 			if used[text(op, "id")] || flag(op, "is_duplicate") || flag(op, "is_internal") || text(op, "direction") != text(event, "direction") || math.Round(number(op, "amount")*100) != math.Round(number(event, "amount")*100) {
 				continue
 			}
-			taxMatch := text(event, "source_kind") == "tax_calendar" && text(op, "category") == "tax"
+			taxMatch := in(text(event, "source_kind"), "tax_calendar tax_api") && text(op, "category") == "tax"
 			if !taxMatch && !samePaymentCounterparty(event, op) {
 				continue
 			}
 			actual, _ := day(date(op["op_date"]))
 			window := 3.0
-			if in(text(event, "source_kind"), "manual invoice contract tax_calendar") {
+			if in(text(event, "source_kind"), "manual invoice contract tax_calendar bank_api tax_api") {
 				window = 31
 			}
 			if math.Abs(actual.Sub(dt).Hours()/24) <= window {
@@ -184,7 +227,6 @@ func (s *Service) reconcileFacts(ctx context.Context, uid, cid string) error {
 		}
 		candidates[text(event, "id")] = matches
 	}
-	changed := false
 	for _, event := range events {
 		if !in(text(event, "status"), "expected missed") {
 			continue
@@ -204,22 +246,10 @@ func (s *Service) reconcileFacts(ctx context.Context, uid, cid string) error {
 				continue
 			}
 			used[text(match, "id")] = true
-			_, e = tx.Exec(ctx, "UPDATE planned_events SET status='received',matched_operation_id=$2,extra=extra||jsonb_build_object('_revision',COALESCE((extra->>'_revision')::int,0)+1) WHERE id=$1 AND company_id=$3 AND status IN ('expected','missed')", event["id"], match["id"], cid)
-			if e != nil {
+			if e = s.applyEventReceipt(ctx, tx, cid, event, match); e != nil {
 				return e
 			}
 			changed = true
-			if text(event, "source_kind") == "invoice" {
-				_, e = tx.Exec(ctx, `UPDATE product_documents SET data=data||jsonb_build_object('_revision',COALESCE((data->>'_revision')::int,0)+1,'paid_amount',LEAST((data->>'amount')::numeric,COALESCE((data->>'paid_amount')::numeric,0)+$2::numeric),'paid_at',$3::text,'status','paid'),updated_at=now() WHERE id::text=$1 AND company_id=$4 AND kind='invoice'`, text(event, "document_id"), number(match, "amount"), date(match["op_date"]), cid)
-				if e != nil {
-					return e
-				}
-			}
-			if text(event, "source_kind") == "contract" {
-				if e = store.ApplyContractReceipt(ctx, tx, cid, text(event, "document_id"), text(event, "id")); e != nil {
-					return e
-				}
-			}
 		} else if len(matches) == 0 && text(event, "status") == "expected" && dt.Before(asOf) && known[dt.Format(domain.DateLayout)] {
 			_, e = tx.Exec(ctx, "UPDATE planned_events SET status='missed',extra=extra||jsonb_build_object('_revision',COALESCE((extra->>'_revision')::int,0)+1) WHERE id=$1 AND company_id=$2 AND status='expected'", event["id"], cid)
 			if e != nil {
@@ -228,6 +258,22 @@ func (s *Service) reconcileFacts(ctx context.Context, uid, cid string) error {
 			changed = true
 		}
 	}
+	// Keep the linked order's receipt as provenance too. Its reservation still
+	// belongs only to the canonical obligation. A stale source cannot reopen it.
+	for _, alias := range events {
+		if text(alias, "status") != "linked" {
+			continue
+		}
+		target := byID[text(alias, "linked_event_id")]
+		if target == nil || text(target, "matched_operation_id") == "" {
+			continue
+		}
+		tag, err := tx.Exec(ctx, `UPDATE planned_events SET status='received',matched_operation_id=$2 WHERE company_id=$3 AND id=$1 AND matched_operation_id IS NULL AND status IN ('expected','missed','received')`, alias["id"], target["matched_operation_id"], cid)
+		if err != nil {
+			return err
+		}
+		changed = changed || tag.RowsAffected() > 0
+	}
 	if changed {
 		if _, e = tx.Exec(ctx, "UPDATE companies SET data_revision=data_revision+1 WHERE id=$1", cid); e != nil {
 			return e
@@ -235,6 +281,27 @@ func (s *Service) reconcileFacts(ctx context.Context, uid, cid string) error {
 	}
 	return tx.Commit(ctx)
 }
+func (s *Service) applyEventReceipt(ctx context.Context, tx pgx.Tx, cid string, event, match Doc) error {
+	var e error
+	_, e = tx.Exec(ctx, "UPDATE planned_events SET status='received',matched_operation_id=$2,extra=extra||jsonb_build_object('_revision',COALESCE((extra->>'_revision')::int,0)+1) WHERE id=$1 AND company_id=$3 AND status IN ('expected','missed')", event["id"], match["id"], cid)
+	if e != nil {
+		return e
+	}
+	if text(event, "source_kind") == "invoice" {
+		_, e = tx.Exec(ctx, `UPDATE product_documents SET data=data||jsonb_build_object('_revision',COALESCE((data->>'_revision')::int,0)+1,'paid_amount',LEAST((data->>'amount')::numeric,COALESCE((data->>'paid_amount')::numeric,0)+$2::numeric),'paid_at',$3::text,'status','paid'),updated_at=now() WHERE id::text=$1 AND company_id=$4 AND kind='invoice'`, text(event, "document_id"), number(match, "amount"), date(match["op_date"]), cid)
+		if e != nil {
+			return e
+		}
+	}
+	if text(event, "source_kind") == "contract" {
+		if e = store.ApplyContractReceipt(ctx, tx, cid, text(event, "document_id"), text(event, "id")); e != nil {
+			return e
+		}
+	}
+	event["status"], event["matched_operation_id"] = "received", match["id"]
+	return nil
+}
+
 func samePaymentCounterparty(event, operation Doc) bool {
 	expectedINN := strings.TrimSpace(text(event, "counterparty_inn"))
 	actualINN := strings.TrimSpace(text(operation, "counterparty_inn"))
