@@ -13,6 +13,11 @@
  * All fictional data are labelled. Risk probability is never invented.
  */
 
+import Link from "next/link";
+import type { Schemas } from "@/src/shared/api";
+import { alertLink } from "@/src/features/notifications";
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/src/shared/ui/table";
+import { Select } from "@/src/shared/ui/select";
 import { useId, useMemo, useState } from "react";
 import {
   Activity,
@@ -76,6 +81,7 @@ export type PulsOverviewData = {
   company?: string;
   currentBalance: number;
   safeToSpend?: number | null;
+  minimumBalance?: { date: string; p50: number } | null;
   serverStatus?: string;
   headline?: string;
   horizon?: 30 | 60 | 90;
@@ -100,6 +106,8 @@ export type PulsOverviewProps = {
   onOpenEvent?: (id: string) => void;
   onOpenScenarios?: () => void;
   onOpenGap?: () => void;
+  onOpenDay?: (date: string) => void;
+  alerts?: Schemas["Alert"][];
 };
 
 const SCENARIOS: ReadonlyArray<{ key: ScenarioKey; label: string; full: string }> = [
@@ -233,14 +241,15 @@ export function KpiSparkline({
 export function KpiStrip({ data, selected }: { data: PulsOverviewData; selected: ScenarioKey }) {
   const period = data.forecast.slice(0, (data.horizon ?? 30) + 1);
   const stats = getForecastStats(period, selected);
-  const minimumDay = period.find(p => (p[selected] ?? p.base) === stats.minimum);
+  const minimum = selected === "base" && data.minimumBalance ? data.minimumBalance.p50 : stats.minimum;
+  const minimumDay = selected === "base" && data.minimumBalance ? data.minimumBalance : period.find(p => (p[selected] ?? p.base) === minimum);
   const spendable = data.isDemo ? Math.max(0, Math.min(data.currentBalance, stats.minimum - (data.reserve ?? 0))) : data.safeToSpend;
   const change = stats.last - data.currentBalance;
-  const reserveGap = stats.minimum - (data.reserve ?? 0);
+  const reserveGap = minimum - (data.reserve ?? 0);
   const items = [
     { title: "Текущий баланс", value: compactMoney(data.currentBalance), detail: `Резерв: ${compactMoney(data.reserve ?? 0)}`, hint: "На счетах сегодня" },
     { title: "Можно потратить сегодня", value: spendable == null ? "Нет оценки" : compactMoney(spendable), detail: "С учётом резерва и неопределённости", hint: data.isDemo ? "Демонстрационная оценка" : "По расчёту сервиса" },
-    { title: "Минимальный остаток", value: compactMoney(stats.minimum), detail: reserveGap < 0 ? `Ниже резерва на ${compactMoney(-reserveGap)}` : `Выше резерва на ${compactMoney(reserveGap)}`, hint: minimumDay ? `${displayDate(minimumDay.date)} · по выбранному сценарию` : "Нижняя точка за выбранный период" },
+    { title: "Минимальный остаток", value: compactMoney(minimum), detail: reserveGap < 0 ? `Ниже резерва на ${compactMoney(-reserveGap)}` : `Выше резерва на ${compactMoney(reserveGap)}`, hint: minimumDay ? `${displayDate(minimumDay.date)} · по выбранному сценарию` : "Нижняя точка за выбранный период" },
     { title: `Остаток через ${data.horizon ?? 30} дней`, value: compactMoney(stats.last), detail: `${change > 0 ? "+" : ""}${compactMoney(change)} к сегодняшнему дню`, hint: "По выбранному сценарию" },
   ];
   return <section aria-label="Ключевые показатели" className="grid grid-cols-2 border border-[color:var(--puls-border)] bg-[color:var(--puls-bg)] xl:grid-cols-4">
@@ -264,12 +273,12 @@ function FinancialStatus({ data, onOpenGap }: { data: PulsOverviewData; onOpenGa
   const severity = data.serverStatus ? (({ ok: "Спокойно", warning: "Внимание", danger: "Опасно" } as Record<string, string>)[data.serverStatus] ?? "Нет оценки") : probability == null
     ? stats.deficit > 0 ? "Опасно" : "Спокойно"
     : probability > 0.4 ? "Опасно" : probability >= 0.1 ? "Внимание" : "Спокойно";
-  const accent = severity === "Спокойно" ? "var(--puls-good-text)" : severity === "Внимание" ? "var(--puls-demo-text)" : "var(--puls-chart-zero)";
+  const accent = severity === "Спокойно" ? "text-[color:var(--puls-good-text)]" : severity === "Внимание" ? "text-[color:var(--puls-demo-text)]" : "text-[color:var(--puls-chart-zero)]";
   return <section aria-label="Финансовое состояние" className="mb-5 flex flex-col gap-3 border-y border-[color:var(--puls-border)] bg-[color:var(--puls-surface-soft)] px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
     <div className="flex min-w-0 items-start gap-3">
-      <AlertTriangle size={16} className="mt-1 shrink-0" style={{ color: accent }} aria-hidden="true"/>
+      <AlertTriangle size={16} className={`mt-1 shrink-0 ${accent}`} aria-hidden="true"/>
       <div className="min-w-0">
-        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1"><h2 className="text-[16px] font-semibold leading-5" style={{ color: accent }}>{severity}</h2><span className="text-[12px] text-[color:var(--puls-text-secondary)]">{riskPercent == null ? "Вероятность разрыва: нет оценки" : `Вероятность разрыва: ${riskPercent}%${data.isDemo ? " · демо-оценка" : ""}`}</span></div>
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1"><h2 className={`text-[16px] font-semibold leading-5 ${accent}`}>{severity}</h2><span className="text-[12px] text-[color:var(--puls-text-secondary)]">{riskPercent == null ? "Вероятность разрыва: нет оценки" : `Вероятность разрыва: ${riskPercent}%${data.isDemo ? " · демо-оценка" : ""}`}</span></div>
         <p className="mt-1 text-[13px] leading-5 text-[color:var(--puls-text-secondary)]">{data.headline ?? (firstGap ? `По базовому прогнозу с ${displayDate(firstGap.date)} возможна нехватка; максимальный дефицит — ${formatMoney(stats.deficit)}.` : "Базовый прогнозный остаток остаётся положительным в выбранном периоде.")}</p>
       </div>
     </div>
@@ -310,13 +319,14 @@ function rowDateForEvent(event: CashEvent, rows: OverviewChartPoint[]) {
   return rows[firstForecast + event.day]?.date;
 }
 
-export function ForecastChart({ data, selected, horizon, onChangeHorizon, onChangeScenario, onOpenForecast }: {
+export function ForecastChart({ data, selected, horizon, onChangeHorizon, onChangeScenario, onOpenForecast, onOpenDay }: {
   data: PulsOverviewData;
   selected: ScenarioKey;
   horizon: 30 | 60 | 90;
   onChangeHorizon: (value: 30 | 60 | 90) => void;
   onChangeScenario: (key: ScenarioKey) => void;
   onOpenForecast?: () => void;
+  onOpenDay?: (date: string) => void;
 }) {
   const reactId = useId().replace(/[^a-zA-Z0-9]/g, "");
   const visible = data.forecast.slice(0, horizon + 1);
@@ -359,7 +369,10 @@ export function ForecastChart({ data, selected, horizon, onChangeHorizon, onChan
     </div>
     <div className="h-[265px] w-full min-w-0 border-b border-[color:var(--puls-border)] sm:h-[300px]">
       <ResponsiveContainer width="100%" height="100%">
-        <ComposedChart data={chartPoints} margin={{ top: 9, right: 8, bottom: 2, left: 0 }}>
+        <ComposedChart data={chartPoints} margin={{ top: 9, right: 8, bottom: 2, left: 0 }} onClick={state => {
+          const date = state?.activeLabel;
+          if (typeof date === "string" && visible.some(point => point.date === date)) onOpenDay?.(date);
+        }}>
           <defs>
             <linearGradient id={`${reactId}-base`} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="var(--puls-chart-primary)" stopOpacity={0.17}/><stop offset="1" stopColor="var(--puls-chart-primary)" stopOpacity={0}/></linearGradient>
             <linearGradient id={`${reactId}-alt`} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="var(--puls-chart-secondary)" stopOpacity={0.13}/><stop offset="1" stopColor="var(--puls-chart-secondary)" stopOpacity={0}/></linearGradient>
@@ -383,28 +396,41 @@ export function ForecastChart({ data, selected, horizon, onChangeHorizon, onChan
         </ComposedChart>
       </ResponsiveContainer>
     </div>
+    {onOpenDay && <Select label="Подробности дня" containerClassName="mt-3 max-w-xs" value="" options={[{ value: "", label: "Выберите день на графике или в списке" }, ...visible.map(point => ({ value: point.date, label: displayDate(point.date) }))]} onChange={event => { if (event.target.value) onOpenDay(event.target.value); }} />}
   </section>;
 }
 
 function NearTermFlows({ data, onOpenCalendar, onOpenEvent }: { data: PulsOverviewData; onOpenCalendar?: () => void; onOpenEvent?: (id: string) => void }) {
   const events = data.events.filter(event => event.day >= 0 && event.day <= 14 && data.forecast[event.day]).sort((a, b) => a.day - b.day);
   const groups = [
-    { title: "Ближайшие платежи", items: events.filter(event => event.amount < 0), color: "var(--puls-text-strong)" },
-    { title: "Ожидаемые поступления", items: events.filter(event => event.amount > 0), color: "var(--puls-positive-text)" },
+    { title: "Ближайшие платежи", items: events.filter(event => event.amount < 0), color: "text-[color:var(--puls-text-strong)]" },
+    { title: "Ожидаемые поступления", items: events.filter(event => event.amount > 0), color: "text-[color:var(--puls-positive-text)]" },
   ];
   return <div className="mt-7 grid min-w-0 gap-5 lg:grid-cols-2 lg:gap-7">
     {groups.map(group => <section key={group.title} className="min-w-0 border-t border-[color:var(--puls-border)]">
       <header className="flex items-center justify-between gap-3 py-3"><div><h2 className="text-[16px] font-semibold text-[color:var(--puls-text)]">{group.title}</h2><p className="mt-0.5 text-[12px] text-[color:var(--puls-text-muted)]">На ближайшие 14 дней</p></div>{onOpenCalendar && <Button type="button" variant="ghost" size="sm" onClick={onOpenCalendar}>Календарь <ChevronRight aria-hidden="true"/></Button>}</header>
       <div className="border-y border-[color:var(--puls-border)]">{group.items.length ? group.items.map(event => <div key={event.id} className="grid grid-cols-[55px_minmax(0,1fr)_auto] items-center gap-2 border-b border-[color:var(--puls-border)] px-1 py-2.5 text-[13px] last:border-b-0 hover:bg-[color:var(--puls-surface-soft)] sm:gap-3">
         <span className="text-[12px] text-[color:var(--puls-text-muted)]">{displayDate(data.forecast[event.day].date)}</span>
-        <span className="min-w-0"><span className="block truncate font-medium text-[color:var(--puls-text)]">{onOpenEvent ? <button type="button" className="max-w-full truncate text-left underline underline-offset-2" onClick={() => onOpenEvent(event.id)}>{event.title}</button> : event.title}</span><span className="block truncate text-[12px] text-[color:var(--puls-text-secondary)]">{event.counterparty ?? "Контрагент не указан"}</span><span className="block truncate text-[11px] text-[color:var(--puls-text-muted)]" title={event.amount < 0 ? event.source ?? "Источник не указан" : event.paymentDiscipline ?? "Истории оплат пока нет"}>{event.amount < 0 ? `Источник: ${event.source ?? "не указан"}` : `Дисциплина: ${event.paymentDiscipline ?? "истории оплат нет"}`}</span></span>
-        <strong className="whitespace-nowrap text-right font-medium tabular-nums" style={{ color: group.color }}>{event.amount > 0 ? "+" : ""}{formatMoney(event.amount)}</strong>
+        <span className="min-w-0"><span className="block truncate font-medium text-[color:var(--puls-text)]">{onOpenEvent ? <Button type="button" variant="ghost" className="h-auto! max-w-full truncate rounded-none! border-0! p-0! text-left text-[13px]! text-inherit! underline underline-offset-2 hover:bg-transparent! hover:text-inherit!" onClick={() => onOpenEvent(event.id)}>{event.title}</Button> : event.title}</span><span className="block truncate text-[12px] text-[color:var(--puls-text-secondary)]">{event.counterparty ?? "Контрагент не указан"}</span><span className="block truncate text-[11px] text-[color:var(--puls-text-muted)]" title={event.amount < 0 ? event.source ?? "Источник не указан" : event.paymentDiscipline ?? "Истории оплат пока нет"}>{event.amount < 0 ? `Источник: ${event.source ?? "не указан"}` : `Дисциплина: ${event.paymentDiscipline ?? "истории оплат нет"}`}</span></span>
+        <strong className={`whitespace-nowrap text-right font-medium tabular-nums ${group.color}`}>{event.amount > 0 ? "+" : ""}{formatMoney(event.amount)}</strong>
       </div>) : <p className="px-1 py-4 text-[12px] text-[color:var(--puls-text-secondary)]">Событий на ближайшие 14 дней нет.</p>}</div>
     </section>)}
   </div>;
 }
 
-function OverviewWarnings({ data, selected, onOpenGap, onOpenCalendar }: { data: PulsOverviewData; selected: ScenarioKey; onOpenGap?: () => void; onOpenCalendar?: () => void }) {
+function OverviewAlerts({ alerts }: { alerts: Schemas["Alert"][] }) {
+  if (!alerts.length) return null;
+  return <section aria-label="Предупреждения" className="mt-9 min-w-0">
+    <header className="mb-3"><h2 className="text-[21px] font-semibold tracking-[-0.035em] text-[color:var(--puls-text)]">Предупреждения</h2><p className="mt-0.5 text-[12px] text-[color:var(--puls-text-muted)]">События, которые стоит проверить</p></header>
+    <div className="border-y border-[color:var(--puls-border)]">{alerts.map(alert => <div key={alert.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-[color:var(--puls-border)] px-1 py-3 last:border-b-0">
+      <AlertTriangle size={16} aria-label={alert.severity === "danger" ? "Опасно" : alert.severity === "warning" ? "Внимание" : "Информация"} className={`shrink-0 ${alert.severity === "danger" ? "text-[color:var(--puls-chart-zero)]" : alert.severity === "warning" ? "text-[color:var(--puls-demo-text)]" : "text-[color:var(--puls-text-secondary)]"}`} />
+      <div className="min-w-[180px] flex-1 text-[13px]"><strong className="font-medium text-[color:var(--puls-text)]">{alert.title}</strong>{!alert.read && <span className="ml-2 text-[11px] text-[color:var(--puls-text-muted)]">Новое</span>}<p className="mt-0.5 text-[12px] text-[color:var(--puls-text-secondary)]">{alert.body}</p></div>
+      <Link href={alertLink(alert.ref)} className="inline-flex items-center gap-1 text-[12px] text-[color:var(--puls-text-secondary)] underline underline-offset-2">Подробнее <ChevronRight size={12} aria-hidden="true" /></Link>
+    </div>)}</div>
+  </section>;
+}
+
+function DemoWarnings({ data, selected, onOpenGap, onOpenCalendar }: { data: PulsOverviewData; selected: ScenarioKey; onOpenGap?: () => void; onOpenCalendar?: () => void }) {
   const period = data.forecast.slice(0, (data.horizon ?? 30) + 1);
   const stats = getForecastStats(period, selected);
   const firstGap = stats.firstNegative >= 0 ? period[stats.firstNegative] : null;
@@ -441,7 +467,7 @@ function OverviewPreviews({ data, selected, onChangeScenario, onOpenCalendar, on
       <header className="flex items-center justify-between gap-3 py-3"><div><h2 className="text-[16px] font-semibold text-[color:var(--puls-text)]">Сценарии</h2><p className="mt-0.5 text-[12px] text-[color:var(--puls-text-muted)]">Остаток в конце периода</p></div>{onOpenScenarios && <Button type="button" variant="ghost" size="sm" onClick={onOpenScenarios}>Сравнить <ChevronRight aria-hidden="true"/></Button>}</header>
       <div className="divide-y divide-[color:var(--puls-border)] border-t border-[color:var(--puls-border)]">{SCENARIOS.filter(scenario => scenarioSupported(data, scenario.key)).map(scenario => {
         const stats = getForecastStats(period, scenario.key);
-        return <button key={scenario.key} type="button" aria-pressed={selected === scenario.key} onClick={() => onChangeScenario(scenario.key)} className={`flex w-full items-center justify-between gap-3 px-1 py-1.5 text-left text-[12px] transition-colors hover:bg-[color:var(--puls-surface-soft)] focus-visible:outline-2 focus-visible:outline-[color:var(--puls-chart-primary)] ${selected === scenario.key ? "bg-[color:var(--puls-surface-muted)] text-[color:var(--puls-text)]" : "text-[color:var(--puls-text-secondary)]"}`}><span className="min-w-0 truncate">{scenario.label}</span><strong className="shrink-0 font-medium tabular-nums text-[color:var(--puls-text-strong)]">{compactMoney(stats.last)}</strong></button>;
+        return <Button variant="ghost" key={scenario.key} type="button" aria-pressed={selected === scenario.key} onClick={() => onChangeScenario(scenario.key)} className={`h-auto! rounded-none! border-0! flex w-full items-center justify-between! gap-3! px-1! py-1.5! font-normal! text-left text-[12px] transition-colors hover:bg-[color:var(--puls-surface-soft)] focus-visible:outline-2 focus-visible:outline-[color:var(--puls-chart-primary)] ${selected === scenario.key ? "bg-[color:var(--puls-surface-muted)] text-[color:var(--puls-text)]" : "text-[color:var(--puls-text-secondary)]"}`}><span className="min-w-0 truncate">{scenario.label}</span><strong className="shrink-0 font-medium tabular-nums text-[color:var(--puls-text-strong)]">{compactMoney(stats.last)}</strong></Button>;
       })}</div>
     </section>
   </div>;
@@ -463,18 +489,18 @@ export function PaymentTimeline({ data, onOpenCalendar }: { data: PulsOverviewDa
           <div className="grid grid-cols-5 items-end border-b border-[color:var(--puls-border-strong)] text-center">{segments.map((text, index) => <span key={index} className="pb-2">{text}</span>)}</div>
         </div>
         {CATEGORY_ROWS.map(({ key, label }, rowIndex) => <div key={key} className="grid h-[44px] grid-cols-[235px_minmax(0,1fr)]">
-          <div className="flex min-w-0 items-center gap-1.5 border-r border-b border-dashed border-[color:var(--puls-border-strong)] px-2 text-[12px] text-[color:var(--puls-text-secondary)] last:border-b-0"><ChevronRight size={14} className="shrink-0 text-[#817e75]"/>{label}</div>
-          <div className={`relative min-w-0 overflow-hidden border-b border-[color:var(--puls-border)] ${rowIndex % 2 === 0 ? "bg-[color:var(--puls-surface-soft)]" : "bg-[color:var(--puls-surface-muted)]"}`} style={{ backgroundImage: "repeating-linear-gradient(to right,transparent 0,transparent calc(20% - 1px),#eae8e3 calc(20% - 1px),#eae8e3 20%)" }}>
+          <div className="flex min-w-0 items-center gap-1.5 border-r border-b border-dashed border-[color:var(--puls-border-strong)] px-2 text-[12px] text-[color:var(--puls-text-secondary)] last:border-b-0"><ChevronRight size={14} className="shrink-0 text-[color:var(--puls-text-muted)]"/>{label}</div>
+          <div className={`[background-image:repeating-linear-gradient(to_right,transparent_0,transparent_calc(20%_-_1px),var(--puls-grid)_calc(20%_-_1px),var(--puls-grid)_20%)] relative min-w-0 overflow-hidden border-b border-[color:var(--puls-border)] ${rowIndex % 2 === 0 ? "bg-[color:var(--puls-surface-soft)]" : "bg-[color:var(--puls-surface-muted)]"}`}>
             {data.events.filter(event => event.category === key).map(event => {
               const day = Math.max(0, Math.min(30, event.day));
               // Avoid overflowing the grid at the right edge; bars are display-only.
               const widthPercent = Math.max(12, ((event.duration ?? 4) / 30) * 100);
               const leftPercent = Math.min(day / 30 * 100, 100 - widthPercent);
               const isCurrent = event.id === selectedEvent;
-              return <button key={event.id} type="button" title={`${event.title} · ${formatMoney(event.amount)} · ${event.source ?? "План"}`} aria-pressed={isCurrent} onClick={() => setSelectedEvent(isCurrent ? null : event.id)} style={{ left: `${leftPercent}%`, width: `${widthPercent}%` }} className={`absolute top-[7px] z-10 flex h-[30px] min-w-[104px] max-w-full cursor-pointer items-center gap-1.5 overflow-hidden rounded-[5px] border bg-[color:var(--puls-bg)] px-1.5 text-left text-[11px] text-[color:var(--puls-text)] shadow-[0_2px_4px_rgba(30,28,20,0.08)] transition-shadow hover:z-20 hover:shadow-md focus-visible:outline-2 focus-visible:outline-emerald-600 ${event.amount >= 0 ? "border-[color:var(--puls-border)] border-l-[3px] border-l-[color:var(--puls-chart-primary)]" : "border-[color:var(--puls-border)] border-l-[3px] border-l-[color:var(--puls-negative-text)]"} ${isCurrent ? "ring-2 ring-emerald-200" : ""}`}>
+              return <Button variant="ghost" key={event.id} type="button" title={`${event.title} · ${formatMoney(event.amount)} · ${event.source ?? "План"}`} aria-pressed={isCurrent} onClick={() => setSelectedEvent(isCurrent ? null : event.id)} style={{ left: `${leftPercent}%`, width: `${widthPercent}%` }} className={`justify-start! py-0! font-normal! hover:bg-[color:var(--puls-bg)]! hover:text-[color:var(--puls-text)]! absolute! top-[7px] z-10 flex h-[30px]! min-w-[104px] max-w-full cursor-pointer items-center gap-1.5 overflow-hidden rounded-[5px] border bg-[color:var(--puls-bg)]! px-1.5 text-left text-[11px]! text-[color:var(--puls-text)]! shadow-[var(--puls-event-shadow)] transition-shadow hover:z-20 hover:shadow-md focus-visible:outline-2 focus-visible:outline-[color:var(--focus-ring-strong)] ${event.amount >= 0 ? "border-[color:var(--puls-border)] border-l-[3px] border-l-[color:var(--puls-chart-primary)]" : "border-[color:var(--puls-border)] border-l-[3px] border-l-[color:var(--puls-negative-text)]"} ${isCurrent ? "ring-2 ring-[color:var(--focus-ring-strong)]" : ""}`}>
                 <span className={`flex size-[18px] shrink-0 items-center justify-center rounded-full ${event.amount >= 0 ? "bg-[color:var(--puls-positive-bg)] text-[color:var(--puls-positive-text)]" : "bg-[color:var(--puls-negative-bg)] text-[color:var(--puls-negative-text)]"}`}>{event.amount >= 0 ? <ArrowDownRight size={13}/> : <ArrowUpRight size={13}/>}</span>
                 <span className="truncate">{event.title}</span>
-              </button>;
+              </Button>;
             })}
           </div>
         </div>)}
@@ -483,7 +509,7 @@ export function PaymentTimeline({ data, onOpenCalendar }: { data: PulsOverviewDa
     {current ? <div className="mt-3 flex items-center gap-3 rounded-md border border-[color:var(--puls-border)] bg-[color:var(--puls-surface-soft)] px-3 py-2.5">
       <div className="mr-auto min-w-0"><p className="text-[12px] font-semibold text-[color:var(--puls-text)]">{current.title}</p><p className="mt-0.5 text-[11px] text-[color:var(--puls-text-muted)]">{displayDate(data.forecast[Math.max(0, Math.min(current.day, data.forecast.length - 1))].date)} · {current.source ?? "Плановое событие"}</p></div>
       <strong className={`shrink-0 text-[13px] ${current.amount >= 0 ? "text-[color:var(--puls-positive-text)]" : "text-[color:var(--puls-negative-text)]"}`}>{current.amount > 0 ? "+" : ""}{formatMoney(current.amount)}</strong>
-      <button type="button" aria-label="Закрыть детали" onClick={() => setSelectedEvent(null)} className="shrink-0 cursor-pointer text-[color:var(--puls-text-muted)] hover:text-[color:var(--puls-text)]"><X size={17}/></button>
+      <Button type="button" variant="ghost" size="icon" aria-label="Закрыть детали" onClick={() => setSelectedEvent(null)} className="shrink-0 cursor-pointer text-[color:var(--puls-text-muted)]! hover:bg-transparent! hover:text-[color:var(--puls-text)]!"><X size={17} className="size-[17px]!"/></Button>
     </div> : <p className="mt-2.5 text-[11px] text-[color:var(--puls-text-faint)]">Нажми на событие, чтобы посмотреть сумму, дату и источник данных.</p>}
   </section>;
 }
@@ -506,27 +532,27 @@ export function ScenarioComparison({ data, selected, onChangeScenario, onOpenSce
     <header className="mb-4 flex items-start justify-between gap-3">
       <div><h2 className="text-[21px] font-semibold tracking-[-0.035em] text-[color:var(--puls-text)]">Сравнение сценариев</h2><p className="mt-0.5 text-[12px] text-[color:var(--puls-text-muted)]">Как изменения условий влияют на остаток денежных средств</p></div>
       {onOpenScenarios && <div className="flex shrink-0 items-center gap-2">
-        <Button type="button" variant="outline" size="md" onClick={onOpenScenarios} disabled={!onOpenScenarios} className="bg-[color:var(--puls-purple-bg)]! text-[color:var(--puls-purple-text)]! [--button-outline-shadow:inset_0_0_0_1px_#d8b4ee] hover:bg-[color:var(--puls-purple-hover)]!"><Sparkles aria-hidden="true"/>Анализ</Button>
-        <Button type="button" variant="outline" size="icon" aria-label="Открыть настройки сценариев" onClick={onOpenScenarios} disabled={!onOpenScenarios} className="text-[color:var(--puls-text-muted)]! [--button-outline-shadow:inset_0_0_0_1px_#e4e0db]"><SlidersHorizontal aria-hidden="true"/></Button>
+        <Button type="button" variant="outline" size="md" onClick={onOpenScenarios} disabled={!onOpenScenarios} className="bg-[color:var(--puls-purple-bg)]! text-[color:var(--puls-purple-text)]! [--button-outline-shadow:inset_0_0_0_1px_var(--puls-purple-border)] hover:bg-[color:var(--puls-purple-hover)]!"><Sparkles aria-hidden="true"/>Анализ</Button>
+        <Button type="button" variant="outline" size="icon" aria-label="Открыть настройки сценариев" onClick={onOpenScenarios} disabled={!onOpenScenarios} className="text-[color:var(--puls-text-muted)]! [--button-outline-shadow:inset_0_0_0_1px_var(--puls-border)]"><SlidersHorizontal aria-hidden="true"/></Button>
       </div>}
     </header>
     <div className="w-full overflow-x-auto border-t border-[color:var(--puls-border)]">
-      <table className="w-full min-w-[790px] table-fixed border-separate border-spacing-0 text-[12px] text-[color:var(--puls-text-secondary)] tabular-nums">
-        <thead><tr>
-          <th className="w-[26%] border-r border-b border-[color:var(--puls-border-strong)] border-r-[#e4e0d9] px-2.5 py-2 text-left font-normal text-[color:var(--puls-text-muted)]">Показатель</th>
-          {SCENARIOS.map(s => <th key={s.key} className="border-r border-b border-[color:var(--puls-border-strong)] border-r-[#e4e0d9] px-1.5 py-1.5 text-left font-normal">
-            <button type="button" disabled={!scenarioSupported(data, s.key)} aria-pressed={selected === s.key} onClick={() => onChangeScenario(s.key)} className={`inline-flex max-w-full cursor-pointer items-center gap-1.5 rounded-[4px] border px-1.5 py-1 text-[12px] font-medium whitespace-nowrap text-[color:var(--puls-text-secondary)] hover:bg-[color:var(--puls-surface-active)] focus-visible:outline-2 focus-visible:outline-emerald-600 disabled:cursor-not-allowed disabled:opacity-35 ${selected === s.key ? "border-[color:var(--puls-border)] bg-[color:var(--puls-surface-active)]" : "border-transparent"}`}>
+      <Table unstyled className="w-full min-w-[790px] table-fixed border-separate border-spacing-0 text-[12px] text-[color:var(--puls-text-secondary)] tabular-nums">
+        <TableHeader unstyled><TableRow unstyled>
+          <TableHead unstyled className="w-[26%] border-r border-b border-[color:var(--puls-border-strong)] border-r-[color:var(--puls-border)] px-2.5 py-2 text-left font-normal text-[color:var(--puls-text-muted)]">Показатель</TableHead>
+          {SCENARIOS.map(s => <TableHead unstyled key={s.key} className="border-r border-b border-[color:var(--puls-border-strong)] border-r-[color:var(--puls-border)] px-1.5 py-1.5 text-left font-normal">
+            <Button type="button" variant="ghost" disabled={!scenarioSupported(data, s.key)} aria-pressed={selected === s.key} onClick={() => onChangeScenario(s.key)} className={`h-auto! inline-flex max-w-full cursor-pointer items-center gap-1.5! rounded-[4px]! border px-1.5 py-1 text-[12px] font-medium whitespace-nowrap text-[color:var(--puls-text-secondary)] hover:bg-[color:var(--puls-surface-active)] focus-visible:outline-2 focus-visible:outline-[color:var(--focus-ring-strong)] disabled:cursor-not-allowed disabled:opacity-35 ${selected === s.key ? "border-[color:var(--puls-border)] bg-[color:var(--puls-surface-active)]" : "border-transparent"}`}>
               <span className={`flex size-[17px] shrink-0 items-center justify-center rounded-[3px] ${colors[s.key]}`}><Activity size={13}/></span>{s.label}
-            </button>
-          </th>)}
-          <th className="border-b border-[color:var(--puls-border-strong)] px-2.5 py-2 text-right font-normal text-[color:var(--puls-text-muted)]">Δ к базовому</th>
-        </tr></thead>
-        <tbody>{cells.map((row, rowIndex) => <tr key={row.label} className="odd:bg-[color:var(--puls-surface-muted)] hover:bg-[color:var(--puls-surface-active)]">
-          <th scope="row" className={`h-[40px] border-r border-b border-r-[#b6b1a8] border-b-[#e3dfd9] px-3 text-left font-normal text-[color:var(--puls-text-secondary)] ${rowIndex === 0 ? "border-l-2 border-l-[color:var(--puls-text)]" : ""}`}>{row.label}{rowIndex === 1 && <span className="float-right text-[color:var(--puls-text-strong)]">✦</span>}</th>
-          {SCENARIOS.map((scenario, index) => <td key={scenario.key} className={`h-[40px] border-r border-b border-r-[#e2dfd8] border-b-[#e3dfd9] px-2.5 text-right font-medium whitespace-nowrap ${selected === scenario.key ? "bg-[color:var(--puls-surface-active)]" : ""}`}>{scenarioSupported(data, scenario.key) ? row.value(stats[index]) : "—"}</td>)}
-          <td className="h-[40px] border-b border-[color:var(--puls-border)] px-2.5 text-right whitespace-nowrap text-[color:var(--puls-text-secondary)]">{row.delta}</td>
-        </tr>)}</tbody>
-      </table>
+            </Button>
+          </TableHead>)}
+          <TableHead unstyled className="border-b border-[color:var(--puls-border-strong)] px-2.5 py-2 text-right font-normal text-[color:var(--puls-text-muted)]">Δ к базовому</TableHead>
+        </TableRow></TableHeader>
+        <TableBody>{cells.map((row, rowIndex) => <TableRow unstyled key={row.label} className="odd:bg-[color:var(--puls-surface-muted)] hover:bg-[color:var(--puls-surface-active)]">
+          <TableHead unstyled scope="row" className={`py-0 h-[40px] border-r border-b border-r-[color:var(--puls-border-strong)] border-b-[color:var(--puls-border)] px-3 text-left font-normal text-[color:var(--puls-text-secondary)] ${rowIndex === 0 ? "border-l-2 border-l-[color:var(--puls-text)]" : ""}`}>{row.label}{rowIndex === 1 && <span className="float-right text-[color:var(--puls-text-strong)]">✦</span>}</TableHead>
+          {SCENARIOS.map((scenario, index) => <TableCell unstyled key={scenario.key} className={`py-0 h-[40px] border-r border-b border-r-[color:var(--puls-border)] border-b-[color:var(--puls-border)] px-2.5 text-right font-medium whitespace-nowrap ${selected === scenario.key ? "bg-[color:var(--puls-surface-active)]" : ""}`}>{scenarioSupported(data, scenario.key) ? row.value(stats[index]) : "—"}</TableCell>)}
+          <TableCell unstyled className="py-0 h-[40px] border-b border-[color:var(--puls-border)] px-2.5 text-right whitespace-nowrap text-[color:var(--puls-text-secondary)]">{row.delta}</TableCell>
+        </TableRow>)}</TableBody>
+      </Table>
     </div>
     <p className="mt-2.5 flex items-center gap-1.5 text-[11px] text-[color:var(--puls-text-faint)]"><CircleHelp size={14}/>Нажми на сценарий в таблице, чтобы переключить график.</p>
   </section>;
@@ -537,11 +563,11 @@ export function PulsEmptyState({ onAddSource }: { onAddSource?: () => void }) {
     <div className="flex size-[58px] items-center justify-center rounded-xl bg-[color:var(--puls-good-bg)] text-[color:var(--puls-good-text)]"><Activity size={27}/></div>
     <h2 className="mt-4 text-[20px] font-semibold tracking-tight text-[color:var(--puls-text)]">Для прогноза нужны операции и остаток на счёте</h2>
     <p className="mt-2 max-w-[440px] text-[13px] leading-relaxed text-[color:var(--puls-text-secondary)]">Если операции уже загружены, добавьте выписку с остатком на последнюю дату. После этого здесь появится прогноз на 30 дней и финансовые показатели.</p>
-    {onAddSource && <button type="button" onClick={onAddSource} className="mt-4 inline-flex cursor-pointer items-center gap-1.5 rounded-md bg-[#147d5c] px-3.5 py-2.5 text-[12px] font-semibold text-white hover:bg-[#106f52] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600"><Plus size={15}/>Добавить источник данных</button>}
+    {onAddSource && <Button type="button" variant="ghost" onClick={onAddSource} className="mt-4 h-auto! border-0! inline-flex cursor-pointer items-center gap-1.5! rounded-md! bg-[color:var(--brand)]! px-3.5! py-2.5! text-[12px] font-semibold! text-[color:var(--button-primary-fg)]! hover:text-[color:var(--button-primary-fg)]! hover:bg-[color:var(--brand-hover)]! focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring-strong)]"><Plus size={15} className="size-[15px]!"/>Добавить источник данных</Button>}
   </section>;
 }
 
-export default function PulsOverview({ data = PULS_DEMO_DATA, onAddSource, onOpenForecast, onOpenCalendar, onOpenEvent, onOpenScenarios, onOpenGap, horizon: controlledHorizon, onChangeHorizon }: PulsOverviewProps) {
+export default function PulsOverview({ data = PULS_DEMO_DATA, onAddSource, onOpenForecast, onOpenCalendar, onOpenEvent, onOpenScenarios, onOpenGap, onOpenDay, alerts = [], horizon: controlledHorizon, onChangeHorizon }: PulsOverviewProps) {
   const [requested, setRequested] = useState<ScenarioKey>("base");
   const [localHorizon, setLocalHorizon] = useState<30 | 60 | 90>(30);
   const horizon = controlledHorizon ?? localHorizon;
@@ -551,16 +577,16 @@ export default function PulsOverview({ data = PULS_DEMO_DATA, onAddSource, onOpe
   return <div className="puls-overview min-w-0 w-full bg-[color:var(--puls-bg)] pb-10 text-[color:var(--puls-text)] tabular-nums">
     {prepared ? <>
       <div className="mb-3 flex min-h-[24px] flex-wrap items-center justify-end gap-3">
-        {prepared.isDemo && <span className="inline-flex items-center gap-1.5 rounded-[5px] border border-[color:var(--puls-demo-border)] bg-[color:var(--puls-demo-bg)] px-2 py-0.5 text-[11px] text-[color:var(--puls-demo-text)]"><span className="size-1.5 rounded-full bg-[#d9a32a]"/>Демо-данные</span>}
+        {prepared.isDemo && <span className="inline-flex items-center gap-1.5 rounded-[5px] border border-[color:var(--puls-demo-border)] bg-[color:var(--puls-demo-bg)] px-2 py-0.5 text-[11px] text-[color:var(--puls-demo-text)]"><span className="size-1.5 rounded-full bg-[color:var(--puls-demo-text)]"/>Демо-данные</span>}
         <span className="inline-flex items-center gap-1.5 text-[11px] text-[color:var(--puls-text-muted)]"><Clock3 size={13}/>{prepared.updatedAt ?? `Прогноз на ${horizon} дней`}</span>
       </div>
       <FinancialStatus data={prepared} onOpenGap={onOpenGap}/>
       <KpiStrip data={prepared} selected={selected}/>
-      <ForecastChart data={prepared} selected={selected} horizon={horizon} onChangeHorizon={setHorizon} onChangeScenario={setRequested} onOpenForecast={onOpenForecast}/>
+      <ForecastChart data={prepared} selected={selected} horizon={horizon} onChangeHorizon={setHorizon} onChangeScenario={setRequested} onOpenForecast={onOpenForecast} onOpenDay={onOpenDay}/>
       <NearTermFlows data={prepared} onOpenCalendar={onOpenCalendar} onOpenEvent={onOpenEvent}/>
-      <OverviewWarnings data={prepared} selected={selected} onOpenGap={onOpenGap} onOpenCalendar={onOpenCalendar}/>
+      {prepared.isDemo ? <DemoWarnings data={prepared} selected={selected} onOpenGap={onOpenGap} onOpenCalendar={onOpenCalendar}/> : <OverviewAlerts alerts={alerts}/>}
       <OverviewPreviews data={prepared} selected={selected} onChangeScenario={setRequested} onOpenCalendar={onOpenCalendar} onOpenScenarios={onOpenScenarios}/>
       <p className="mt-6 text-[10px] leading-[18px] text-[color:var(--puls-text-faint)]">{prepared.isDemo ? "Синтетические демонстрационные данные. Числа не являются прогнозом реальной компании." : "Прогноз построен на загруженных данных; точность зависит от полноты информации и качества модели."}</p>
-    </> : <PulsEmptyState onAddSource={onAddSource}/>}
+    </> : <><PulsEmptyState onAddSource={onAddSource}/><OverviewAlerts alerts={alerts}/></>}
   </div>;
 }

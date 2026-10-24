@@ -3,11 +3,11 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { useSession } from "@/src/features/auth";
-import type { Forecast, Schemas } from "@/src/shared/api";
+import type { Forecast } from "@/src/shared/api";
 import { useApiResource } from "@/src/shared/api/use-api-resource";
 import { Select } from "@/src/shared/ui";
 import { SectionCard } from "@/src/widgets/cabinet-shell";
-import { CashflowForecastChart, RiskCard } from "@/src/widgets/finance-panels";
+import { CashflowForecastChart, ForecastDayDetails, RiskCard } from "@/src/widgets/finance-panels";
 import { chartDays, riskView, rubles } from "@/src/entities/forecast";
 import { FinanceState, ForecastNotice } from "./FinanceState";
 
@@ -17,7 +17,6 @@ export function ForecastScreen() {
   const [horizon, setHorizon] = useState(["30", "60", "90"].includes(query.get("horizon") ?? "") ? query.get("horizon")! : String(company!.default_horizon));
   const scenario = query.get("scenario") ?? "";
   const [day, setDay] = useState("");
-  const detail = useApiResource<Schemas["ForecastDay"]>(day ? `/v1/companies/${company!.id}/forecast/days/${day}?horizon=${horizon}${scenario ? `&scenario=${encodeURIComponent(scenario)}` : ""}` : null);
   const resource = useApiResource<Forecast>(
     `/v1/companies/${company!.id}/forecast?horizon=${horizon}${scenario ? `&scenario=${encodeURIComponent(scenario)}` : ""}`,
   );
@@ -36,7 +35,7 @@ export function ForecastScreen() {
             <Select
               aria-label="Горизонт прогноза"
               value={horizon}
-              onChange={(event) => setHorizon(event.target.value)}
+              onChange={(event) => { setDay(""); setHorizon(event.target.value); }}
               options={[30, 60, 90].map((n) => ({
                 value: String(n),
                 label: `${n} дней`,
@@ -56,7 +55,7 @@ export function ForecastScreen() {
               <strong>{rubles(forecast.safe_to_spend)}</strong>
             </p>
           )}
-          {forecast && <><Select label="Подробности дня" value={day} options={[{ value: "", label: "Выберите день" }, ...forecast.points.map(p => ({ value: p.date, label: p.date }))]} onChange={e => setDay(e.target.value)} /><FinanceState loading={detail.loading} error={detail.error} retry={detail.refresh} />{detail.data && <div className="mt-3 space-y-2 text-sm"><p>Остаток p50: {rubles(detail.data.p50)}</p><p>Состав ожидаемого потока за день (средние потоки; сумма не равна изменению медианы остатка):</p>{detail.data.components.map((part, i) => <p key={i}>{part.title}: {rubles(part.amount)} · {part.source}</p>)}</div>}</>}
+          {forecast && <><Select label="Подробности дня" value={day} options={[{ value: "", label: "Выберите день" }, ...forecast.points.map(p => ({ value: p.date, label: p.date }))]} onChange={e => setDay(e.target.value)} />{day && <ForecastDayDetails companyId={company!.id} date={day} horizon={horizon} scenario={scenario} />}</>}
         </SectionCard>
         <div className="space-y-3"><RiskCard
           risk={forecast?.gaps[0] ? riskView(forecast.gaps[0]) : null}
