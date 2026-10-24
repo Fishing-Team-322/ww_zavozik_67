@@ -36,7 +36,7 @@ func main() {
 		api.OneCClient = onecodata.Client{Username: os.Getenv("ONEC_ODATA_USERNAME"), Password: os.Getenv("ONEC_ODATA_PASSWORD")}
 	}
 	if token := os.Getenv("DADATA_API_TOKEN"); token != "" {
-		api.DaDataClient = &dadata.Client{Token: token}
+		api.DaDataClient = &dadata.Client{Token: token, Cache: dadata.NewCache(24 * time.Hour)}
 	}
 	if api.SyncToken == "" {
 		log.Fatal("missing sync token")

@@ -181,7 +181,7 @@ func TestOneCODataSyncRequiresTokenAndDeduplicates(t *testing.T) {
 
 func TestDaDataEnrichmentRequiresToken(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_, _ = w.Write([]byte(`{"suggestions":[{"data":{"inn":"7707083893","name":{"short_with_opf":"ПАО СБЕРБАНК"},"state":{"status":"ACTIVE"}}}]}`))
+		_, _ = w.Write([]byte(`{"suggestions":[{"data":{"inn":"7707083893","ogrn":"1027700132195","type":"LEGAL","name":{"short_with_opf":"ПАО СБЕРБАНК"},"state":{"status":"ACTIVE"}}}]}`))
 	}))
 	defer upstream.Close()
 	client := dadata.Client{Token: "api-secret", Endpoint: upstream.URL}
