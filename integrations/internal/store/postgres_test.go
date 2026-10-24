@@ -61,4 +61,40 @@ func TestPostgresDurabilityAndCorrection(t *testing.T) {
 	if err != nil || third.Operations[0].Version != 2 || third.PlannedEvents[0].Version != 2 {
 		t.Fatalf("correction: %+v %v", third, err)
 	}
+	entry := MarketplaceEntry{ExternalID: "report-1", SourceKind: "wildberries_finance", Category: "sale", AmountKopecks: 10000, Currency: "RUB", ObservedAt: "2026-10-24T00:00:00Z", DataMode: "mock"}
+	changed, duplicates, err := p.SaveMarketplace(company, []MarketplaceEntry{entry})
+	if err != nil || changed != 1 || duplicates != 0 {
+		t.Fatalf("marketplace first: %d %d %v", changed, duplicates, err)
+	}
+	changed, duplicates, err = p.SaveMarketplace(company, []MarketplaceEntry{entry})
+	if err != nil || changed != 0 || duplicates != 1 {
+		t.Fatalf("marketplace duplicate: %d %d %v", changed, duplicates, err)
+	}
+	entry.AmountKopecks = 9000
+	changed, duplicates, err = p.SaveMarketplace(company, []MarketplaceEntry{entry})
+	if err != nil || changed != 1 || duplicates != 0 {
+		t.Fatalf("marketplace correction: %d %d %v", changed, duplicates, err)
+	}
+	stored, err := p.GetMarketplace(company)
+	if err != nil || len(stored) != 1 || stored[0].Version != 2 || stored[0].AmountKopecks != 9000 {
+		t.Fatalf("marketplace stored: %+v %v", stored, err)
+	}
+	risk := RiskSignal{ExternalID: "debt-1", SourceKind: "fns_debt_snapshot", SubjectINN: "9723161623", Kind: "tax", AmountKopecks: 663436, DatasetAsOf: "2026-09-01", PublishedAt: "2026-09-25", RetrievedAt: "2026-10-24T00:00:00Z", SourceURL: "https://www.nalog.gov.ru/opendata/7707329152-debtam/", DataMode: "import"}
+	changed, duplicates, err = p.SaveRisks(company, []RiskSignal{risk})
+	if err != nil || changed != 1 || duplicates != 0 {
+		t.Fatalf("risk first: %d %d %v", changed, duplicates, err)
+	}
+	changed, duplicates, err = p.SaveRisks(company, []RiskSignal{risk})
+	if err != nil || changed != 0 || duplicates != 1 {
+		t.Fatalf("risk duplicate: %d %d %v", changed, duplicates, err)
+	}
+	risk.AmountKopecks = 663437
+	changed, duplicates, err = p.SaveRisks(company, []RiskSignal{risk})
+	if err != nil || changed != 1 || duplicates != 0 {
+		t.Fatalf("risk correction: %d %d %v", changed, duplicates, err)
+	}
+	risks, err := p.GetRisks(company)
+	if err != nil || len(risks) != 1 || risks[0].Version != 2 || risks[0].AmountKopecks != 663437 {
+		t.Fatalf("risk stored: %+v %v", risks, err)
+	}
 }

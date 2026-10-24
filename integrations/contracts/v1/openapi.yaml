@@ -47,6 +47,18 @@ paths:
     post:
       responses:
         '200': {description: Invoice obligations ImportBatch v1}
+  /v1/sync/wb-finance:
+    post:
+      description: JSON from/to dates; accounting rows only.
+      responses:
+        '200': {description: Fetched, changed and duplicate counts}
+        '503': {description: WB token absent}
+  /v1/sync/ozon-finance:
+    post:
+      description: JSON from/to dates; accounting rows only.
+      responses:
+        '200': {description: Fetched, changed and duplicate counts}
+        '503': {description: Ozon credentials absent}
   /v1/enrich/dadata-party:
     post:
       description: JSON identifier or inn; does not post bank operations.
@@ -78,3 +90,15 @@ paths:
         - {name: companyId, in: path, required: true, schema: {type: string}}
       responses:
         '200': {description: Recent synchronization outcomes}
+  /v1/marketplace-entries/{companyId}:
+    get:
+      parameters:
+        - {name: companyId, in: path, required: true, schema: {type: string}}
+      responses:
+        '200': {description: Marketplace accounting rows, never bank facts}
+  /v1/risk-signals/{companyId}:
+    get:
+      parameters:
+        - {name: companyId, in: path, required: true, schema: {type: string}}
+      responses:
+        '200': {description: Dated FNS public-dataset observations}
