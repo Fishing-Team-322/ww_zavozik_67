@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"io"
 	"mime"
-	"net"
 	"net/http"
 	"strings"
 	"sync"
@@ -117,10 +116,7 @@ func (s *Server) withPlatform(next http.Handler) http.Handler {
 				writeError(w, 503, "platform_unavailable", "Хранение аккаунтов пока не настроено")
 				return
 			}
-			ip, _, err := net.SplitHostPort(r.RemoteAddr)
-			if err != nil {
-				ip = r.RemoteAddr
-			}
+			ip := s.clientIP(r)
 			if !limits.allow(ip) {
 				w.Header().Set("Retry-After", "60")
 				writeError(w, 429, "rate_limited", "Слишком много попыток. Подождите минуту")

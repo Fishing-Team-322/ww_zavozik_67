@@ -12,6 +12,7 @@ import (
 )
 
 type Config struct {
+	TrustedProxyCIDRs                                                                                                []string
 	HTTPAddr                                                                                                         string        // HTTP_ADDR
 	DatabaseURL                                                                                                      string        // DATABASE_URL
 	MLAddr                                                                                                           string        // ML_ADDR — gRPC Python-сервиса; пусто — только фолбэк
@@ -29,16 +30,17 @@ type Config struct {
 
 func Load() Config {
 	return Config{
-		HTTPAddr:       env("HTTP_ADDR", ":8080"),
-		DatabaseURL:    env("DATABASE_URL", ""),
-		MLAddr:         env("ML_ADDR", "localhost:50051"),
-		MLTimeout:      duration("ML_TIMEOUT", 5*time.Second),
-		JWTSecret:      env("JWT_SECRET", ""),
-		LogLevel:       env("LOG_LEVEL", "info"),
-		PublicURL:      strings.TrimRight(env("PUBLIC_URL", "http://localhost:8080"), "/"),
-		FrontendURL:    strings.TrimRight(env("FRONTEND_URL", "http://localhost:3000"), "/"),
-		CookieSecure:   env("COOKIE_SECURE", "true") != "false",
-		GoogleClientID: env("GOOGLE_CLIENT_ID", ""), GoogleClientSecret: env("GOOGLE_CLIENT_SECRET", ""),
+		TrustedProxyCIDRs: strings.FieldsFunc(env("TRUSTED_PROXY_CIDRS", ""), func(r rune) bool { return r == ',' || r == ' ' }),
+		HTTPAddr:          env("HTTP_ADDR", ":8080"),
+		DatabaseURL:       env("DATABASE_URL", ""),
+		MLAddr:            env("ML_ADDR", "localhost:50051"),
+		MLTimeout:         duration("ML_TIMEOUT", 5*time.Second),
+		JWTSecret:         env("JWT_SECRET", ""),
+		LogLevel:          env("LOG_LEVEL", "info"),
+		PublicURL:         strings.TrimRight(env("PUBLIC_URL", "http://localhost:8080"), "/"),
+		FrontendURL:       strings.TrimRight(env("FRONTEND_URL", "http://localhost:3000"), "/"),
+		CookieSecure:      env("COOKIE_SECURE", "true") != "false",
+		GoogleClientID:    env("GOOGLE_CLIENT_ID", ""), GoogleClientSecret: env("GOOGLE_CLIENT_SECRET", ""),
 		YandexClientID: env("YANDEX_CLIENT_ID", ""), YandexClientSecret: env("YANDEX_CLIENT_SECRET", ""),
 		SMTPAddr: env("SMTP_ADDR", ""), SMTPUser: env("SMTP_USER", ""), SMTPPassword: env("SMTP_PASSWORD", ""), SMTPFrom: env("SMTP_FROM", ""),
 		SMTPLocalPlaintext: env("SMTP_LOCAL_PLAINTEXT", "false") == "true",
@@ -48,6 +50,16 @@ func Load() Config {
 
 // ValidatePlatform validates fixed redirect origins and prevents insecure remote cookies.
 func (c Config) ValidatePlatform() error {
+	for _, cidr := range c.TrustedProxyCIDRs {
+		_, network, err := net.ParseCIDR(cidr)
+		if err != nil {
+			return fmt.Errorf("invalid TRUSTED_PROXY_CIDRS")
+		}
+		ones, _ := network.Mask.Size()
+		if ones == 0 {
+			return fmt.Errorf("TRUSTED_PROXY_CIDRS must not trust every address")
+		}
+	}
 	if len(c.JWTSecret) < 32 {
 		return fmt.Errorf("JWT_SECRET must contain at least 32 bytes")
 	}

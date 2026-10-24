@@ -46,7 +46,7 @@ func TestProductSourceAdaptersAndRecovery(t *testing.T) {
 		}
 		return decode[product.Doc](t, r)
 	}
-	c := call("POST", "/v1/companies", product.Doc{"name": "Adapters", "legal_form": "ООО", "industry": "services", "inn": "7700000000"}, 201)
+	c := call("POST", "/v1/companies", product.Doc{"name": "Adapters", "legal_form": "ООО", "industry": "services", "inn": "7707083893"}, 201)
 	cid := c["id"].(string)
 	base := "/v1/companies/" + cid
 	emptyCompany := call("GET", "/v1/admin/companies/"+cid, nil, 200)

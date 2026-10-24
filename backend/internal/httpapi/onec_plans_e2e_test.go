@@ -67,7 +67,7 @@ func TestOneCObligationsBackendE2E(t *testing.T) {
 		status(t, response, want)
 		return decode[product.Doc](t, response)
 	}
-	company := call("POST", "/v1/companies", product.Doc{"name": "OneC plans", "legal_form": "ООО", "industry": "services", "inn": "7700000000"}, owner, 201)
+	company := call("POST", "/v1/companies", product.Doc{"name": "OneC plans", "legal_form": "ООО", "industry": "services", "inn": "7707083893"}, owner, 201)
 	cid := company["id"].(string)
 	raw, err := os.ReadFile("../../../integrations/testdata/onec_odata_mock.json")
 	if err != nil {
@@ -165,7 +165,7 @@ func TestOneCObligationsBackendE2E(t *testing.T) {
 		t.Fatalf("history: %d, %v", versions, err)
 	}
 	status(t, h.call("GET", "/v1/companies/"+cid+"/events", "", outsider), 404)
-	otherCompany := call("POST", "/v1/companies", product.Doc{"name": "Another OneC tenant", "legal_form": "ООО", "industry": "services", "inn": "7700000000"}, outsider, 201)
+	otherCompany := call("POST", "/v1/companies", product.Doc{"name": "Another OneC tenant", "legal_form": "ООО", "industry": "services", "inn": "7707083893"}, outsider, 201)
 	otherCID := otherCompany["id"].(string)
 	otherSource := call("POST", "/v1/companies/"+otherCID+"/sources", product.Doc{"title": "Same external invoice", "kind": "onec_odata", "config": cfg}, outsider, 201)
 	otherJob := call("POST", "/v1/sources/"+otherSource["id"].(string)+"/sync", nil, outsider, 202)

@@ -233,7 +233,7 @@ func TestPlatformIntegration(t *testing.T) {
 	if otherList.Body.String() != "[]\n" {
 		t.Fatal(otherList.Body.String())
 	}
-	status(t, h.call("PATCH", base, `{"inn":"1234567890","default_horizon":60}`, owner), 200)
+	status(t, h.call("PATCH", base, `{"inn":"6164138513","default_horizon":60}`, owner), 200)
 	updated := h.call("PATCH", base, `{"inn":null}`, owner)
 	status(t, updated, 200)
 	if decode[platform.Company](t, updated).INN != nil {

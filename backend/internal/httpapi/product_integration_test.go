@@ -50,7 +50,7 @@ func TestProductEndToEnd(t *testing.T) {
 		t.Helper()
 		return decode[product.Doc](t, call("POST", path, b, owner, 201))
 	}
-	company := decode[product.Doc](t, call("POST", "/v1/companies", product.Doc{"name": "Финансы", "legal_form": "ООО", "industry": "services", "inn": "7700000000"}, owner, 201))
+	company := decode[product.Doc](t, call("POST", "/v1/companies", product.Doc{"name": "Финансы", "legal_form": "ООО", "industry": "services", "inn": "7707083893"}, owner, 201))
 	cid := company["id"].(string)
 	base := "/v1/companies/" + cid
 	next := domain.Day(time.Now().UTC()).AddDate(0, 0, 1).Format(domain.DateLayout)
@@ -194,7 +194,7 @@ func TestProductEndToEnd(t *testing.T) {
 	for _, route := range []string{base + "/forecast", base + "/operations", base + "/events", base + "/scenarios", base + "/sources", base + "/calendar?month=" + next[:7], base + "/dashboard", base + "/counterparties"} {
 		call("GET", route, nil, other, 404)
 	}
-	call("GET", "/v1/fns/lookup?inn=7700000000", nil, owner, 503)
+	call("GET", "/v1/fns/lookup?inn=7707083893", nil, owner, 503)
 	for _, route := range []string{"overview", "users", "companies", "companies/" + cid, "integrations", "integrations/stats", "models", "models/drift", "classifier", "antifraud/signals", "antifraud/stats", "audit"} {
 		call("GET", "/v1/admin/"+route, nil, owner, 403)
 		call("GET", "/v1/admin/"+route, nil, admin, 200)

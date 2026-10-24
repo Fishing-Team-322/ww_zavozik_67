@@ -25,7 +25,7 @@ func main() {
 	cfg := config.Load()
 	log := logging.New(cfg.LogLevel)
 
-	srv := &httpapi.Server{Fallback: forecast.SeasonalNaive{}, Log: log}
+	srv := &httpapi.Server{Fallback: forecast.SeasonalNaive{}, Log: log, TrustedProxyCIDRs: cfg.TrustedProxyCIDRs}
 	if cfg.DatabaseURL != "" {
 		if err := cfg.ValidatePlatform(); err != nil {
 			log.Error("platform configuration", "err", err)

@@ -17,7 +17,10 @@ services:
     ports:
       - "127.0.0.1:5543:5432"
   hub:
-    build: .
+    build:
+      context: .
+      args:
+        GIT_SHA: ${GIT_SHA:-unknown}
     restart: unless-stopped
     depends_on:
       postgres:

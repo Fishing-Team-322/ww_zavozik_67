@@ -1,5 +1,8 @@
 {$APP_DOMAIN} {
 	encode zstd gzip
+	handle /v1/* {
+		reverse_proxy api:8080
+	}
 	handle /healthz {
 		reverse_proxy api:8080
 	}

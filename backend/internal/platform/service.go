@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Fishing-Team-322/ww_zavozik_67/integrations/bridge"
 	"github.com/golang-jwt/jwt/v5"
 )
 
@@ -203,13 +204,8 @@ func ValidateCompany(c *Company) error {
 	if c.INN != nil {
 		inn := strings.TrimSpace(*c.INN)
 		c.INN = &inn
-		if len(inn) != 10 && len(inn) != 12 {
-			return Fail(400, "invalid_inn", "ИНН должен содержать 10 или 12 цифр")
-		}
-		for _, r := range inn {
-			if r < '0' || r > '9' {
-				return Fail(400, "invalid_inn", "ИНН должен содержать только цифры")
-			}
+		if !bridge.ValidINN(inn) {
+			return Fail(400, "invalid_inn", "Проверьте ИНН: нужны 10 или 12 цифр и корректная контрольная цифра")
 		}
 	}
 	if c.TaxRegime == "" {

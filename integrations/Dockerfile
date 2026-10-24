@@ -7,6 +7,8 @@ COPY internal ./internal
 RUN CGO_ENABLED=0 go build -trimpath -o /out/integration-server ./cmd/server
 
 FROM alpine:3.22
+ARG GIT_SHA=unknown
+LABEL org.opencontainers.image.revision=$GIT_SHA
 RUN addgroup -S app && adduser -S -G app app
 COPY --from=build /out/integration-server /usr/local/bin/integration-server
 USER app

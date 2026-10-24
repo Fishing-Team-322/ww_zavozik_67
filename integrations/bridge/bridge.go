@@ -9,6 +9,7 @@ import (
 
 	"github.com/Fishing-Team-322/ww_zavozik_67/integrations/internal/contracts"
 	"github.com/Fishing-Team-322/ww_zavozik_67/integrations/internal/providers/dadata"
+	"github.com/Fishing-Team-322/ww_zavozik_67/integrations/internal/providers/fnsregistry"
 	"github.com/Fishing-Team-322/ww_zavozik_67/integrations/internal/providers/onecbank"
 	"github.com/Fishing-Team-322/ww_zavozik_67/integrations/internal/providers/onecodata"
 )
@@ -21,6 +22,11 @@ type ODataConfig = onecodata.Config
 type ODataDiscovery = onecodata.Discovery
 type ODataPlanConfig = onecodata.PlanConfig
 type Party = dadata.Party
+
+// ValidINN validates length, digits and the official checksum, not ownership.
+func ValidINN(value string) bool {
+	return (len(value) == 10 || len(value) == 12) && fnsregistry.ValidIdentifier(value)
+}
 
 func ParseBank(ctx context.Context, r io.Reader, id Identity) (Batch, error) {
 	return (onecbank.Parser{}).Parse(ctx, r, id)

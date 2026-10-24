@@ -324,6 +324,7 @@ paths:
         schema:
           type: string
       - name: counterparty_id
+        description: Optional counterparty UUID. Omit to include all; legacy empty values are treated as absent. Invalid nonempty values return 400.
         in: query
         required: false
         schema:
@@ -883,6 +884,7 @@ paths:
         schema:
           type: string
       - name: unread
+        description: Omit for all alerts, true for unread, false for read. Legacy empty values are treated as absent.
         in: query
         required: false
         schema:

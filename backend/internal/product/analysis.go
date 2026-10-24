@@ -275,6 +275,9 @@ func (s *Service) alerts(ctx context.Context, op, uid, cid string, r *http.Reque
 		if q.Get("unread") == "true" && flag(d, "read") {
 			continue
 		}
+		if q.Get("unread") == "false" && !flag(d, "read") {
+			continue
+		}
 		out = append(out, view("alert", d))
 	}
 	if op == "readAllAlerts" {

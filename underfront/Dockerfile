@@ -8,11 +8,15 @@ WORKDIR /app
 COPY --from=dependencies /app/node_modules ./node_modules
 COPY . .
 ARG BACKEND_ORIGIN
+ARG GIT_SHA=unknown
 ENV BACKEND_ORIGIN=${BACKEND_ORIGIN}
 ENV NEXT_TELEMETRY_DISABLED=1
+RUN node -e "require('fs').writeFileSync('public/build-info.json', JSON.stringify({revision:process.argv[1]}))" "$GIT_SHA"
 RUN npm run build
 
 FROM node:22-bookworm-slim AS runtime
+ARG GIT_SHA=unknown
+LABEL org.opencontainers.image.revision=$GIT_SHA
 WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1

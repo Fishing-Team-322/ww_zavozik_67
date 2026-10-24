@@ -11,6 +11,9 @@ ARG CMD=api
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/app ./cmd/${CMD}
 
 FROM gcr.io/distroless/static-debian12:nonroot
+ARG GIT_SHA=unknown
+LABEL org.opencontainers.image.revision=$GIT_SHA
+ENV APP_BUILD_SHA=$GIT_SHA
 COPY --from=build /out/app /app
 COPY ml/reports/metrics /data/model-reports
 ENV MODEL_REPORTS_DIR=/data/model-reports

@@ -15,6 +15,8 @@ require (
 	google.golang.org/protobuf v1.36.12
 )
 
+require github.com/ledongthuc/pdf v0.0.0-20260907135840-6c8c28e0e8a0 // indirect
+
 require (
 	github.com/Fishing-Team-322/ww_zavozik_67/integrations v0.0.0
 	github.com/apapsch/go-jsonmerge/v2 v2.0.0 // indirect
