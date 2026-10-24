@@ -27,9 +27,10 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
-// ForecasterService прогнозирует стохастическую часть денежного потока
-// (розничная выручка, нерегулярные платежи). Детерминированные компоненты
-// (регулярные платежи, налоги, плановые события) считает Go.
+// ForecasterService прогнозирует потоки бизнеса без own_transfer/owner_loan,
+// ВКЛЮЧАЯ регулярные зарплаты, налоги, аренду. Это условный сценарий без
+// собственных переводов и финансирования владельцем, не полный прогноз счёта.
+// Нельзя добавлять те же регулярные платежи поверх ответа второй раз.
 // Сервис без состояния: всю историю передаём в запросе.
 type ForecasterServiceClient interface {
 	Forecast(ctx context.Context, in *ForecastRequest, opts ...grpc.CallOption) (*ForecastResponse, error)
@@ -68,9 +69,10 @@ func (c *forecasterServiceClient) ListModels(ctx context.Context, in *ListModels
 // All implementations must embed UnimplementedForecasterServiceServer
 // for forward compatibility.
 //
-// ForecasterService прогнозирует стохастическую часть денежного потока
-// (розничная выручка, нерегулярные платежи). Детерминированные компоненты
-// (регулярные платежи, налоги, плановые события) считает Go.
+// ForecasterService прогнозирует потоки бизнеса без own_transfer/owner_loan,
+// ВКЛЮЧАЯ регулярные зарплаты, налоги, аренду. Это условный сценарий без
+// собственных переводов и финансирования владельцем, не полный прогноз счёта.
+// Нельзя добавлять те же регулярные платежи поверх ответа второй раз.
 // Сервис без состояния: всю историю передаём в запросе.
 type ForecasterServiceServer interface {
 	Forecast(context.Context, *ForecastRequest) (*ForecastResponse, error)

@@ -1,0 +1,42 @@
+syntax = "proto3";
+
+package categorize.v1;
+
+option go_package = "github.com/Fishing-Team-322/ww_zavozik_67/backend/gen/categorize/v1;categorizev1";
+
+// CategorizerService относит операции к категориям закрытого списка
+// (enum Category в api/openapi.yaml) по экономическому смыслу. В Go стоит
+// в цепочке после правил: получает то, что правила не взяли уверенно.
+// Сервис без состояния. ИНН в модель не идёт — только его тип по длине.
+service CategorizerService {
+  rpc Classify(ClassifyRequest) returns (ClassifyResponse);
+}
+
+message Operation {
+  // Идентификатор для сопоставления ответа (ответ и так в том же порядке).
+  string id = 1;
+  // "in" — поступление, "out" — списание.
+  string direction = 2;
+  double amount = 3; // >= 0
+  string counterparty_inn = 4; // может быть пустым
+  string counterparty_name = 5;
+  string payment_purpose = 6;
+}
+
+message ClassifyRequest {
+  repeated Operation operations = 1;
+}
+
+message Classification {
+  string id = 1;
+  // Всегда одна из категорий закрытого списка; "other" — смысл не определить.
+  string category = 2;
+  double confidence = 3; // 0..1
+}
+
+message ClassifyResponse {
+  // Тот же порядок и длина, что у ClassifyRequest.operations.
+  repeated Classification results = 1;
+  // Версия артефакта модели — для category_method и аудита.
+  string model_version = 2;
+}

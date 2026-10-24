@@ -2,10 +2,10 @@ package forecast
 
 import (
 	"context"
+	"math"
 	"net"
 	"sync/atomic"
 	"testing"
-	"time"
 
 	"google.golang.org/grpc"
 
@@ -13,7 +13,42 @@ import (
 	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/domain"
 )
 
-// stubServer отдаёт ответ заданного размера, не глядя на запрос.
+type responseClient struct {
+	forecastv1.ForecasterServiceClient
+	response *forecastv1.ForecastResponse
+}
+
+func (f responseClient) Forecast(context.Context, *forecastv1.ForecastRequest, ...grpc.CallOption) (*forecastv1.ForecastResponse, error) {
+	return f.response, nil
+}
+
+func TestMLClientRejectsMalformedPaths(t *testing.T) {
+	cases := map[string]func(*forecastv1.ForecastResponse){
+		"path count":  func(r *forecastv1.ForecastResponse) { r.Paths = nil },
+		"path length": func(r *forecastv1.ForecastResponse) { r.Paths[0].Outflow = nil },
+		"date shift":  func(r *forecastv1.ForecastResponse) { r.Dates[0] = "2025-01-03" },
+		"nan":         func(r *forecastv1.ForecastResponse) { r.Paths[0].Inflow[0] = math.NaN() },
+		"infinity":    func(r *forecastv1.ForecastResponse) { r.Paths[0].Inflow[0] = math.Inf(1) },
+		"negative":    func(r *forecastv1.ForecastResponse) { r.Paths[0].Outflow[0] = -1 },
+		"scope":       func(r *forecastv1.ForecastResponse) { r.FlowScope = "residual_only" },
+	}
+	for name, mutate := range cases {
+		t.Run(name, func(t *testing.T) {
+			r := &forecastv1.ForecastResponse{Dates: []string{"2025-01-02"}, Paths: []*forecastv1.Path{{Inflow: []float64{2}, Outflow: []float64{1}}}}
+			mutate(r)
+			client := MLClient{c: responseClient{response: r}}
+			if _, err := client.Forecast(context.Background(), StochasticRequest{History: history(1), Horizon: 1, NPaths: 1}); err == nil {
+				t.Fatal("accepted malformed response")
+			}
+		})
+	}
+}
+
+// stubHistory — история, которую тесты шлют заглушке; её даты продолжает ответ.
+var stubHistory = history(60)
+
+// stubServer отдаёт ответ заданного размера, не глядя на запрос; даты
+// продолжают stubHistory, как требует контракт клиента.
 type stubServer struct {
 	forecastv1.UnimplementedForecasterServiceServer
 	paths int
@@ -21,7 +56,7 @@ type stubServer struct {
 }
 
 func (s stubServer) Forecast(context.Context, *forecastv1.ForecastRequest) (*forecastv1.ForecastResponse, error) {
-	start := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	start := stubHistory[len(stubHistory)-1].Date
 	resp := &forecastv1.ForecastResponse{ModelUsed: "stub-model", Dates: make([]string, s.days)}
 	for d := range resp.Dates {
 		resp.Dates[d] = start.AddDate(0, 0, d+1).Format(domain.DateLayout)
@@ -62,7 +97,7 @@ func TestMLClientReceivesLargeForecast(t *testing.T) {
 	}
 	defer ml.Close()
 
-	sf, err := ml.Forecast(context.Background(), StochasticRequest{Horizon: days, NPaths: paths})
+	sf, err := ml.Forecast(context.Background(), StochasticRequest{History: stubHistory, Horizon: days, NPaths: paths})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -83,11 +118,10 @@ func TestAssemblerKeepsPrimaryModelForLargeForecast(t *testing.T) {
 
 	var fallbackCalls atomic.Int32
 	a := Assembler{Primary: ml, Fallback: countingForecaster{calls: &fallbackCalls}}
-	asOf := time.Date(2025, 6, 1, 0, 0, 0, 0, time.UTC)
 	res, err := a.Build(context.Background(), Input{
-		AsOf:           asOf,
+		AsOf:           stubHistory[len(stubHistory)-1].Date,
 		OpeningBalance: 1000,
-		Stochastic:     StochasticRequest{Horizon: days, NPaths: paths},
+		Stochastic:     StochasticRequest{History: stubHistory, Horizon: days, NPaths: paths},
 	})
 	if err != nil {
 		t.Fatal(err)

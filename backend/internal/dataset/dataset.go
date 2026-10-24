@@ -17,8 +17,9 @@ import (
 )
 
 type Company struct {
-	ID  string
-	Ops []domain.Operation
+	ID      string
+	Ops     []domain.Operation
+	Quality ingest.DedupReport
 }
 
 // Files — statements/*.csv в dir, отфильтрованные по ids (пусто — все).
@@ -55,13 +56,14 @@ func Load(ctx context.Context, path string, cat categorize.Categorizer) (Company
 	if err != nil {
 		return Company{}, fmt.Errorf("%s: %w", path, err)
 	}
-	ingest.SortOps(b.Operations)
+	cleaned, quality := ingest.Deduplicate(b.Operations)
+	b.Operations = cleaned
 	res, err := cat.Categorize(ctx, b.Operations)
 	if err != nil {
 		return Company{}, err
 	}
 	categorize.Apply(b.Operations, res)
-	return Company{ID: id, Ops: b.Operations}, nil
+	return Company{ID: id, Ops: b.Operations, Quality: quality}, nil
 }
 
 // NotInternal — фильтр для потоков бизнеса: без своих переводов и займов
@@ -74,9 +76,21 @@ func FillBalance(flows []domain.DailyFlow) {
 	for i := range flows {
 		if flows[i].Balance != nil {
 			last = flows[i].Balance
+		} else if flows[i].Missing || flows[i].Inflow != 0 || flows[i].Outflow != 0 || hasCategoryMovement(flows[i]) {
+			// Не выдавать перенесённый остаток за наблюдаемый факт в пропуске.
+			last = nil
 		} else if last != nil {
 			b := *last
 			flows[i].Balance = &b
 		}
 	}
+}
+
+func hasCategoryMovement(flow domain.DailyFlow) bool {
+	for _, value := range flow.ByCategory {
+		if value != 0 {
+			return true
+		}
+	}
+	return false
 }

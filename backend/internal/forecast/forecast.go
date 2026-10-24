@@ -1,11 +1,7 @@
-// Package forecast собирает прогноз остатка из компонент. Владелец: Бэк 2.
-//
-//	баланс(t) = остаток сегодня
-//	          + Σ детерминированные компоненты (регулярные, налоги, план)  ← Go
-//	          + стохастическая часть (пути из ML-сервиса)                 ← Python
-//
-// Детерминированная часть объясняет разрыв; стохастическая даёт коридор
-// и вероятность. Если ML недоступен, Assembler берёт Fallback.
+// Package forecast собирает прогноз остатка из путей ML и дополнительных
+// детерминированных изменений. Модель business_without_internal_transfers
+// уже включает регулярные зарплату, налоги и аренду; повторно добавлять их
+// в Deterministic нельзя. При отказе ML Assembler использует явный fallback.
 package forecast
 
 import (
@@ -13,8 +9,12 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"math"
 	"sort"
 	"time"
+
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/domain"
 )
@@ -42,6 +42,8 @@ type StochasticRequest struct {
 	Horizon   int
 	NPaths    int
 	Seed      int64
+	// Обученный ML включает регулярные платежи, исключает own_transfer/owner_loan.
+	FlowScope string
 }
 
 // StochasticForecast — пути стохастической части: Inflow[path][day].
@@ -51,6 +53,10 @@ type StochasticForecast struct {
 	Inflow        [][]float64
 	Outflow       [][]float64
 	LowConfidence bool
+	ModelVersion  string
+	FlowScope     string
+	Warnings      []string
+	FallbackUsed  bool
 }
 
 // StochasticForecaster — то, что умеет ML-сервис (gRPC-клиент) и
@@ -87,8 +93,14 @@ type Assembler struct {
 }
 
 func (a Assembler) Build(ctx context.Context, in Input) (Result, error) {
-	if in.Stochastic.Horizon <= 0 || in.Stochastic.NPaths <= 0 {
-		return Result{}, errors.New("forecast: horizon and n_paths must be positive")
+	if err := validateRequest(in.Stochastic); err != nil {
+		return Result{}, err
+	}
+	if !domain.Day(in.AsOf).Equal(domain.Day(in.Stochastic.History[len(in.Stochastic.History)-1].Date)) {
+		return Result{}, status.Error(codes.InvalidArgument, "forecast: as_of must match the last history date")
+	}
+	if math.IsNaN(in.OpeningBalance.Float()) || math.IsInf(in.OpeningBalance.Float(), 0) {
+		return Result{}, status.Error(codes.InvalidArgument, "forecast: opening balance must be finite")
 	}
 	sf, err := a.stochastic(ctx, in.Stochastic)
 	if err != nil {
@@ -104,6 +116,14 @@ func (a Assembler) Build(ctx context.Context, in Input) (Result, error) {
 	for i := range res.Dates {
 		res.Dates[i] = res.AsOf.AddDate(0, 0, i+1)
 	}
+	if len(sf.Dates) != len(res.Dates) {
+		return Result{}, errors.New("forecast: stochastic dates do not match the horizon")
+	}
+	for i, d := range sf.Dates {
+		if !domain.Day(d).Equal(res.Dates[i]) {
+			return Result{}, errors.New("forecast: stochastic dates do not match as_of")
+		}
+	}
 	if err := res.Recompute(); err != nil {
 		return Result{}, err
 	}
@@ -111,12 +131,23 @@ func (a Assembler) Build(ctx context.Context, in Input) (Result, error) {
 }
 
 func (a Assembler) stochastic(ctx context.Context, req StochasticRequest) (StochasticForecast, error) {
+	if err := ctx.Err(); err != nil {
+		return StochasticForecast{}, err
+	}
 	if a.Primary != nil {
 		pctx, cancel := context.WithTimeout(ctx, a.timeout())
 		sf, err := a.Primary.Forecast(pctx, req)
 		cancel()
 		if err == nil {
 			return sf, nil
+		}
+		if ctx.Err() != nil {
+			return StochasticForecast{}, ctx.Err()
+		}
+		if status.Code(err) == codes.InvalidArgument || status.Code(err) == codes.FailedPrecondition {
+			// Correct the input/model precondition first; this is not a service outage.
+			// In particular, another sampler must not turn insufficient evidence into zeros.
+			return StochasticForecast{}, err
 		}
 		if a.Log != nil {
 			a.Log.Warn("ml forecast failed, using fallback", "company_id", req.CompanyID, "err", err)
@@ -125,7 +156,13 @@ func (a Assembler) stochastic(ctx context.Context, req StochasticRequest) (Stoch
 	if a.Fallback == nil {
 		return StochasticForecast{}, errors.New("forecast: no forecaster available")
 	}
-	return a.Fallback.Forecast(ctx, req)
+	sf, err := a.Fallback.Forecast(ctx, req)
+	if err == nil {
+		sf.FallbackUsed = true
+		sf.LowConfidence = true
+		sf.Warnings = append(sf.Warnings, "ml_service_fallback")
+	}
+	return sf, err
 }
 
 func (a Assembler) timeout() time.Duration {
@@ -143,7 +180,15 @@ func (r *Result) Recompute() error {
 		return fmt.Errorf("forecast: bad stochastic paths: %d in, %d out", len(sf.Inflow), len(sf.Outflow))
 	}
 	det := r.DeterministicByDay()
-	r.Balances = make([][]float64, len(sf.Inflow))
+	if math.IsNaN(r.OpeningBalance.Float()) || math.IsInf(r.OpeningBalance.Float(), 0) {
+		return errors.New("forecast: opening balance must be finite")
+	}
+	for _, v := range det {
+		if math.IsNaN(v) || math.IsInf(v, 0) {
+			return errors.New("forecast: deterministic flow must be finite")
+		}
+	}
+	balances := make([][]float64, len(sf.Inflow))
 	for p := range sf.Inflow {
 		if len(sf.Inflow[p]) < h || len(sf.Outflow[p]) < h {
 			return fmt.Errorf("forecast: path %d shorter than horizon %d", p, h)
@@ -151,11 +196,19 @@ func (r *Result) Recompute() error {
 		bal := r.OpeningBalance.Float()
 		row := make([]float64, h)
 		for d := 0; d < h; d++ {
+			in, out := sf.Inflow[p][d], sf.Outflow[p][d]
+			if math.IsNaN(in) || math.IsInf(in, 0) || math.IsNaN(out) || math.IsInf(out, 0) || in < 0 || out < 0 {
+				return fmt.Errorf("forecast: invalid stochastic flow at path %d day %d", p, d)
+			}
 			bal += det[d] + sf.Inflow[p][d] - sf.Outflow[p][d]
+			if math.IsNaN(bal) || math.IsInf(bal, 0) {
+				return errors.New("forecast: accumulated balance is not finite")
+			}
 			row[d] = bal
 		}
-		r.Balances[p] = row
+		balances[p] = row
 	}
+	r.Balances = balances
 	return nil
 }
 

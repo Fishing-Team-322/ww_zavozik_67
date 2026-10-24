@@ -3,6 +3,8 @@ package forecast
 import (
 	"context"
 	"errors"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"testing"
 	"time"
 
@@ -63,5 +65,45 @@ func TestNaiveLowConfidence(t *testing.T) {
 	sf, _ := SeasonalNaive{}.Forecast(context.Background(), StochasticRequest{History: history(10), Horizon: 7, NPaths: 3})
 	if !sf.LowConfidence {
 		t.Error("10 days of history must be low confidence")
+	}
+}
+
+type invalidInput struct{ failing }
+
+func (invalidInput) Forecast(context.Context, StochasticRequest) (StochasticForecast, error) {
+	return StochasticForecast{}, status.Error(codes.InvalidArgument, "bad input")
+}
+func TestAssemblerDoesNotHideInputErrors(t *testing.T) {
+	a := Assembler{Primary: invalidInput{}, Fallback: SeasonalNaive{}}
+	_, err := a.Build(context.Background(), Input{AsOf: history(10)[9].Date, Stochastic: StochasticRequest{History: history(10), Horizon: 7, NPaths: 3}})
+	if status.Code(err) != codes.InvalidArgument {
+		t.Fatalf("got %v", err)
+	}
+}
+
+type unmetPrecondition struct{ failing }
+
+func (unmetPrecondition) Forecast(context.Context, StochasticRequest) (StochasticForecast, error) {
+	return StochasticForecast{}, status.Error(codes.FailedPrecondition, "no eligible sampling observations")
+}
+func TestAssemblerDoesNotOverrideModelPrecondition(t *testing.T) {
+	// The fallback could succeed on this history; the primary's rejection must
+	// still be preserved rather than turning it into a plausible prediction.
+	a := Assembler{Primary: unmetPrecondition{}, Fallback: SeasonalNaive{}}
+	_, err := a.Build(context.Background(), Input{AsOf: history(10)[9].Date, Stochastic: StochasticRequest{History: history(10), Horizon: 7, NPaths: 3}})
+	if status.Code(err) != codes.FailedPrecondition {
+		t.Fatalf("got %v", err)
+	}
+}
+func TestFallbackMetadataAndCloneAreIndependent(t *testing.T) {
+	a := Assembler{Primary: failing{}, Fallback: SeasonalNaive{}}
+	r, err := a.Build(context.Background(), Input{AsOf: history(10)[9].Date, Stochastic: StochasticRequest{History: history(10), Horizon: 7, NPaths: 3}})
+	if err != nil || !r.Stochastic.FallbackUsed || !r.Stochastic.LowConfidence || len(r.Stochastic.Warnings) == 0 {
+		t.Fatalf("%+v %v", r.Stochastic, err)
+	}
+	cloned := r.Clone()
+	cloned.Stochastic.Warnings[0] = "changed"
+	if r.Stochastic.Warnings[0] == "changed" {
+		t.Fatal("warning slice is shared")
 	}
 }

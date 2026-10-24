@@ -1,0 +1,7 @@
+{
+  "protocol": "development_diagnostic_only",
+  "input_sha256": "d3fa654bd2bd6ec69ac16b284878b47e0f366f0339f33396957befd543fbd7c7",
+  "policy_changed": false,
+  "current_daily_threshold": 0.1,
+  "limitation": "Thresholds reflect business costs. No tuning on the locked audit; this table is not evidence that a different threshold is optimal."
+}

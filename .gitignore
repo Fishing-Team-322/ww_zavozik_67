@@ -5,7 +5,6 @@ cashflow_dataset_participants
 # ML
 ml/.venv/
 ml/data/
-ml/artifacts/
 __pycache__/
 *.egg-info/
 .pytest_cache/

@@ -7,12 +7,16 @@ dependencies = [
     "grpcio>=1.84,<2",
     "protobuf>=7.35,<8", # gencode из grpcio-tools 1.84 требует runtime >= 7.35
     "numpy>=2.1",
+    "pandas>=2.2",
+    "lightgbm>=4.5",
+    "statsmodels>=0.14",
+    "scipy>=1.13", # обучение классификатора категорий (L-BFGS); уже тянется statsmodels
 ]
 
 [project.optional-dependencies]
-dev = ["grpcio-tools>=1.84,<2", "pytest>=8"]
-# Обучение: ставится отдельно, в прод-образ не попадает.
-train = ["pandas>=2.2", "pyarrow>=17", "torch>=2.5"]
+dev = ["grpcio-tools>=1.84,<2", "pytest>=8", "pyarrow>=17", "matplotlib>=3.9"]
+# Эксперименты с нейросетями: ставится отдельно, в прод-образ не попадает.
+train = ["torch>=2.5"]
 
 [build-system]
 requires = ["setuptools>=75"]
@@ -20,6 +24,9 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 include = ["zavozik_ml*"]
+
+[tool.setuptools.package-data]
+zavozik_ml = ["calendar_data/*.json"]
 
 [tool.pytest.ini_options]
 pythonpath = [".", "gen"]

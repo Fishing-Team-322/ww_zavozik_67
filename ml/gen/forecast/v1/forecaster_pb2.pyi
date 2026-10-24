@@ -7,19 +7,28 @@ from typing import ClassVar as _ClassVar, Optional as _Optional, Union as _Union
 DESCRIPTOR: _descriptor.FileDescriptor
 
 class DailyFlow(_message.Message):
-    __slots__ = ("date", "inflow", "outflow", "missing")
+    __slots__ = ("date", "inflow", "outflow", "missing", "by_category")
+    class ByCategoryEntry(_message.Message):
+        __slots__ = ("key", "value")
+        KEY_FIELD_NUMBER: _ClassVar[int]
+        VALUE_FIELD_NUMBER: _ClassVar[int]
+        key: str
+        value: float
+        def __init__(self, key: _Optional[str] = ..., value: _Optional[float] = ...) -> None: ...
     DATE_FIELD_NUMBER: _ClassVar[int]
     INFLOW_FIELD_NUMBER: _ClassVar[int]
     OUTFLOW_FIELD_NUMBER: _ClassVar[int]
     MISSING_FIELD_NUMBER: _ClassVar[int]
+    BY_CATEGORY_FIELD_NUMBER: _ClassVar[int]
     date: str
     inflow: float
     outflow: float
     missing: bool
-    def __init__(self, date: _Optional[str] = ..., inflow: _Optional[float] = ..., outflow: _Optional[float] = ..., missing: _Optional[bool] = ...) -> None: ...
+    by_category: _containers.ScalarMap[str, float]
+    def __init__(self, date: _Optional[str] = ..., inflow: _Optional[float] = ..., outflow: _Optional[float] = ..., missing: _Optional[bool] = ..., by_category: _Optional[_Mapping[str, float]] = ...) -> None: ...
 
 class ForecastRequest(_message.Message):
-    __slots__ = ("model", "company_id", "industry", "history", "horizon_days", "n_paths", "seed")
+    __slots__ = ("model", "company_id", "industry", "history", "horizon_days", "n_paths", "seed", "flow_scope")
     MODEL_FIELD_NUMBER: _ClassVar[int]
     COMPANY_ID_FIELD_NUMBER: _ClassVar[int]
     INDUSTRY_FIELD_NUMBER: _ClassVar[int]
@@ -27,6 +36,7 @@ class ForecastRequest(_message.Message):
     HORIZON_DAYS_FIELD_NUMBER: _ClassVar[int]
     N_PATHS_FIELD_NUMBER: _ClassVar[int]
     SEED_FIELD_NUMBER: _ClassVar[int]
+    FLOW_SCOPE_FIELD_NUMBER: _ClassVar[int]
     model: str
     company_id: str
     industry: str
@@ -34,7 +44,8 @@ class ForecastRequest(_message.Message):
     horizon_days: int
     n_paths: int
     seed: int
-    def __init__(self, model: _Optional[str] = ..., company_id: _Optional[str] = ..., industry: _Optional[str] = ..., history: _Optional[_Iterable[_Union[DailyFlow, _Mapping]]] = ..., horizon_days: _Optional[int] = ..., n_paths: _Optional[int] = ..., seed: _Optional[int] = ...) -> None: ...
+    flow_scope: str
+    def __init__(self, model: _Optional[str] = ..., company_id: _Optional[str] = ..., industry: _Optional[str] = ..., history: _Optional[_Iterable[_Union[DailyFlow, _Mapping]]] = ..., horizon_days: _Optional[int] = ..., n_paths: _Optional[int] = ..., seed: _Optional[int] = ..., flow_scope: _Optional[str] = ...) -> None: ...
 
 class Path(_message.Message):
     __slots__ = ("inflow", "outflow")
@@ -57,18 +68,26 @@ class NetQuantiles(_message.Message):
     def __init__(self, date: _Optional[str] = ..., p10: _Optional[float] = ..., p50: _Optional[float] = ..., p90: _Optional[float] = ...) -> None: ...
 
 class ForecastResponse(_message.Message):
-    __slots__ = ("model_used", "dates", "paths", "net_quantiles", "low_confidence")
+    __slots__ = ("model_used", "dates", "paths", "net_quantiles", "low_confidence", "model_version", "flow_scope", "warnings", "fallback_used")
     MODEL_USED_FIELD_NUMBER: _ClassVar[int]
     DATES_FIELD_NUMBER: _ClassVar[int]
     PATHS_FIELD_NUMBER: _ClassVar[int]
     NET_QUANTILES_FIELD_NUMBER: _ClassVar[int]
     LOW_CONFIDENCE_FIELD_NUMBER: _ClassVar[int]
+    MODEL_VERSION_FIELD_NUMBER: _ClassVar[int]
+    FLOW_SCOPE_FIELD_NUMBER: _ClassVar[int]
+    WARNINGS_FIELD_NUMBER: _ClassVar[int]
+    FALLBACK_USED_FIELD_NUMBER: _ClassVar[int]
     model_used: str
     dates: _containers.RepeatedScalarFieldContainer[str]
     paths: _containers.RepeatedCompositeFieldContainer[Path]
     net_quantiles: _containers.RepeatedCompositeFieldContainer[NetQuantiles]
     low_confidence: bool
-    def __init__(self, model_used: _Optional[str] = ..., dates: _Optional[_Iterable[str]] = ..., paths: _Optional[_Iterable[_Union[Path, _Mapping]]] = ..., net_quantiles: _Optional[_Iterable[_Union[NetQuantiles, _Mapping]]] = ..., low_confidence: _Optional[bool] = ...) -> None: ...
+    model_version: str
+    flow_scope: str
+    warnings: _containers.RepeatedScalarFieldContainer[str]
+    fallback_used: bool
+    def __init__(self, model_used: _Optional[str] = ..., dates: _Optional[_Iterable[str]] = ..., paths: _Optional[_Iterable[_Union[Path, _Mapping]]] = ..., net_quantiles: _Optional[_Iterable[_Union[NetQuantiles, _Mapping]]] = ..., low_confidence: _Optional[bool] = ..., model_version: _Optional[str] = ..., flow_scope: _Optional[str] = ..., warnings: _Optional[_Iterable[str]] = ..., fallback_used: _Optional[bool] = ...) -> None: ...
 
 class ListModelsRequest(_message.Message):
     __slots__ = ()
