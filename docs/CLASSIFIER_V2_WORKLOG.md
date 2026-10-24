@@ -629,3 +629,72 @@
   UIserver ужеостановлен. ColimaOFF. Нетheartbeat/новыхthreads/subagents.
   Пользовательявноотказался отhumanreviewпока ипроситискатьpublicdata; незадавать
   опятьэтиже вопросы. ПродолжатьMLresearchбездедлайна,неостанавливатьсялишьиз-заgold.
+
+## Активная длинная очередь — 24.10 ~19:22 MSK
+
+- Все изменения сохранены:8fe04eb,49fa182,bc40d00,77173d6,2186a6c,0f74f98.
+  Безpush/Co-Authored-By;origin мог обновляться извне, мыpushне делали.
+- Сейчас ЕДИНСТВЕННЫЙ controller research_public_v1: execsession2788,
+  PID52801; childteacherPID52813 настарте. Данные состояния
+  ml/data/category_discovery/research_public_v1/pipeline_state.json,
+  config.json, source_snapshot. Rootlog research_public_v1_controller.log,
+  step teacher_train.log. На19:21teacher44/1000, работает. НЕ ДУБЛИРОВАТЬ.
+  Controller сам: teachertrain1000/cal500 ->metricheads3models seed42 ->
+  calibrationoriginal/centered/adapted -> freezeweakcalAPranking ->43/44seeds
+  лучших2. Финальнаяphase fits_complete_review_required. Это НЕ allworkdone.
+  Childenvcwd=runroot,PYTHONPATH=immutable source_snapshot;fitprovenancecommit
+  0f74f98. СнимокНЕ МЕНЯТЬ. Всеinput/featureSHAпривязаны;failedstepсмотретьточно,
+  сохранятьготовыеfits,возобновлятьтолькоunfinished. Batchteacherresumable,
+  fitpartiallyfailedнеперезаписывается,нуженразборпричины. Никакогоfinalread.
+- TeacherлокальныйMLX4bitскачанполностью/проверенLFS:2263022417bytes,50d427...;
+  envteacher_venv,mlx-lm0.32.2/mlx0.32.4. Все modelinferenceoffline.
+  Первоначальный promptv1 оказалсяплохим:24/28schema,всеcoarse=same,
+  только18/28openexpectations. НЕ использоватьегоlabelsдляfit.
+  Promptv2уточняетэкономическуюобязанность/роль вместоanycommonancestor.
+  Opendevdiagnosticv2:25/28schema,23matched/25valid,3invalidrelationvalues;
+  этоНЕaccuracy. Creditpositiveимелошибочныйoutdirectionвauthoreddiagnostic,
+  helperисправленпослеv2; невыдаватьэтуошибкуданныхзапровалмодели. Website
+  refinement/developmentпараостаётсяспорной поfineгранулярности. Не ретюнить
+  бесконечнопромптпод14opencontrasts. Послеv2полнуюдиагностикунеперезапускали.
+- ВАЖНО teacherтеперьвидиттолько row.side.semantic_text (тотжеinputстудента),
+  НЕ исходныеbudgetcodes/скрытыепризнаки. Evidenceстрогоsubstringэтоговида.
+  Public_pair_review_v2пересобранДОразметкиизтого жеimmutablepubliccorpus:
+  1000первыхstratifiedreservoirpairsнаpart,endpointдобавленsemantic_text.
+  public_pair_review_v1неиспользоватьдляучителя(внёмнетэтоговида).
+- Serialpublicteacherpilot64закончился:49schema-valid/15invalid,
+  coarse22same/27different,fine15same/34different,275.37s.
+  Invalid12неправильныхrelationvalues/3evidencenotliteral. Ониотбрасываются,
+  не исправлятьугадыванием. Этоweaklabels,неhumangold/непроверкаточности.
+- Batchsmoke8закончен:7valid/1invalid,30.32s,3.47GiBpeak;seq32.55sнасамех8.
+  Увсех7validcoarse/fineсовпадают,invalidтотже. parity.jsonсохранён.
+  Batchingнеобещаетогромногоускорения (~3.8–4.3s/pair),егоrecipeотдельный.
+- Все3 PUBLIC train/cal featurecachesГОТОВЫ вpublic_candidate_cache_v1.
+  QwenMPS3454train241.779s/cal1080=77.927s. E5small/baseCPUтожеcomplete;
+  не кодироватьзаново. Train-only tokenbudgetaudit public_train_token_budget_v1:
+  E5max81tokens(128budget),Qwenmax152(256budget),truncation0укаждого;
+  увеличиватьконтекст/пересобиратькорпусрадигипотезыненужно.
+- train_metric_heads.py — realCPUoptimizationдвухнезависимыхaffine+L2heads,
+  encoder FROZEN (не fullfine-tune). БезcategoryCEиimplicitinbatchnegatives;
+  coarsepositive/finenegativeдопустимы,uncertainmasked. <=6epochs,patience2,
+  checkpointcal-only,по20same/differentкаждоголвлминимум. Weakopt-inявный.
+  Приinsufficientlabelsupport НЕ понижатьмолчаgates:исследоватьsampling/data.
+  NPZweightsбезpickle,dimсохраняется384/768/1024,serverнепереключали.
+- metric_evaluation.py calibrationONLY:original/centered/adaptedAP,ROC,F1/
+  thresholds. ЭтоapparentWEAKteacheragreement,НЕindependentprecision,
+  balancedpairselectionНЕpopulationaccuracy,IIDintervalsневыдумывать.
+  Необъявлятьцентровкууспехомобучения. Настоящийexternalgoldещёнет.
+- Testsпоследнийprod354PASS7SKIP;optional357PASSбылдоновейшихtrainer/eval,
+  новыеrealoptimization+evalfocused3PASS. Текущийlatestoptionalfullsession82001
+  ещёпроверить;старыйHDBSCANwarningдопустим. Go/forecast/trxнетронуты.
+- Созданheartbeat **idml**,nameЭкономические категорииML,каждые15мин,ACTIVE,
+  currentthread(новыечаты/подагентыНЕсозданы). Этопродолжениеавторизованной
+  работыбезdeadline,неполныйитог. Прифинальномисследовательскомзавершении
+  удалить/выключитьidml;неповторятьстарыеclassifier-v2/ml-07-00ID.
+  ИспользованOpenAIDocsдлясверкиscheduled-in-chatworkflow;файлынастроек
+  /Users/beesknight/.codex/automations/ml/automation.toml. Другую06-32НЕтрогать.
+- Нужныследомпослеочереди:разборреальныхweakmetrics/ошибок/seedstability,
+  known-positive/negativechecksпослеадаптации(неfinal),semanticcategory/
+  hierarchyprototypeсforest/coarse-only/unknownиCPU/runtime+modelcard.
+  evidence_graph.pyпокаНЕподключёнкнастоящемуvalidatedverifier. Нетзаявлений
+  обидеальности/независимойточности. Новые768/1024dimsнеобрезатьдонашего384RPC.
+  Послеboundedresearchчестныйитог+чтоостаётсяпоML/Go;Goинтеграцияуbackendowner.
