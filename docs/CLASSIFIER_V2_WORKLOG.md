@@ -705,3 +705,16 @@
   перемещенывignoreddata/category_discovery/test_generated_calendar_cache_20261024_1921.
   Forecastcode/trackedcalendarне менялись. На19:22controlleralive,teacher56/1000;
   UI/тестовыхсерверовнет. Автомацияidmlпроверена:ACTIVE/15min/этотthread.
+
+### 2026-10-24 20:23 MSK — runtime sleep diagnosis
+
+- Branch ml, tracked tree clean before this note; sole controller 52801 and local
+  teacher 52813 remain alive, teacher_train 400/1000. No duplicate job or fit.
+- Slow wall-clock progress is explained by macOS sleep: pmset records maintenance
+  sleep 20:13:33–20:22:23, preceded by similar sleep/dark-wake cycles since19:47.
+  Device on battery80%. A two-second native sample confirms active MLX/Metal
+  inference after wake, not a known deadlock. No model failure in logs.
+- Native diagnostic saved only in ignored research_public_v1/teacher_train_sample_20261024_2022.txt.
+  Did not change system power settings or override lid/user sleep. Jobs resume
+  when the host runs; wall-clock completion estimates are unreliable while asleep.
+- Source snapshot/config/data untouched; no new calibration/model scores yet.
