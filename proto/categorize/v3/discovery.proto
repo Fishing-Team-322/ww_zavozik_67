@@ -44,6 +44,10 @@ message Assignment {
   string channel = 9;
   repeated string tags = 10;
   string auxiliary_source = 11;
+  // Root -> intermediate groups -> assigned leaf. Empty for unassigned.
+  repeated string category_path = 12;
+  string coarse_category_id = 13;
+  string coarse_category_title = 14;
 }
 
 message AssignResponse {
@@ -52,6 +56,7 @@ message AssignResponse {
   string taxonomy_version = 3;
   uint32 embedding_dim = 4;
   string score_kind = 5; // cosine_geometry_not_probability
+  string hierarchy_version = 6;
 }
 
 message Category {
@@ -60,8 +65,12 @@ message Category {
   string title_status = 3; // auto_extractive, not an expert-confirmed name
   string direction = 4;
   uint32 independent_families = 5;
-  uint32 companies = 6;
+  // Known for leaves only; omitted for internal nodes (not a zero estimate).
+  optional uint32 companies = 6;
   string attributes_status = 7; // unknown_requires_separate_evidence
+  string parent_id = 8; // empty at a root
+  string node_kind = 9; // direction, group, leaf
+  bool coarse_level = 10;
 }
 
 message GetTaxonomyRequest {}
@@ -70,4 +79,5 @@ message GetTaxonomyResponse {
   repeated Category categories = 1;
   string encoder_version = 2;
   string taxonomy_version = 3;
+  string hierarchy_version = 4;
 }

@@ -1,0 +1,28 @@
+{
+  "corpus_manifest_sha256": "2663af74c45e59b79fea236b018867b1155f8a1d0cdbcc2ddb5339fcd0e55f7c",
+  "embedding_manifest_sha256": "157a762795a77de94fb9266c72f67b8246db16316bd9cac2d8f11955592a740d",
+  "encoder_version": "e5-small-614241f622f53c4eeff9890bdc4f31cfecc418b3-mean128-purpose_only_structural_query_v1",
+  "settings": {
+    "min_cluster_size": 3,
+    "min_samples": 2,
+    "min_companies": 2,
+    "margin": 0.01,
+    "radius_quantile": 0.95,
+    "min_radius": 0.005,
+    "max_radius": 0.2
+  },
+  "parent": null,
+  "final_consumed": true,
+  "created_unix": 1792852294.5034518,
+  "source_files_sha256": {
+    "server.py": "a33347d79229f69e2765593cd40ccaaeb95f2df6c3d022533857d1f700c1dca6",
+    "__init__.py": "1f6e9e606376272a2424cdda3dcc9a8c306ce178418e48c67b0a69ad67ddcd57",
+    "core.py": "70a256702b5abd08492d84dafccaa04582f11a2d50ebf5139bea5d8a00f1eb39",
+    "review.py": "102e849eadc503d20b6641708331631fd0496509a7c4c46718f78c34c573373a",
+    "encoder.py": "831a387dd9bb0ee5711c716fc59f8cf26f38fa3c7ba4d834f3e857aea4577bb1",
+    "experiment.py": "c694b6492c64ead7c07d76de9e03cb362304b86fe61928188f9ef72c13554d0d",
+    "corpus.py": "d2252a57b12d241882579a4be505ddba3323e03092aa064ef7fc2c19856ac438"
+  },
+  "category_targets": false,
+  "fixed_category_count": null
+}

@@ -1,0 +1,382 @@
+{
+  "format_version": 1,
+  "leaf_inventory_version": "discovered-v1-ca0d2cfcb5ea99563cb8",
+  "nodes": [
+    {
+      "id": "auto_0073cd110163dc1e",
+      "title": "разовый заказ · выполненные работы · изготовление мебели",
+      "title_status": "auto_extractive",
+      "direction": "in",
+      "node_kind": "leaf",
+      "children": [],
+      "independent_families": 6
+    },
+    {
+      "id": "auto_43978c31982be6c8",
+      "title": "доплата · услуги · частичная",
+      "title_status": "auto_extractive",
+      "direction": "in",
+      "node_kind": "leaf",
+      "children": [],
+      "independent_families": 21
+    },
+    {
+      "id": "auto_6d1408e7d9aad6bd",
+      "title": "возврат · неверно указаны · реквизиты получателя",
+      "title_status": "auto_extractive",
+      "direction": "in",
+      "node_kind": "leaf",
+      "children": [],
+      "independent_families": 3
+    },
+    {
+      "id": "auto_8829730632744bdf",
+      "title": "окончательный расчет · поставки · пшеницу класса",
+      "title_status": "auto_extractive",
+      "direction": "in",
+      "node_kind": "leaf",
+      "children": [],
+      "independent_families": 6
+    },
+    {
+      "id": "auto_9e62786d809f26ee",
+      "title": "выдача кредита · проведение · работ",
+      "title_status": "auto_extractive",
+      "direction": "in",
+      "node_kind": "leaf",
+      "children": [],
+      "independent_families": 3
+    },
+    {
+      "id": "group_3d33bdff69ad6a26",
+      "title": "выполненные работы · доплата услуги · изготовление мебели",
+      "title_status": "auto_extractive",
+      "direction": "in",
+      "node_kind": "group",
+      "children": [
+        "auto_0073cd110163dc1e",
+        "auto_43978c31982be6c8"
+      ],
+      "merge_distance": 0.05527711498743515,
+      "independent_families": 27
+    },
+    {
+      "id": "group_55c131fcaf13f44f",
+      "title": "выполненные работы · доплата услуги · изготовление мебели",
+      "title_status": "auto_extractive",
+      "direction": "in",
+      "node_kind": "group",
+      "children": [
+        "auto_8829730632744bdf",
+        "group_3d33bdff69ad6a26"
+      ],
+      "merge_distance": 0.07961388730007113,
+      "independent_families": 33
+    },
+    {
+      "id": "group_520f880c33f9c843",
+      "title": "возврат неверно · выполненные работы · доплата услуги",
+      "title_status": "auto_extractive",
+      "direction": "in",
+      "node_kind": "group",
+      "children": [
+        "auto_6d1408e7d9aad6bd",
+        "group_55c131fcaf13f44f"
+      ],
+      "merge_distance": 0.09952524338672397,
+      "independent_families": 36
+    },
+    {
+      "id": "group_1710c29897a36560",
+      "title": "возврат неверно · выдача кредита · выполненные работы",
+      "title_status": "auto_extractive",
+      "direction": "in",
+      "node_kind": "group",
+      "children": [
+        "auto_9e62786d809f26ee",
+        "group_520f880c33f9c843"
+      ],
+      "merge_distance": 0.10404524105274182,
+      "independent_families": 39
+    },
+    {
+      "id": "flow_in",
+      "title": "Поступления",
+      "title_status": "direction_fact",
+      "node_kind": "direction",
+      "direction": "in",
+      "children": [
+        "group_1710c29897a36560"
+      ],
+      "independent_families": 39
+    },
+    {
+      "id": "auto_01b8d8917bea8e41",
+      "title": "погашение · долг проценты · кредитной линии",
+      "title_status": "auto_extractive",
+      "direction": "out",
+      "node_kind": "leaf",
+      "children": [],
+      "independent_families": 4
+    },
+    {
+      "id": "auto_2a448e30ac1f059e",
+      "title": "товары · под разовый · поставки",
+      "title_status": "auto_extractive",
+      "direction": "out",
+      "node_kind": "leaf",
+      "children": [],
+      "independent_families": 7
+    },
+    {
+      "id": "auto_3bb485f74ec65a46",
+      "title": "метизы · бетон · поставки",
+      "title_status": "auto_extractive",
+      "direction": "out",
+      "node_kind": "leaf",
+      "children": [],
+      "independent_families": 5
+    },
+    {
+      "id": "auto_3e70dbd3f0fa84b3",
+      "title": "лкм",
+      "title_status": "auto_extractive",
+      "direction": "out",
+      "node_kind": "leaf",
+      "children": [],
+      "independent_families": 3
+    },
+    {
+      "id": "auto_55ff6828df483bb4",
+      "title": "автохимию · автомобиль · шины шиномонтаж",
+      "title_status": "auto_extractive",
+      "direction": "out",
+      "node_kind": "leaf",
+      "children": [],
+      "independent_families": 6
+    },
+    {
+      "id": "auto_5cc6630e6818ca2f",
+      "title": "бакалею · поставки",
+      "title_status": "auto_extractive",
+      "direction": "out",
+      "node_kind": "leaf",
+      "children": [],
+      "independent_families": 5
+    },
+    {
+      "id": "auto_929bba68d067b6d7",
+      "title": "перевод · собственных · банк",
+      "title_status": "auto_extractive",
+      "direction": "out",
+      "node_kind": "leaf",
+      "children": [],
+      "independent_families": 5
+    },
+    {
+      "id": "auto_aefa9f9221e71e48",
+      "title": "лдсп кромку · под разовый · заказ",
+      "title_status": "auto_extractive",
+      "direction": "out",
+      "node_kind": "leaf",
+      "children": [],
+      "independent_families": 4
+    },
+    {
+      "id": "auto_af0f5f994d44f23c",
+      "title": "купли продажи · окончательный расчет · автомобиль",
+      "title_status": "auto_extractive",
+      "direction": "out",
+      "node_kind": "leaf",
+      "children": [],
+      "independent_families": 3
+    },
+    {
+      "id": "auto_eb3a20d1a6c394ea",
+      "title": "постельное белье · поставки · мебельную фурнитуру",
+      "title_status": "auto_extractive",
+      "direction": "out",
+      "node_kind": "leaf",
+      "children": [],
+      "independent_families": 3
+    },
+    {
+      "id": "auto_f9b34a8d7901c09c",
+      "title": "аванс · заработной · сотрудника",
+      "title_status": "auto_extractive",
+      "direction": "out",
+      "node_kind": "leaf",
+      "children": [],
+      "independent_families": 5
+    },
+    {
+      "id": "group_033798e17ac90b75",
+      "title": "поставки · мебельную фурнитуру · под разовый",
+      "title_status": "auto_extractive",
+      "direction": "out",
+      "node_kind": "group",
+      "children": [
+        "auto_2a448e30ac1f059e",
+        "auto_eb3a20d1a6c394ea"
+      ],
+      "merge_distance": 0.05140096797373683,
+      "independent_families": 10
+    },
+    {
+      "id": "group_56f73351a8b06d44",
+      "title": "автомобиль шины · бетон поставки · автохимию",
+      "title_status": "auto_extractive",
+      "direction": "out",
+      "node_kind": "group",
+      "children": [
+        "auto_3bb485f74ec65a46",
+        "auto_55ff6828df483bb4"
+      ],
+      "merge_distance": 0.0654957119999604,
+      "independent_families": 11
+    },
+    {
+      "id": "group_a3adffa9d42af76e",
+      "title": "кромку под · разовый заказ · лдсп",
+      "title_status": "auto_extractive",
+      "direction": "out",
+      "node_kind": "group",
+      "children": [
+        "auto_3e70dbd3f0fa84b3",
+        "auto_aefa9f9221e71e48"
+      ],
+      "merge_distance": 0.08172287402232692,
+      "independent_families": 7
+    },
+    {
+      "id": "group_ff24f1ed73d99e10",
+      "title": "аванс заработной · перевод собственных · банк",
+      "title_status": "auto_extractive",
+      "direction": "out",
+      "node_kind": "group",
+      "children": [
+        "auto_929bba68d067b6d7",
+        "auto_f9b34a8d7901c09c"
+      ],
+      "merge_distance": 0.09258469028325789,
+      "independent_families": 10
+    },
+    {
+      "id": "group_a8d057c04f36f268",
+      "title": "поставки · автомобиль шины · метизы бетон",
+      "title_status": "auto_extractive",
+      "direction": "out",
+      "node_kind": "group",
+      "children": [
+        "auto_5cc6630e6818ca2f",
+        "group_56f73351a8b06d44"
+      ],
+      "merge_distance": 0.09273426536575713,
+      "independent_families": 16
+    },
+    {
+      "id": "group_777242b189a7b593",
+      "title": "поставки · автомобиль шины · мебельную фурнитуру",
+      "title_status": "auto_extractive",
+      "direction": "out",
+      "node_kind": "group",
+      "children": [
+        "group_033798e17ac90b75",
+        "group_a8d057c04f36f268"
+      ],
+      "merge_distance": 0.09868308996094677,
+      "independent_families": 26
+    },
+    {
+      "id": "group_9ef734b0a4719ce4",
+      "title": "долг проценты · кредитной линии · купли продажи",
+      "title_status": "auto_extractive",
+      "direction": "out",
+      "node_kind": "group",
+      "children": [
+        "auto_01b8d8917bea8e41",
+        "auto_af0f5f994d44f23c"
+      ],
+      "merge_distance": 0.10421909881849056,
+      "independent_families": 7
+    },
+    {
+      "id": "group_4875c61d63265365",
+      "title": "аванс заработной · долг проценты · кредитной линии",
+      "title_status": "auto_extractive",
+      "direction": "out",
+      "node_kind": "group",
+      "children": [
+        "group_9ef734b0a4719ce4",
+        "group_ff24f1ed73d99e10"
+      ],
+      "merge_distance": 0.11853078550840768,
+      "independent_families": 17
+    },
+    {
+      "id": "group_9927f880665226b4",
+      "title": "поставки · под разовый · автомобиль шины",
+      "title_status": "auto_extractive",
+      "direction": "out",
+      "node_kind": "group",
+      "children": [
+        "group_777242b189a7b593",
+        "group_a3adffa9d42af76e"
+      ],
+      "merge_distance": 0.12234011307832082,
+      "independent_families": 33
+    },
+    {
+      "id": "group_cb081caa58137424",
+      "title": "поставки · под разовый · автомобиль",
+      "title_status": "auto_extractive",
+      "direction": "out",
+      "node_kind": "group",
+      "children": [
+        "group_4875c61d63265365",
+        "group_9927f880665226b4"
+      ],
+      "merge_distance": 0.1337901026823919,
+      "independent_families": 50
+    },
+    {
+      "id": "flow_out",
+      "title": "Списания",
+      "title_status": "direction_fact",
+      "node_kind": "direction",
+      "direction": "out",
+      "children": [
+        "group_cb081caa58137424"
+      ],
+      "independent_families": 50
+    }
+  ],
+  "roots": [
+    "flow_in",
+    "flow_out"
+  ],
+  "coarse_nodes": [
+    "auto_6d1408e7d9aad6bd",
+    "auto_9e62786d809f26ee",
+    "group_55c131fcaf13f44f",
+    "group_777242b189a7b593",
+    "group_9ef734b0a4719ce4",
+    "group_a3adffa9d42af76e",
+    "group_ff24f1ed73d99e10"
+  ],
+  "cuts": {
+    "in": {
+      "cosine_distance_cutoff": 0.08956956534339755,
+      "method": "largest_height_gap_among_last_half_complete_linkage_merges",
+      "fitted_on": "train_discovered_leaf_centers_only"
+    },
+    "out": {
+      "cosine_distance_cutoff": 0.11137494216344912,
+      "method": "largest_height_gap_among_last_half_complete_linkage_merges",
+      "fitted_on": "train_discovered_leaf_centers_only"
+    }
+  },
+  "method": "direction_separated_complete_linkage_on_train_only_discovered_centers",
+  "caveat": "Geometric hierarchy and extractive names; semantic correctness and preferred granularity require independent review",
+  "hierarchy_version": "hierarchy-v1-f8740ce139bd8a49bb48"
+}

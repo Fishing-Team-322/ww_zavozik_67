@@ -1,0 +1,738 @@
+{
+  "source_commit": "0321172",
+  "corpus": {
+    "protocol": "label_free_real_company_template_v1",
+    "text_version": "purpose_only_structural_query_v1",
+    "source_sha256": "28d7a2ebc6d4d65f31f93e59e24659a04c76990d20833337b9351316fd445472",
+    "inherited_manifest_sha256": "348227be9e04a473f7ad741199f1c09f7936b6d8128e2eb540be4b339aed31c7",
+    "registry_sha256": "ff9113d7b88d4e38e748b256413f345c25b5b08e23166ed3e4548d659713fc10",
+    "intersections": {
+      "train__calibration": {
+        "companies": 0,
+        "families": 0,
+        "texts": 0,
+        "signatures": 0
+      },
+      "train__test": {
+        "companies": 0,
+        "families": 0,
+        "texts": 0,
+        "signatures": 0
+      },
+      "calibration__test": {
+        "companies": 0,
+        "families": 0,
+        "texts": 0,
+        "signatures": 0
+      }
+    },
+    "split_origin": "Frozen company_purged_template_families_v3; historical weak-label stratification only",
+    "fit_targets": "none",
+    "synthetic_rows": 0,
+    "augmented_rows": 0,
+    "code_sha256": "d2252a57b12d241882579a4be505ddba3323e03092aa064ef7fc2c19856ac438",
+    "train": {
+      "rows": 105803,
+      "unique": 385,
+      "usable_unique": 383,
+      "families": 128,
+      "companies": 90,
+      "purged_rows": 20332,
+      "sha256": "1be1dc1b3ae4dbf62df4221052348c979ddcaa7804fbe7d8af8f0a33a896b950",
+      "unique_sha256": "742ba5ba6bcd869c9b3e308d40409f1309126eac72d76ca3582c371e1dfb0238"
+    },
+    "calibration": {
+      "rows": 2251,
+      "unique": 81,
+      "usable_unique": 81,
+      "families": 36,
+      "companies": 30,
+      "purged_rows": 43886,
+      "sha256": "b50d47ec6757aece91a15d64e9eb190bf5634a5373399b5e4f7314643927c6d6",
+      "unique_sha256": "81a876552739feae2819f9ba7f95dde74dd798f7b9faa5cccc547c949f5c0f4c"
+    },
+    "test": {
+      "rows": 5561,
+      "unique": 80,
+      "usable_unique": 77,
+      "families": 39,
+      "companies": 30,
+      "purged_rows": 44587,
+      "sha256": "abd24cff5f44ee2aaadd1c1163029252759f901cd516372a1e6feb41ec589a2a",
+      "unique_sha256": "d26fd67b75d2d472f308394adb0368d8b5d7af53bd4b9e4a0761e27651ed45c5"
+    }
+  },
+  "encoder": {
+    "encoder_version": "e5-small-614241f622f53c4eeff9890bdc4f31cfecc418b3-mean128-purpose_only_structural_query_v1",
+    "embedding_dim": 384,
+    "base": {
+      "model_id": "intfloat/multilingual-e5-small",
+      "revision": "614241f622f53c4eeff9890bdc4f31cfecc418b3",
+      "license": "mit",
+      "files_sha256": {
+        "README.md": "0038de97aee16258cecbad7ffda4b4febd6953e747a00e0ddbc8e6ed241e9c1c",
+        "config.json": "69137736cab8b8903a07fe8afaafdda25aac55415a12a55d1bffa9f581abf959",
+        "model.safetensors": "1a55775f53449dac10a2bcbc312469fac40b96d53198c407081a831f81c98477",
+        "sentencepiece.bpe.model": "cfc8146abe2a0488e9e2a0c56de7952f7c11ab059eca145a0a727afce0db2865",
+        "special_tokens_map.json": "d05497f1da52c5e09554c0cd874037a083e1dc1b9cfd48034d1c717f1afc07a7",
+        "tokenizer.json": "0b44a9d7b51c3c62626640cda0e2c2f70fdacdc25bbbd68038369d14ebdf4c39",
+        "tokenizer_config.json": "a1d6bc8734a6f635dc158508bef000f8e2e5a759c7d92f984b2c86e5ff53425b"
+      }
+    },
+    "corpus_manifest_sha256": "2663af74c45e59b79fea236b018867b1155f8a1d0cdbcc2ddb5339fcd0e55f7c",
+    "device": "mps",
+    "token_input_intersections": {
+      "train__calibration": 0,
+      "train__test": 0,
+      "calibration__test": 0
+    },
+    "fine_tuning": false,
+    "code_sha256": "831a387dd9bb0ee5711c716fc59f8cf26f38fa3c7ba4d834f3e857aea4577bb1",
+    "train": {
+      "rows": 385,
+      "sha256": "3828055667b8b935c7734f4d31d35f7b82bb370e0c412180f0c16f6dde37ce49",
+      "seconds": 2.185761667089537
+    },
+    "calibration": {
+      "rows": 81,
+      "sha256": "094acf40cd1f26fad101e47039189f40fd1815937790d469b40361e326f4abee",
+      "seconds": 0.4291076250374317
+    },
+    "test": {
+      "rows": 80,
+      "sha256": "cbcc21c6a21274c46ab03f140496010002e082e81c54a29c81b54c93781c3a51",
+      "seconds": 0.4509973330423236
+    }
+  },
+  "fit": {
+    "independent_points": 130,
+    "noise_points": 41,
+    "discovered_categories": 16,
+    "total_categories": 16,
+    "categories_hand_labeled": false,
+    "stability": {
+      "train_silhouette_cosine_excluding_noise": 0.27230173349380493,
+      "family_subsample_runs": [
+        {
+          "seed": 42,
+          "retained_families": 104,
+          "jointly_clustered": 68,
+          "clustered_set_jaccard": 0.918918918918919,
+          "adjusted_rand_jointly_clustered": 0.9081034743583278,
+          "clusters": 16,
+          "noise_fraction": 0.33653846153846156
+        },
+        {
+          "seed": 43,
+          "retained_families": 104,
+          "jointly_clustered": 67,
+          "clustered_set_jaccard": 0.8375,
+          "adjusted_rand_jointly_clustered": 0.7300686602735063,
+          "clusters": 11,
+          "noise_fraction": 0.28846153846153844
+        },
+        {
+          "seed": 44,
+          "retained_families": 104,
+          "jointly_clustered": 58,
+          "clustered_set_jaccard": 0.8405797101449275,
+          "adjusted_rand_jointly_clustered": 1.0,
+          "clusters": 11,
+          "noise_fraction": 0.4230769230769231
+        },
+        {
+          "seed": 45,
+          "retained_families": 104,
+          "jointly_clustered": 64,
+          "clustered_set_jaccard": 0.8311688311688312,
+          "adjusted_rand_jointly_clustered": 0.9025298684926797,
+          "clusters": 14,
+          "noise_fraction": 0.36538461538461536
+        },
+        {
+          "seed": 46,
+          "retained_families": 104,
+          "jointly_clustered": 69,
+          "clustered_set_jaccard": 0.92,
+          "adjusted_rand_jointly_clustered": 1.0,
+          "clusters": 14,
+          "noise_fraction": 0.3269230769230769
+        }
+      ],
+      "caveat": "Internal geometry and perturbation stability, not economic correctness; no test selection"
+    },
+    "train_assignment": {
+      "unique_texts": 385,
+      "operations": 105803,
+      "families": 128,
+      "status_unique": {
+        "outside_cluster": 90,
+        "assigned": 265,
+        "ambiguous": 28,
+        "insufficient_text": 2
+      },
+      "status_operations": {
+        "outside_cluster": 45660,
+        "assigned": 35254,
+        "ambiguous": 21255,
+        "insufficient_text": 3634
+      },
+      "assigned_unique_fraction": 0.6883116883116883,
+      "assigned_operation_fraction": 0.3332041624528605,
+      "assigned_family_macro_fraction": 0.6902228272810802,
+      "supported_categories": 16,
+      "semantic_accuracy": null,
+      "semantic_accuracy_reason": "No independent human labels; assignment coverage is not accuracy"
+    },
+    "taxonomy_version": "discovered-v1-ca0d2cfcb5ea99563cb8"
+  },
+  "evaluation": {
+    "taxonomy_version": "discovered-v1-ca0d2cfcb5ea99563cb8",
+    "protocol": {
+      "corpus_manifest_sha256": "2663af74c45e59b79fea236b018867b1155f8a1d0cdbcc2ddb5339fcd0e55f7c",
+      "embedding_manifest_sha256": "157a762795a77de94fb9266c72f67b8246db16316bd9cac2d8f11955592a740d",
+      "encoder_version": "e5-small-614241f622f53c4eeff9890bdc4f31cfecc418b3-mean128-purpose_only_structural_query_v1",
+      "settings": {
+        "min_cluster_size": 3,
+        "min_samples": 2,
+        "min_companies": 2,
+        "margin": 0.01,
+        "radius_quantile": 0.95,
+        "min_radius": 0.005,
+        "max_radius": 0.2
+      },
+      "parent": null,
+      "final_consumed": true,
+      "created_unix": 1792852294.5034518,
+      "source_files_sha256": {
+        "server.py": "a33347d79229f69e2765593cd40ccaaeb95f2df6c3d022533857d1f700c1dca6",
+        "__init__.py": "1f6e9e606376272a2424cdda3dcc9a8c306ce178418e48c67b0a69ad67ddcd57",
+        "core.py": "70a256702b5abd08492d84dafccaa04582f11a2d50ebf5139bea5d8a00f1eb39",
+        "review.py": "102e849eadc503d20b6641708331631fd0496509a7c4c46718f78c34c573373a",
+        "encoder.py": "831a387dd9bb0ee5711c716fc59f8cf26f38fa3c7ba4d834f3e857aea4577bb1",
+        "experiment.py": "c694b6492c64ead7c07d76de9e03cb362304b86fe61928188f9ef72c13554d0d",
+        "corpus.py": "d2252a57b12d241882579a4be505ddba3323e03092aa064ef7fc2c19856ac438"
+      },
+      "category_targets": false,
+      "fixed_category_count": null
+    },
+    "research_status": "semantic_quality_unverified_without_independent_review",
+    "calibration": {
+      "unique_texts": 81,
+      "operations": 2251,
+      "families": 36,
+      "status_unique": {
+        "outside_cluster": 30,
+        "assigned": 51
+      },
+      "status_operations": {
+        "outside_cluster": 1402,
+        "assigned": 849
+      },
+      "assigned_unique_fraction": 0.6296296296296297,
+      "assigned_operation_fraction": 0.37716570413149714,
+      "assigned_family_macro_fraction": 0.5787037037037037,
+      "supported_categories": 11,
+      "semantic_accuracy": null,
+      "semantic_accuracy_reason": "No independent human labels; assignment coverage is not accuracy"
+    },
+    "test": {
+      "unique_texts": 80,
+      "operations": 5561,
+      "families": 39,
+      "status_unique": {
+        "insufficient_text": 3,
+        "outside_cluster": 29,
+        "assigned": 43,
+        "ambiguous": 5
+      },
+      "status_operations": {
+        "insufficient_text": 236,
+        "outside_cluster": 2693,
+        "assigned": 1759,
+        "ambiguous": 873
+      },
+      "assigned_unique_fraction": 0.5375,
+      "assigned_operation_fraction": 0.31631001618413956,
+      "assigned_family_macro_fraction": 0.49023199023199027,
+      "supported_categories": 7,
+      "semantic_accuracy": null,
+      "semantic_accuracy_reason": "No independent human labels; assignment coverage is not accuracy"
+    }
+  },
+  "hierarchy": {
+    "format_version": 1,
+    "leaf_inventory_version": "discovered-v1-ca0d2cfcb5ea99563cb8",
+    "nodes": [
+      {
+        "id": "auto_0073cd110163dc1e",
+        "title": "разовый заказ · выполненные работы · изготовление мебели",
+        "title_status": "auto_extractive",
+        "direction": "in",
+        "node_kind": "leaf",
+        "children": [],
+        "independent_families": 6
+      },
+      {
+        "id": "auto_43978c31982be6c8",
+        "title": "доплата · услуги · частичная",
+        "title_status": "auto_extractive",
+        "direction": "in",
+        "node_kind": "leaf",
+        "children": [],
+        "independent_families": 21
+      },
+      {
+        "id": "auto_6d1408e7d9aad6bd",
+        "title": "возврат · неверно указаны · реквизиты получателя",
+        "title_status": "auto_extractive",
+        "direction": "in",
+        "node_kind": "leaf",
+        "children": [],
+        "independent_families": 3
+      },
+      {
+        "id": "auto_8829730632744bdf",
+        "title": "окончательный расчет · поставки · пшеницу класса",
+        "title_status": "auto_extractive",
+        "direction": "in",
+        "node_kind": "leaf",
+        "children": [],
+        "independent_families": 6
+      },
+      {
+        "id": "auto_9e62786d809f26ee",
+        "title": "выдача кредита · проведение · работ",
+        "title_status": "auto_extractive",
+        "direction": "in",
+        "node_kind": "leaf",
+        "children": [],
+        "independent_families": 3
+      },
+      {
+        "id": "group_3d33bdff69ad6a26",
+        "title": "выполненные работы · доплата услуги · изготовление мебели",
+        "title_status": "auto_extractive",
+        "direction": "in",
+        "node_kind": "group",
+        "children": [
+          "auto_0073cd110163dc1e",
+          "auto_43978c31982be6c8"
+        ],
+        "merge_distance": 0.05527711498743515,
+        "independent_families": 27
+      },
+      {
+        "id": "group_55c131fcaf13f44f",
+        "title": "выполненные работы · доплата услуги · изготовление мебели",
+        "title_status": "auto_extractive",
+        "direction": "in",
+        "node_kind": "group",
+        "children": [
+          "auto_8829730632744bdf",
+          "group_3d33bdff69ad6a26"
+        ],
+        "merge_distance": 0.07961388730007113,
+        "independent_families": 33
+      },
+      {
+        "id": "group_520f880c33f9c843",
+        "title": "возврат неверно · выполненные работы · доплата услуги",
+        "title_status": "auto_extractive",
+        "direction": "in",
+        "node_kind": "group",
+        "children": [
+          "auto_6d1408e7d9aad6bd",
+          "group_55c131fcaf13f44f"
+        ],
+        "merge_distance": 0.09952524338672397,
+        "independent_families": 36
+      },
+      {
+        "id": "group_1710c29897a36560",
+        "title": "возврат неверно · выдача кредита · выполненные работы",
+        "title_status": "auto_extractive",
+        "direction": "in",
+        "node_kind": "group",
+        "children": [
+          "auto_9e62786d809f26ee",
+          "group_520f880c33f9c843"
+        ],
+        "merge_distance": 0.10404524105274182,
+        "independent_families": 39
+      },
+      {
+        "id": "flow_in",
+        "title": "Поступления",
+        "title_status": "direction_fact",
+        "node_kind": "direction",
+        "direction": "in",
+        "children": [
+          "group_1710c29897a36560"
+        ],
+        "independent_families": 39
+      },
+      {
+        "id": "auto_01b8d8917bea8e41",
+        "title": "погашение · долг проценты · кредитной линии",
+        "title_status": "auto_extractive",
+        "direction": "out",
+        "node_kind": "leaf",
+        "children": [],
+        "independent_families": 4
+      },
+      {
+        "id": "auto_2a448e30ac1f059e",
+        "title": "товары · под разовый · поставки",
+        "title_status": "auto_extractive",
+        "direction": "out",
+        "node_kind": "leaf",
+        "children": [],
+        "independent_families": 7
+      },
+      {
+        "id": "auto_3bb485f74ec65a46",
+        "title": "метизы · бетон · поставки",
+        "title_status": "auto_extractive",
+        "direction": "out",
+        "node_kind": "leaf",
+        "children": [],
+        "independent_families": 5
+      },
+      {
+        "id": "auto_3e70dbd3f0fa84b3",
+        "title": "лкм",
+        "title_status": "auto_extractive",
+        "direction": "out",
+        "node_kind": "leaf",
+        "children": [],
+        "independent_families": 3
+      },
+      {
+        "id": "auto_55ff6828df483bb4",
+        "title": "автохимию · автомобиль · шины шиномонтаж",
+        "title_status": "auto_extractive",
+        "direction": "out",
+        "node_kind": "leaf",
+        "children": [],
+        "independent_families": 6
+      },
+      {
+        "id": "auto_5cc6630e6818ca2f",
+        "title": "бакалею · поставки",
+        "title_status": "auto_extractive",
+        "direction": "out",
+        "node_kind": "leaf",
+        "children": [],
+        "independent_families": 5
+      },
+      {
+        "id": "auto_929bba68d067b6d7",
+        "title": "перевод · собственных · банк",
+        "title_status": "auto_extractive",
+        "direction": "out",
+        "node_kind": "leaf",
+        "children": [],
+        "independent_families": 5
+      },
+      {
+        "id": "auto_aefa9f9221e71e48",
+        "title": "лдсп кромку · под разовый · заказ",
+        "title_status": "auto_extractive",
+        "direction": "out",
+        "node_kind": "leaf",
+        "children": [],
+        "independent_families": 4
+      },
+      {
+        "id": "auto_af0f5f994d44f23c",
+        "title": "купли продажи · окончательный расчет · автомобиль",
+        "title_status": "auto_extractive",
+        "direction": "out",
+        "node_kind": "leaf",
+        "children": [],
+        "independent_families": 3
+      },
+      {
+        "id": "auto_eb3a20d1a6c394ea",
+        "title": "постельное белье · поставки · мебельную фурнитуру",
+        "title_status": "auto_extractive",
+        "direction": "out",
+        "node_kind": "leaf",
+        "children": [],
+        "independent_families": 3
+      },
+      {
+        "id": "auto_f9b34a8d7901c09c",
+        "title": "аванс · заработной · сотрудника",
+        "title_status": "auto_extractive",
+        "direction": "out",
+        "node_kind": "leaf",
+        "children": [],
+        "independent_families": 5
+      },
+      {
+        "id": "group_033798e17ac90b75",
+        "title": "поставки · мебельную фурнитуру · под разовый",
+        "title_status": "auto_extractive",
+        "direction": "out",
+        "node_kind": "group",
+        "children": [
+          "auto_2a448e30ac1f059e",
+          "auto_eb3a20d1a6c394ea"
+        ],
+        "merge_distance": 0.05140096797373683,
+        "independent_families": 10
+      },
+      {
+        "id": "group_56f73351a8b06d44",
+        "title": "автомобиль шины · бетон поставки · автохимию",
+        "title_status": "auto_extractive",
+        "direction": "out",
+        "node_kind": "group",
+        "children": [
+          "auto_3bb485f74ec65a46",
+          "auto_55ff6828df483bb4"
+        ],
+        "merge_distance": 0.0654957119999604,
+        "independent_families": 11
+      },
+      {
+        "id": "group_a3adffa9d42af76e",
+        "title": "кромку под · разовый заказ · лдсп",
+        "title_status": "auto_extractive",
+        "direction": "out",
+        "node_kind": "group",
+        "children": [
+          "auto_3e70dbd3f0fa84b3",
+          "auto_aefa9f9221e71e48"
+        ],
+        "merge_distance": 0.08172287402232692,
+        "independent_families": 7
+      },
+      {
+        "id": "group_ff24f1ed73d99e10",
+        "title": "аванс заработной · перевод собственных · банк",
+        "title_status": "auto_extractive",
+        "direction": "out",
+        "node_kind": "group",
+        "children": [
+          "auto_929bba68d067b6d7",
+          "auto_f9b34a8d7901c09c"
+        ],
+        "merge_distance": 0.09258469028325789,
+        "independent_families": 10
+      },
+      {
+        "id": "group_a8d057c04f36f268",
+        "title": "поставки · автомобиль шины · метизы бетон",
+        "title_status": "auto_extractive",
+        "direction": "out",
+        "node_kind": "group",
+        "children": [
+          "auto_5cc6630e6818ca2f",
+          "group_56f73351a8b06d44"
+        ],
+        "merge_distance": 0.09273426536575713,
+        "independent_families": 16
+      },
+      {
+        "id": "group_777242b189a7b593",
+        "title": "поставки · автомобиль шины · мебельную фурнитуру",
+        "title_status": "auto_extractive",
+        "direction": "out",
+        "node_kind": "group",
+        "children": [
+          "group_033798e17ac90b75",
+          "group_a8d057c04f36f268"
+        ],
+        "merge_distance": 0.09868308996094677,
+        "independent_families": 26
+      },
+      {
+        "id": "group_9ef734b0a4719ce4",
+        "title": "долг проценты · кредитной линии · купли продажи",
+        "title_status": "auto_extractive",
+        "direction": "out",
+        "node_kind": "group",
+        "children": [
+          "auto_01b8d8917bea8e41",
+          "auto_af0f5f994d44f23c"
+        ],
+        "merge_distance": 0.10421909881849056,
+        "independent_families": 7
+      },
+      {
+        "id": "group_4875c61d63265365",
+        "title": "аванс заработной · долг проценты · кредитной линии",
+        "title_status": "auto_extractive",
+        "direction": "out",
+        "node_kind": "group",
+        "children": [
+          "group_9ef734b0a4719ce4",
+          "group_ff24f1ed73d99e10"
+        ],
+        "merge_distance": 0.11853078550840768,
+        "independent_families": 17
+      },
+      {
+        "id": "group_9927f880665226b4",
+        "title": "поставки · под разовый · автомобиль шины",
+        "title_status": "auto_extractive",
+        "direction": "out",
+        "node_kind": "group",
+        "children": [
+          "group_777242b189a7b593",
+          "group_a3adffa9d42af76e"
+        ],
+        "merge_distance": 0.12234011307832082,
+        "independent_families": 33
+      },
+      {
+        "id": "group_cb081caa58137424",
+        "title": "поставки · под разовый · автомобиль",
+        "title_status": "auto_extractive",
+        "direction": "out",
+        "node_kind": "group",
+        "children": [
+          "group_4875c61d63265365",
+          "group_9927f880665226b4"
+        ],
+        "merge_distance": 0.1337901026823919,
+        "independent_families": 50
+      },
+      {
+        "id": "flow_out",
+        "title": "Списания",
+        "title_status": "direction_fact",
+        "node_kind": "direction",
+        "direction": "out",
+        "children": [
+          "group_cb081caa58137424"
+        ],
+        "independent_families": 50
+      }
+    ],
+    "roots": [
+      "flow_in",
+      "flow_out"
+    ],
+    "coarse_nodes": [
+      "auto_6d1408e7d9aad6bd",
+      "auto_9e62786d809f26ee",
+      "group_55c131fcaf13f44f",
+      "group_777242b189a7b593",
+      "group_9ef734b0a4719ce4",
+      "group_a3adffa9d42af76e",
+      "group_ff24f1ed73d99e10"
+    ],
+    "cuts": {
+      "in": {
+        "cosine_distance_cutoff": 0.08956956534339755,
+        "method": "largest_height_gap_among_last_half_complete_linkage_merges",
+        "fitted_on": "train_discovered_leaf_centers_only"
+      },
+      "out": {
+        "cosine_distance_cutoff": 0.11137494216344912,
+        "method": "largest_height_gap_among_last_half_complete_linkage_merges",
+        "fitted_on": "train_discovered_leaf_centers_only"
+      }
+    },
+    "method": "direction_separated_complete_linkage_on_train_only_discovered_centers",
+    "caveat": "Geometric hierarchy and extractive names; semantic correctness and preferred granularity require independent review",
+    "hierarchy_version": "hierarchy-v1-f8740ce139bd8a49bb48"
+  },
+  "benchmark": {
+    "batch_size": 256,
+    "distinct_encoder_inputs": 256,
+    "cohort": "real train unique purposes, seed42; not calibration or final accuracy",
+    "includes": "gRPC serialization/loopback + validation + normalization + tokenization + CPU E5 + assignment + tree + auxiliary weak rules",
+    "excludes": "startup/base verification; no cross-request embedding cache",
+    "runtime": "torch-fp32 CPU",
+    "threads": 4,
+    "median_s": 0.5398198750335723,
+    "p95_s": 0.5543986915145069,
+    "max_s": 0.5567612498998642,
+    "times_s": [
+      0.5567612498998642,
+      0.5398198750335723,
+      0.5397394171450287,
+      0.5449484579730779,
+      0.5373342500533909
+    ],
+    "cpu_vs_mps_embedding_max_abs_error": 2.612359821796417e-07,
+    "cpu_vs_mps_assignment_mismatches": 0,
+    "concurrent_requests": 4,
+    "concurrency_passed": true,
+    "taxonomy_version": "discovered-v1-ca0d2cfcb5ea99563cb8",
+    "hierarchy_version": "hierarchy-v1-f8740ce139bd8a49bb48"
+  },
+  "blind_review": {
+    "seed": 42,
+    "selected": {
+      "unassigned": 40,
+      "same_cluster": 40,
+      "different_clusters": 40
+    },
+    "eligible": {
+      "unassigned": 2121,
+      "different_clusters": 619,
+      "same_cluster": 194
+    },
+    "judgments_prefilled": false,
+    "taxonomy_versions": [
+      "discovered-v1-ca0d2cfcb5ea99563cb8"
+    ],
+    "instruction": "Judge same economic purpose: same/different/uncertain. Do not inspect private_sampling_key while labeling.",
+    "limitation": "Balanced stratified audit of different companies/templates; not population accuracy",
+    "blind_sha256": "463fd30ebe62f50c8fb7710b69d18f1a49fd279cbdd22829fee58533d266c504",
+    "key_sha256": "f44bd9c9c9ccc84108966fb62032260c066f27ba329502a43216e2e9845da840"
+  },
+  "release": {
+    "path": "ml/models/classifiers/discovery-v1-dbedf812a8a62d450b9f",
+    "encoder_payload_bytes": 493292987,
+    "total_payload_bytes": 493410066
+  },
+  "limitations": [
+    "Unsupervised internal geometry and assignment coverage are not semantic accuracy",
+    "Hierarchy uses train-only centers and was added after explicit user clarification; no repeated final assignment audit",
+    "Historical split ownership was weak-label stratified; the new fit uses no labels",
+    "No independently reviewed pair/cluster labels; mixed groups and imperfect extractive names exist",
+    "No learned auxiliary probability heads and no calibrated posterior probabilities",
+    "Only a standalone ML service; Go dynamic taxonomy integration is not implemented"
+  ],
+  "environment": {
+    "torch": "2.14.1",
+    "transformers": "5.20.2",
+    "numpy": "2.5.4",
+    "scipy": "1.18.1",
+    "scikit-learn": "1.9.1",
+    "grpcio": "1.84.1",
+    "protobuf": "7.36.2"
+  },
+  "sealed_release_smoke": {
+    "passed": true,
+    "model_version": "discovery-v1-dbedf812a8a62d450b9f",
+    "payload_verified": true,
+    "taxonomy_nodes": 32,
+    "leaves": 16,
+    "coarse_nodes": 7,
+    "blank_abstention": true,
+    "unknown_company_counts_omitted": true
+  },
+  "checks": {
+    "prod_pytest": {
+      "passed": 302,
+      "skipped": 7
+    },
+    "optional_pytest": {
+      "passed": 308,
+      "ignored": "tests/test_trx.py",
+      "warnings": "pre-existing sklearn HDBSCAN copy default"
+    },
+    "go_test": "passed",
+    "go_vet": "passed",
+    "buf_lint": "passed",
+    "linux_image_build": "not_performed"
+  }
+}

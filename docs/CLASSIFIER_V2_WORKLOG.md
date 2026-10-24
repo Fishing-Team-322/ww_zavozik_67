@@ -421,3 +421,74 @@
   на corpus_v2/e5_embeddings_v2 -> один final transfer audit -> blind review
   -> CPU/live service и immutable model card/artifact -> final checks/report.
   Не обещать независимое semantic качество без человека; это research status.
+
+## Иерархия по прямому выбору пользователя и frozen baseline — 17:46 МСК
+
+- Пользователь ответил: «Иерархия: крупные группы и подгруппы». Добавлены
+  train-only complete-linkage tree, coarse cut в поздней половине merges,
+  category_path/coarse ID/hierarchy_version в v3 RPC. Начальный full-gap cut
+  давал13coarse, новый coarse-view cut7; данные test не выбирали cut, листья
+  и frozen assignments не менялись. Старый tree сохранён hierarchy.json,
+  итог hierarchy_v2.json. Для каждой суммы выбирается один уровень агрегации.
+- Commit0321172 зафиксировал новый label-free fit до эксперимента. Единственный
+  experiment_v1 завершён:130independent family×direction points,41noise,
+  16листьев (5in/11out). Нет обученных по категориям весов или их weak targets;
+  E5 pretrained frozen, train используется для групп/геометрии. Не перезапускать
+  fit или finalevaluate: он УЖЕ ПОТРЕБЛЁН, final_evaluation/evaluation.json.
+- Train silhouette .2723017. Family subsample ARI на jointly-clustered .730–1;
+  Jaccard .831–.920. Это internal geometry, НЕ semantic accuracy. Test:
+  43/80unique assigned53.75%,1759/5561operations31.631%,familymacro49.023%;
+  29outside/5ambiguous/3empty unique. Calibration51/81unique62.96%.
+  semantic_accuracy=null. Есть смешанные кластеры и слабые auto names;
+  никаких заявлений о готовом бухгалтерском справочнике.
+- Построен полный tree32nodes,7coarse,16leaves. Leaf taxonomy
+  discovered-v1-ca0d2cfcb5ea99563cb8; hierarchy-v1-f8740ce139bd8a49bb48.
+  Корни in/out — факты направления; все экономические title extractive.
+  Coarse-only assignment и вероятности правильности НЕ реализованы/не доказаны.
+- Опубликован self-contained immutable RESEARCH bundle
+  ml/models/classifiers/discovery-v1-dbedf812a8a62d450b9f с encoder/base hashes,
+  inventory/manifest, hierarchy, release.json, историческими fit_source и
+  hierarchy_source, model card. Release loader проверяет все payload hashes.
+  Encoder493292987bytes, whole493410066bytes. Encoder/ ignored; вGit только
+  metadata/карта/history, не добавлять веса. Предыдущий неsealed draft ТОЛЬКО
+  нашего создания перемещён в ignoreddata/unsealed_release_draft_v1.
+- Actual CPU gRPC benchmark:256distinct train purpose inputs,5reps,4threads,
+  median.53982s,p95.55440s,max.55676s. Включены RPC/encode/tree/weakaux, без
+  startup и без embeddingcache. CPU/MPS maxdiff2.6124e-7,assignment mismatch0.
+  4concurrentRPC PASS. Sealed final bundle дополнительно actual loaded/RPC/
+  tree32nodes/7coarse/blankabstention/optionalunknown counts PASS. Все наши
+  временные gRPC processes после проверок остановлены. Colima не запускалась.
+- Public report ml/reports/classifier_v2.md и aggregate
+  ml/reports/metrics/category_discovery_v1.json. Реальные источники/тексты
+  остаются ml/data/category_discovery. Базовый release-v1 forecast и Go не тронуты.
+- Blind review:120different-company/template pairs (40same-cluster/40different/
+  40unassigned), ни одного готового human answer. Offline page
+  ml/data/category_discovery/blind_review_v1/review.html, без networkcalls и
+  modelpredictions; revieweridentity,localstorage,exportJSONL. Не выдавать
+  заполнение агентом/моделью за независимый human gold. Coarse-level смысл
+  требует отдельной проверки. Сырые данные внешним API не отправлялись.
+- Tests: production full300PASS+7SKIP; optional full306PASS с одним прежним
+  HDBSCANwarning. Первый optional run без PYTHONPATH=.:gen упал ТОЛЬКО на
+  child import categorize; исправлено окружение, отдельный export test1PASS и
+  последующий full306PASS. Новые release/UI checks дополнительно6PASS+1PASS;
+  final full ещё выполняется после новых тестов. Go test ./... и go vet ./...
+  PASS на текущем mergedmain; buf lint PASS. Никаких Go изменений.
+- На момент checkpoint нет активного fit/queue. Следующий необходимый шаг
+  качества — независимая пара/кластерная разметка и отдельный developmentgold.
+  Нельзя автоматически повышать «качество» повтором эпох/подгонкой по final
+  или вернуться к остановленным20class queues. Учёт архитектурных вопросов
+  решён: пользователь явно выбрал полностью найденный из данных справочник
+  и иерархию. Осталась эмпирическая проверка экономического смысла и дальнейшее
+  обучение/сравнение similarity на независимом development наборе.
+- Final full checks после всех новых core/service/release/UI tests:
+  prod302PASS+7SKIP за15.54s; optional308PASS за33.83s (прежнийHDBSCANwarning).
+  Offline annotation JS syntax node --check PASS; source-escaping/no-prefills
+  тест PASS. Новый ML_EXTRA=discovery использует CPU Torch index; default image
+  unchanged. Linux image build не выполнялся, нужна server smoke проверка;
+  Colima не запускать только ради повторения native integration.
+- Heartbeat classifier-v2 удалён после доставки воспроизводимого research
+  baseline/иерархии/артефакта/слепой проверки: активных fit/queue больше нет,
+  необходимая независимая human оценка ещё не предоставлена. Не обещать
+  продолжение unattended обучения и не запускать его вместо получения gold.
+  Следующее пользовательское сообщение/предоставленная разметка продолжит
+  ML quality работу; это не заявление о завершённой semantic приёмке.
