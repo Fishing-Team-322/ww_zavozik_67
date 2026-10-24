@@ -3,20 +3,25 @@
 Пример = окно из seq_len + 1 подряд идущих операций одной компании/клиента:
 вход — первые seq_len, цель — следующая операция на каждой позиции.
 
-Источники (шарды) задаются с фильтром: какие роли последовательностей брать
-и до какого дня (отсечка: данные после неё модель не видит). Словари типов
-разных шардов сводятся к общему словарю модели.
+Источники (шарды) задаются с фильтром: какие роли последовательностей брать,
+какие корзины хеша компании (разбиение компаний на обучение и валидацию без
+пересечения) и до какого дня (отсечка: данные после неё модель не видит).
+Словари типов разных шардов сводятся к общему словарю модели.
+
+Аугментации (только обучение): масштаб сумм окна (компании разного размера) и
+выпадение части операций (неполная выгрузка, другая частота операций).
 """
 
 from __future__ import annotations
 
+import zlib
 from dataclasses import dataclass, field
 
 import numpy as np
 import torch
 from torch.utils.data import IterableDataset
 
-from .schema import DIR_UNKNOWN, TypeVocab
+from .schema import DIR_UNKNOWN, N_BUCKETS, TypeVocab, amount_bin, delta_days, log_amount
 from .shards import Shard
 
 INPUT_FIELDS = ("delta", "dir", "type", "amount_bin", "log_amount", "weekday", "dom", "month", "off_before", "flags")
@@ -31,7 +36,22 @@ class Source:
     roles: set[str] | None = None  # None — все последовательности
     max_day: int | None = None  # включительно; None — без отсечки
     weight: float = 1.0
+    buckets: tuple[int, int] | None = None  # [от, до) корзин хеша id из N_BUCKETS; None — все
     remap: np.ndarray = field(default=None, repr=False)  # тип шарда → тип модели
+
+
+def seq_bucket(seq_id: str) -> int:
+    """Устойчивая корзина последовательности 0..N_BUCKETS-1 (одинакова на любой машине)."""
+    return zlib.crc32(seq_id.encode()) % N_BUCKETS
+
+
+@dataclass
+class Augment:
+    scale_std: float = 0.0  # σ логарифма множителя всех сумм окна
+    drop: float = 0.0  # доля выкидываемых операций окна
+
+    def __bool__(self) -> bool:
+        return self.scale_std > 0 or self.drop > 0
 
 
 def build_vocab(sources: list[Source], base: TypeVocab | None = None) -> TypeVocab:
@@ -51,6 +71,8 @@ def _eligible(src: Source, min_len: int) -> tuple[np.ndarray, np.ndarray]:
     for i, seq in enumerate(src.shard.sequences):
         if src.roles is not None and seq.get("role") not in src.roles:
             continue
+        if src.buckets is not None and not src.buckets[0] <= seq_bucket(seq["id"]) < src.buckets[1]:
+            continue
         lo, hi = src.shard.offsets[i], src.shard.offsets[i + 1]
         n = hi - lo
         if src.max_day is not None:
@@ -61,9 +83,25 @@ def _eligible(src: Source, min_len: int) -> tuple[np.ndarray, np.ndarray]:
     return np.array(idx, dtype=np.int64), np.array(lens, dtype=np.int64)
 
 
-def make_example(src: Source, seq: int, start: int, length: int) -> dict[str, np.ndarray]:
-    """Окно [start, start + length + 1) → входы и цели длины length."""
+def augment(t: dict[str, np.ndarray], aug: Augment, rng: np.random.Generator) -> dict[str, np.ndarray]:
+    if aug.drop > 0 and len(t["day"]) > 3:
+        keep = rng.random(len(t["day"])) >= aug.drop
+        keep[0] = True  # дни у первой операции — от её настоящей предшественницы
+        if keep.sum() >= 3:
+            t = {k: v[keep] for k, v in t.items()}
+            t["delta"] = np.concatenate([t["delta"][:1], delta_days(t["day"])[1:].astype(t["delta"].dtype)])
+    if aug.scale_std > 0:
+        amount = t["amount"] * float(np.exp(rng.normal(0.0, aug.scale_std)))
+        t["amount"], t["amount_bin"], t["log_amount"] = amount, amount_bin(amount), log_amount(amount)
+    return t
+
+
+def make_example(src: Source, seq: int, start: int, length: int,
+                 aug: Augment | None = None, rng: np.random.Generator | None = None) -> dict[str, np.ndarray]:
+    """Окно [start, start + length + 1) → входы и цели длины length (короче при выпадении)."""
     t = src.shard.slice(seq, start, start + length + 1)
+    if aug:
+        t = augment(t, aug, rng)
     t["type"] = src.remap[t["type"]]
     t["src"] = np.full(len(t["day"]), SOURCE_IDS.get(src.shard.meta.source, 1), dtype=np.int64)
     ex = {f"x_{k}": t[k][:-1] for k in INPUT_FIELDS}
@@ -100,11 +138,13 @@ class WindowDataset(IterableDataset):
     """Бесконечный поток случайных окон; вероятность последовательности —
     пропорционально её длине (каждая операция примерно равновероятна) с весом источника."""
 
-    def __init__(self, sources: list[Source], seq_len: int, min_len: int = 16, seed: int = 0):
+    def __init__(self, sources: list[Source], seq_len: int, min_len: int = 16, seed: int = 0,
+                 aug: Augment | None = None):
         self.sources = sources
         self.seq_len = seq_len
         self.min_len = min_len
         self.seed = seed
+        self.aug = aug
         self._index = [_eligible(s, min_len) for s in sources]
         weights = []
         for s, (idx, lens) in zip(sources, self._index):
@@ -131,7 +171,7 @@ class WindowDataset(IterableDataset):
             seq, n = self._index[si][0][j], self._index[si][1][j]
             length = min(self.seq_len, n - 1)
             start = int(rng.integers(0, n - length))  # окно целиком до отсечки
-            yield make_example(self.sources[si], int(seq), start, length)
+            yield make_example(self.sources[si], int(seq), start, length, self.aug, rng)
 
 
 def validation_windows(sources: list[Source], seq_len: int, n: int, min_len: int = 16, seed: int = 1) -> list[dict]:

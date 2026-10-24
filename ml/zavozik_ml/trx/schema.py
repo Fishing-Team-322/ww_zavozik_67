@@ -46,6 +46,8 @@ INTERNAL_TYPES = frozenset({"case:own_transfer", "case:owner_loan"})
 
 # --- календарь дня операции -------------------------------------------------
 MAX_OFF_BEFORE = 12
+# Корзины хеша id последовательности: разбиение компаний на обучение/валидацию.
+N_BUCKETS = 100
 CAL_FLAGS = ("is_workday", "is_tax_day", "is_pay10", "is_pay25")
 
 

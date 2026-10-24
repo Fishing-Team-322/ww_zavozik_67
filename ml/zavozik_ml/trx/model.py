@@ -177,7 +177,16 @@ class TrxGPT(nn.Module):
         losses["loss"] = w[0] * losses["delta"] + w[1] * losses["dir"] + w[2] * losses["type"] + w[3] * losses["amount"]
         return losses
 
-    # --- дообучение с расширенным словарём ---
+    # --- дообучение ---
+
+    def set_dropout(self, p: float) -> None:
+        """Сменить dropout (при дообучении на малых данных нужен больше, чем при предобучении)."""
+        self.cfg.dropout = p
+        for m in self.modules():
+            if isinstance(m, nn.Dropout):
+                m.p = p
+            if isinstance(m, Block):
+                m.attn_dropout = p
 
     @torch.no_grad()
     def resize_types(self, n_types: int) -> None:
@@ -208,14 +217,30 @@ def _ce(logits: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
     return F.cross_entropy(logits.flatten(0, 1).float(), t, ignore_index=IGNORE)
 
 
-def param_groups(model: nn.Module, weight_decay: float) -> list[dict]:
-    """AdamW: без затухания весов у смещений, норм и эмбеддингов."""
+def param_groups(model: nn.Module, weight_decay: float, layer_decay: float = 1.0) -> list[dict]:
+    """AdamW: без затухания весов у смещений, норм и эмбеддингов.
+
+    layer_decay < 1 — послойный шаг обучения для дообучения: головы учатся с
+    полным шагом, блок i — с layer_decay^(n_layers - i), входные эмбеддинги —
+    с самым малым. Нижние слои с общими знаниями MBD почти не сдвигаются.
+    """
+    n = getattr(getattr(model, "cfg", None), "n_layers", 0)
     skip = {id(p) for m in model.modules() if isinstance(m, (nn.Embedding, nn.LayerNorm)) for p in m.parameters()}
-    decay, no_decay = [], []
-    for p in model.parameters():
-        if p.requires_grad:
-            (no_decay if p.ndim < 2 or id(p) in skip else decay).append(p)
-    return [{"params": decay, "weight_decay": weight_decay}, {"params": no_decay, "weight_decay": 0.0}]
+    groups: dict[tuple[bool, float], list] = {}
+    for name, p in model.named_parameters():
+        if not p.requires_grad:
+            continue
+        if name.startswith("blocks."):
+            depth = int(name.split(".")[1]) + 1
+        elif name.endswith("_emb.weight") or "_emb." in name:
+            depth = 0
+        else:
+            depth = n + 1
+        scale = layer_decay ** (n + 1 - depth)
+        decay = not (p.ndim < 2 or id(p) in skip)
+        groups.setdefault((decay, scale), []).append(p)
+    return [{"params": ps, "weight_decay": weight_decay if decay else 0.0, "lr_scale": scale}
+            for (decay, scale), ps in sorted(groups.items(), key=lambda kv: (not kv[0][0], -kv[0][1]))]
 
 
 def cosine_lr(step: int, warmup: int, total: int, base: float, floor: float = 0.1) -> float:

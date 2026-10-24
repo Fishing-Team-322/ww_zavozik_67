@@ -142,3 +142,56 @@ def test_checkpoint_roundtrip(tmp_path, shard):
     assert v2.names == vocab.names and ck["step"] == 7 and ck["args"]["out"] == str(tmp_path)
     for a, b in zip(model.state_dict().values(), m2.state_dict().values()):
         assert torch.equal(a, b)
+
+
+def test_buckets_split_companies_without_overlap(shard):
+    from zavozik_ml.trx.dataset import _eligible
+    from zavozik_ml.trx.train import parse_source
+
+    a = parse_source(f"{shard.directory}:development[0-50]")
+    b = parse_source(f"{shard.directory}:development[50-100]")
+    ia, ib = set(_eligible(a, 16)[0].tolist()), set(_eligible(b, 16)[0].tolist())
+    assert a.buckets == (0, 50) and a.roles == {"development"}
+    assert not ia & ib and len(ia | ib) == 5  # все компании разработки, без пересечения
+
+
+def test_augment_keeps_window_valid(shard):
+    from zavozik_ml.trx.dataset import Augment, make_example
+
+    src = Source(shard)
+    build_vocab([src])
+    base = make_example(src, 0, 0, 64)
+    ex = make_example(src, 0, 0, 64, Augment(scale_std=0.5, drop=0.3), np.random.default_rng(0))
+    assert len(ex["x_delta"]) < len(base["x_delta"]) and len(ex["x_delta"]) == len(ex["y_amount_bin"])
+    assert ex["x_amount_bin"].min() >= 0 and ex["x_amount_bin"].max() < schema.N_AMOUNT
+    assert ex["y_delta"].min() >= 0 and ex["y_delta"].max() <= schema.DELTA_FAR
+    assert np.all(np.diff(np.concatenate([ex["x_day"][:1], ex["x_day"]])) >= 0)
+
+
+def test_layer_decay_groups():
+    from zavozik_ml.trx.model import param_groups
+
+    model = tiny_model(10)
+    groups = param_groups(model, 0.1, layer_decay=0.5)
+    scales = {id(p): g["lr_scale"] for g in groups for p in g["params"]}
+    assert scales[id(model.type_emb.weight)] == 0.5 ** 3  # 2 слоя: эмбеддинги — самый малый шаг
+    assert scales[id(model.blocks[0].qkv.weight)] == 0.25 and scales[id(model.blocks[1].qkv.weight)] == 0.5
+    assert scales[id(model.head_amount[0].weight)] == 1.0
+    assert sum(len(g["params"]) for g in groups) == len(list(model.parameters()))
+
+
+def test_resume_keeps_schedule_and_ema(tmp_path, shard):
+    from zavozik_ml.trx.train import build_parser, run
+
+    common = ["--data", f"{shard.directory}:development", "--val", f"{shard.directory}:audit",
+              "--d-model", "32", "--layers", "1", "--heads", "2", "--d-ff", "64", "--seq-len", "32",
+              "--batch", "4", "--val-windows", "4", "--workers", "0", "--device", "cpu", "--ema", "0.9"]
+    out = tmp_path / "run"
+    run(build_parser().parse_args(common + ["--out", str(out), "--max-steps", "60", "--eval-every", "20",
+                                            "--patience", "7", "--time-limit-min", "0.0001"]))
+    ck = torch.load(out / "last.pt", weights_only=False)
+    assert 0 < ck["step"] < 60 and ck["ema"] is not None
+    # Продолжение без флагов — те же max_steps / eval_every / patience, а не значения по умолчанию.
+    run(build_parser().parse_args(["--resume", str(out)]))
+    ck = torch.load(out / "last.pt", weights_only=False)
+    assert ck["step"] == 60 and ck["args"]["patience"] == 7 and ck["args"]["eval_every"] == 20
