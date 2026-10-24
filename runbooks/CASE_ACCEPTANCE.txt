@@ -134,3 +134,24 @@ an explicit authentication rejection still ends the session.
 
 Regression coverage: financial_regressions_test.go, forecast_events_test.go and
 session-recovery.test.ts. Run the normal backend/frontend suites and full CI.
+
+Scenario and document composition
+---------------------------------
+Scenario steps run in order against private plan state. Repeated delays add up,
+repeated fixed-cost factors multiply, and moving the same baseline plan updates
+its existing offset instead of inserting another cancellation. Revenue factors
+preserve owner financing and do not scale expense reversals. Plan markers show
+the resulting scenario dates and amounts. Scenario expenses must be after the
+last statement date; old unmatched receipts cannot block future client delays.
+
+Editing an already-paid invoice preserves its actual paid_amount. Marking an
+unpaid invoice as paid is still an explicit supported transition.
+Bank-settled contract installments update the source schedule and retain their
+bank references across edits. Metadata/stale-form saves cannot reopen them or
+rewrite their paid terms. Contract receipts can reconcile up to 31 days late,
+using the same unambiguous matching rules as one-off invoices.
+
+CSV/XLSX repeat imports compare reused IDs with the stored economic fact.
+Conflicts are reported as operation_conflict, not silently counted as duplicates,
+and do not overwrite historical facts. Matching repeats may fill a previously
+unknown closing balance, including an explicit zero.

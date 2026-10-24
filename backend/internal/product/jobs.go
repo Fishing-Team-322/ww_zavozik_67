@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"io"
+	"math"
 	"net/http"
 	"strings"
 	"time"
@@ -322,6 +323,30 @@ func (s *Service) saveImport(ctx context.Context, j store.ProductJob, sourceID, 
 			return nil, e
 		}
 		if tag.RowsAffected() == 0 {
+			if kind == "csv" || kind == "xlsx" {
+				var oldDate, oldDirection, oldINN, oldName, oldPurpose string
+				var oldAmount float64
+				var oldBalance *float64
+				e = tx.QueryRow(ctx, `SELECT op_date::text,amount::float8,direction,COALESCE(counterparty_inn,''),COALESCE(counterparty_name,''),COALESCE(purpose,''),balance_eod::float8 FROM operations WHERE company_id=$1 AND id=$2`, j.CompanyID, op.ID).Scan(&oldDate, &oldAmount, &oldDirection, &oldINN, &oldName, &oldPurpose, &oldBalance)
+				if e != nil {
+					return nil, e
+				}
+				conflict := oldDate != op.Date.Format(domain.DateLayout) || math.Abs(oldAmount-op.Amount.Float()) > .011 || oldDirection != string(op.Direction) || oldINN != string(op.CounterpartyINN) || oldName != string(op.CounterpartyName) || oldPurpose != string(op.Purpose)
+				if oldBalance != nil && op.BalanceEOD != nil && math.Abs(*oldBalance-op.BalanceEOD.Float()) > .011 {
+					conflict = true
+				}
+				if conflict {
+					issues = append(issues, Doc{"operation_id": op.ID, "code": "operation_conflict", "message": "Операция с таким ID уже загружена с другими данными. Проверьте исходный файл; прежняя операция сохранена."})
+					continue
+				}
+				// The economic fact is a duplicate, but a newly supplied
+				// closing balance can enrich a previously unknown observation.
+				if oldBalance == nil && op.BalanceEOD != nil {
+					if _, e = tx.Exec(ctx, "UPDATE operations SET balance_eod=$3 WHERE company_id=$1 AND id=$2 AND balance_eod IS NULL", j.CompanyID, op.ID, op.BalanceEOD.Float()); e != nil {
+						return nil, e
+					}
+				}
+			}
 			duplicates++
 		} else {
 			added++

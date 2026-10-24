@@ -158,6 +158,11 @@ func (p *Postgres) ProductSave(ctx context.Context, uid, cid, kind, id string, d
 	return p.ProductGet(ctx, uid, kind, id)
 }
 func writeProduct(ctx context.Context, tx pgx.Tx, cid, kind, id string, d Doc) error {
+	if kind == "contract" {
+		if err := preserveContractReceipts(ctx, tx, cid, id, d); err != nil {
+			return err
+		}
+	}
 	sealed := d["_sealed_config"]
 	delete(d, "_sealed_config")
 	raw := string(JSON(d))

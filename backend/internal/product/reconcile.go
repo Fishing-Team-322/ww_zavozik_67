@@ -8,6 +8,7 @@ import (
 
 	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/domain"
 	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/ingest"
+	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/store"
 )
 
 // Detection is a reviewable heuristic, never an automatic confirmation.
@@ -173,7 +174,7 @@ func (s *Service) reconcileFacts(ctx context.Context, uid, cid string) error {
 			}
 			actual, _ := day(date(op["op_date"]))
 			window := 3.0
-			if text(event, "source_kind") == "manual" || text(event, "source_kind") == "invoice" || text(event, "source_kind") == "tax_calendar" {
+			if in(text(event, "source_kind"), "manual invoice contract tax_calendar") {
 				window = 31
 			}
 			if math.Abs(actual.Sub(dt).Hours()/24) <= window {
@@ -211,6 +212,11 @@ func (s *Service) reconcileFacts(ctx context.Context, uid, cid string) error {
 			if text(event, "source_kind") == "invoice" {
 				_, e = tx.Exec(ctx, `UPDATE product_documents SET data=data||jsonb_build_object('_revision',COALESCE((data->>'_revision')::int,0)+1,'paid_amount',LEAST((data->>'amount')::numeric,COALESCE((data->>'paid_amount')::numeric,0)+$2::numeric),'paid_at',$3::text,'status','paid'),updated_at=now() WHERE id::text=$1 AND company_id=$4 AND kind='invoice'`, text(event, "document_id"), number(match, "amount"), date(match["op_date"]), cid)
 				if e != nil {
+					return e
+				}
+			}
+			if text(event, "source_kind") == "contract" {
+				if e = store.ApplyContractReceipt(ctx, tx, cid, text(event, "document_id"), text(event, "id")); e != nil {
 					return e
 				}
 			}

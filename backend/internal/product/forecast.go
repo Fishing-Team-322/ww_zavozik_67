@@ -166,8 +166,6 @@ func (s *Service) build(ctx context.Context, uid, cid string, h int, model strin
 		}
 	}
 	components := []forecast.ComponentFlow{}
-	markers := []Doc{}
-	carriedMarkers := map[string]Doc{}
 	for _, event := range events {
 		dt, include := eventForecastDate(event, asOf)
 		if !include || dt.After(asOf.AddDate(0, 0, h)) {
@@ -176,15 +174,6 @@ func (s *Service) build(ctx context.Context, uid, cid string, h int, model strin
 		amount := number(event, "amount")
 		if text(event, "direction") == "out" {
 			amount = -amount
-		}
-		title := text(event, "title")
-		if date(event["event_date"]) <= asOf.Format(domain.DateLayout) {
-			title += " (не оплачен, срок " + date(event["event_date"]) + ")"
-		}
-		marker := Doc{"date": dt.Format(domain.DateLayout), "title": title, "amount": amount, "kind": text(event, "source_kind")}
-		markers = append(markers, marker)
-		if date(event["event_date"]) <= asOf.Format(domain.DateLayout) {
-			carriedMarkers["event:"+text(event, "id")] = marker
 		}
 		// The trained ML already covers recurring business flows. Only explicit
 		// additional plans change its paths; detected recurring is never added twice.
@@ -239,20 +228,33 @@ func (s *Service) build(ctx context.Context, uid, cid string, h int, model strin
 		return nil, empty, e
 	}
 	if len(steps) > 0 {
-		res, e = s.applySteps(ctx, uid, cid, res, events, steps)
+		res, events, e = s.applyStepsAndEvents(ctx, uid, cid, res, events, steps)
 		if e != nil {
 			return nil, empty, e
 		}
 	}
-	// A scenario can reschedule a carried debt. Its marker and notice must
-	// describe the resulting forecast, not the original first-day assumption.
+	// Describe the same transformed plans that produced the scenario paths.
+	markers := []Doc{}
 	carriedExpense := false
+	for _, event := range events {
+		dt, include := eventForecastDate(event, asOf)
+		if !include || dt.After(asOf.AddDate(0, 0, h)) {
+			continue
+		}
+		amount := number(event, "amount")
+		if text(event, "direction") == "out" {
+			amount = -amount
+		}
+		title := text(event, "title")
+		if date(event["event_date"]) <= asOf.Format(domain.DateLayout) {
+			carriedExpense = true
+			title += " (не оплачен, срок " + date(event["event_date"]) + ")"
+		}
+		markers = append(markers, Doc{"date": dt.Format(domain.DateLayout), "title": title, "amount": amount, "kind": text(event, "source_kind")})
+	}
 	for _, component := range res.Deterministic {
-		if marker := carriedMarkers[component.Key]; marker != nil {
-			marker["date"] = component.Date.Format(domain.DateLayout)
-			if component.Date.Equal(asOf.AddDate(0, 0, 1)) {
-				carriedExpense = true
-			}
+		if component.Key == "scenario:add_expense" && res.DayIndex(component.Date) >= 0 {
+			markers = append(markers, Doc{"date": component.Date.Format(domain.DateLayout), "title": component.Title, "amount": component.Amount.Float(), "kind": "manual"})
 		}
 	}
 	q10, q50, q90 := res.Quantile(.1), res.Quantile(.5), res.Quantile(.9)

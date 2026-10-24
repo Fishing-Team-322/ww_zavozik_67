@@ -418,6 +418,15 @@ func (s *Service) crud(ctx context.Context, uid, cid string, desc [3]string, r *
 	if e := validateResource(kind, body, create); e != nil {
 		return Result{}, e
 	}
+	// "Mark paid" is an explicit transition, not a standing instruction to
+	// manufacture another payment whenever an already-paid invoice is edited.
+	if kind == "invoice" && text(body, "status") == "paid" && (create || text(d, "status") != "paid") {
+		amount := d["amount"]
+		if value, exists := body["amount"]; exists {
+			amount = value
+		}
+		body["paid_amount"] = amount
+	}
 	if kind == "source" && !create {
 		if patch, yes := body["config"].(map[string]any); yes {
 			_, previous, err := s.sourceConfig(ctx, uid, id)
@@ -624,9 +633,6 @@ func (s *Service) prepare(ctx context.Context, uid, cid, kind string, d Doc, cre
 		}
 		if !in(text(d, "direction"), "issued received") {
 			return bad("Направление счёта: issued или received")
-		}
-		if text(d, "status") == "paid" {
-			d["paid_amount"] = d["amount"]
 		}
 		switch {
 		case number(d, "paid_amount") >= number(d, "amount"):

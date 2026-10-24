@@ -39,7 +39,7 @@ func validateSteps(steps []Doc) error {
 			}
 		case "add_expense":
 			amount, yes := step["amount"].(float64)
-			if !yes || amount < 0 || amount > 1e13 {
+			if !yes || math.IsNaN(amount) || math.IsInf(amount, 0) || amount < 0 || amount > 1e13 || math.Abs(amount*100-math.Round(amount*100)) > .001 {
 				return bad("Некорректная сумма расхода")
 			}
 			if _, e := day(text(step, "date")); e != nil {
@@ -67,10 +67,36 @@ func validateSteps(steps []Doc) error {
 	return nil
 }
 func (s *Service) applySteps(ctx context.Context, uid, cid string, base forecast.Result, events, steps []Doc) (forecast.Result, error) {
+	result, _, err := s.applyStepsAndEvents(ctx, uid, cid, base, events, steps)
+	return result, err
+}
+
+func (s *Service) applyStepsAndEvents(ctx context.Context, uid, cid string, base forecast.Result, events, steps []Doc) (forecast.Result, []Doc, error) {
 	if e := validateSteps(steps); e != nil {
-		return forecast.Result{}, e
+		return forecast.Result{}, nil, e
 	}
 	out := base.Clone()
+	// Scenario steps compose over private event state. Dates and amounts from
+	// earlier steps must be visible to later steps, without editing real plans.
+	states := make([]Doc, 0, len(events))
+	for _, event := range events {
+		copy := Doc{}
+		for key, value := range event {
+			copy[key] = value
+		}
+		states = append(states, copy)
+	}
+	events = states
+	isRevenue := func(event Doc) bool {
+		return text(event, "direction") == "in" && !domain.Category(text(event, "category")).IsInternal()
+	}
+	revenueKeys := map[string]bool{}
+	for _, flow := range out.Deterministic {
+		revenueKeys[flow.Key] = flow.Amount > 0
+	}
+	for _, event := range events {
+		revenueKeys["event:"+text(event, "id")] = isRevenue(event)
+	}
 	move := func(event Doc, target time.Time) error {
 		old, included := eventForecastDate(event, out.AsOf)
 		if !included || !target.After(out.AsOf) {
@@ -83,33 +109,31 @@ func (s *Service) applySteps(ctx context.Context, uid, cid string, base forecast
 		key := "event:" + text(event, "id")
 		found := false
 		for i := range out.Deterministic {
-			if out.Deterministic[i].Key == key {
+			if out.Deterministic[i].Key == key || out.Deterministic[i].Key == "delta:new:"+key {
 				out.Deterministic[i].Date = target
 				found = true
 			}
 		}
 		if !found {
 			out.Deterministic = append(out.Deterministic, forecast.ComponentFlow{Date: old, Key: "delta:old:" + key, Title: text(event, "title"), Amount: domain.Money(-amount)}, forecast.ComponentFlow{Date: target, Key: "delta:new:" + key, Title: text(event, "title"), Amount: domain.Money(amount)})
+			// A positive reversal of an expense is not revenue. Both legs of
+			// a moved receipt, including its negative offset, scale together.
+			revenueKeys["delta:old:"+key], revenueKeys["delta:new:"+key] = isRevenue(event), isRevenue(event)
 		}
 		for i := range out.Uncertain {
 			if out.Uncertain[i].Key == key {
 				out.Uncertain[i].Date = target
 			}
 		}
+		event["event_date"] = target.Format(domain.DateLayout)
 		return nil
 	}
 	for _, step := range steps {
 		switch text(step, "kind") {
 		case "scale_revenue":
 			factor := number(step, "factor")
-			incomeKeys := map[string]bool{}
-			for _, c := range out.Deterministic {
-				if c.Amount > 0 {
-					incomeKeys[c.Key] = true
-				}
-			}
 			for i := range out.Uncertain {
-				if incomeKeys[out.Uncertain[i].Key] {
+				if revenueKeys[out.Uncertain[i].Key] {
 					for p := range out.Uncertain[i].Values {
 						out.Uncertain[i].Values[p] *= factor
 					}
@@ -121,12 +145,20 @@ func (s *Service) applySteps(ctx context.Context, uid, cid string, base forecast
 				}
 			}
 			for i := range out.Deterministic {
-				if out.Deterministic[i].Amount > 0 {
+				if revenueKeys[out.Deterministic[i].Key] {
 					out.Deterministic[i].Amount *= domain.Money(factor)
+				}
+			}
+			for _, event := range events {
+				if isRevenue(event) {
+					event["amount"] = number(event, "amount") * factor
 				}
 			}
 		case "add_expense":
 			dt, _ := day(text(step, "date"))
+			if !dt.After(out.AsOf) {
+				return forecast.Result{}, nil, bad("Расход сценария должен быть после последней даты выписки")
+			}
 			out.Deterministic = append(out.Deterministic, forecast.ComponentFlow{Date: dt, Key: "scenario:add_expense", Title: "Дополнительный расход", Amount: domain.Money(-number(step, "amount")), Source: domain.SrcManual})
 		case "move_event":
 			found := false
@@ -134,14 +166,14 @@ func (s *Service) applySteps(ctx context.Context, uid, cid string, base forecast
 				if text(event, "id") == text(step, "event_id") {
 					dt, _ := day(text(step, "date"))
 					if e := move(event, dt); e != nil {
-						return forecast.Result{}, e
+						return forecast.Result{}, nil, e
 					}
 					found = true
 					break
 				}
 			}
 			if !found {
-				return forecast.Result{}, platform.ErrNotFound
+				return forecast.Result{}, nil, platform.ErrNotFound
 			}
 		case "delay_counterparty":
 			found := false
@@ -151,15 +183,18 @@ func (s *Service) applySteps(ctx context.Context, uid, cid string, base forecast
 					if text(event, "direction") != "in" || text(event, "status") != "expected" {
 						continue
 					}
+					if _, included := eventForecastDate(event, out.AsOf); !included {
+						continue
+					}
 					dt, _ := day(date(event["event_date"]))
 					if e := move(event, dt.AddDate(0, 0, int(number(step, "delay_days")))); e != nil {
-						return forecast.Result{}, e
+						return forecast.Result{}, nil, e
 					}
 					found = true
 				}
 			}
 			if !found {
-				return forecast.Result{}, platform.Fail(422, "planned_receipt_required", "Для переноса нужны плановые поступления выбранного клиента")
+				return forecast.Result{}, nil, platform.Fail(422, "planned_receipt_required", "Для переноса нужны плановые поступления выбранного клиента")
 			}
 		case "scale_fixed_costs":
 			for _, event := range events {
@@ -167,12 +202,34 @@ func (s *Service) applySteps(ctx context.Context, uid, cid string, base forecast
 					continue
 				}
 				dt, _ := day(date(event["event_date"]))
-				delta := -number(event, "amount") * (number(step, "factor") - 1)
-				out.Deterministic = append(out.Deterministic, forecast.ComponentFlow{Date: dt, Key: "scenario:fixed:" + text(event, "id"), Title: text(event, "title"), Amount: domain.Money(delta)})
+				if !dt.After(out.AsOf) {
+					continue
+				}
+				factor := number(step, "factor")
+				key := "event:" + text(event, "id")
+				explicit := false
+				for i := range out.Deterministic {
+					if out.Deterministic[i].Key == key || out.Deterministic[i].Key == "delta:new:"+key {
+						out.Deterministic[i].Amount *= domain.Money(factor)
+						explicit = true
+					}
+				}
+				for i := range out.Uncertain {
+					if out.Uncertain[i].Key == key {
+						for p := range out.Uncertain[i].Values {
+							out.Uncertain[i].Values[p] *= factor
+						}
+					}
+				}
+				if !explicit {
+					delta := -number(event, "amount") * (factor - 1)
+					out.Deterministic = append(out.Deterministic, forecast.ComponentFlow{Date: dt, Key: "scenario:fixed:" + text(event, "id"), Title: text(event, "title"), Amount: domain.Money(delta)})
+				}
+				event["amount"] = number(event, "amount") * factor
 			}
 		}
 	}
-	return out, out.Recompute()
+	return out, events, out.Recompute()
 }
 func (s *Service) compare(ctx context.Context, op, uid, cid string, r *http.Request, b Doc) (Result, error) {
 	steps := docs(b["steps"])
