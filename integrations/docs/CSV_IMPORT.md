@@ -1,0 +1,5 @@
+# CSV-импорт
+
+`POST /v1/import/csv` принимает multipart `file`, `company_id`, `mode=preview|commit`, `mapping` как JSON. Нужен операторский Bearer token. `preview` разбирает файл без записи, показывает нормализованные строки и ошибки с номерами. `commit` отклоняет весь файл, если есть ошибки, затем записывает идемпотентно. Размер до 10 МиБ; кодировки UTF-8 и Windows-1251; разделители `;`, `,`, tab; даты `YYYY-MM-DD` или `DD.MM.YYYY`; суммы с точкой/запятой в целых копейках.
+
+Пример `mapping`: `{"category":"invoice","encoding":"utf-8","delimiter":";","columns":{"amount":"Сумма","due_date":"Срок"}}`. Категории: `actual`, `invoice`, `manual_plan`. Обязательные поля: `date`, `amount`, `direction`; для `actual` дополнительно `executed=true` в каждой строке. Опциональны `external_id`, `due_date`, `title`, `account`, `counterparty_inn`, `counterparty_name`, `document_number`. При отсутствии `external_id` ID — хеш строки, поэтому исправленная строка станет отдельным объектом; для корректировок указывайте стабильный ID. План без срока остаётся вне прогноза. XLSX пока не поддержан.
