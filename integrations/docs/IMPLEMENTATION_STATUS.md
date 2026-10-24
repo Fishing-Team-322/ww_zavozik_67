@@ -11,7 +11,7 @@
 | Налоговый календарь | IMPLEMENTED (узкая область) | `internal/taxcalendar/usn.go`, `usn_test.go`: подтверждённые сроки УСН на 2026 год, отдельная ручная фиксация суммы | Не поддержаны другие режимы/годы; без подтверждённой суммы обязательство не создаётся |
 | Wildberries | MOCK_READY / BLOCKED (live) | `internal/providers/wb/client.go`, `client_test.go`; актуальный Finance API `POST /api/finance/v1/sales-reports/detailed`, RRD-пагинация, 204, финансовые строки без записи в банковский факт | Локального токена/кабинета WB нет; получение фактической выплаты требует отдельной сверки с банком |
 | Ozon | MOCK_READY / BLOCKED (live) | `internal/providers/ozon/client.go`, `client_test.go`; `POST /v3/finance/transaction/list`, страницы, интервалы, детали начислений/комиссий, без записи в банковский факт | Локальных `OZON_CLIENT_ID` и `OZON_API_KEY` нет; выплаты сверять отдельно с банком |
-| CSV/Excel и ручные планы | PARTIAL | `onecbank` читает формат `1CClientBankExchange`, но не универсальный CSV | Preview, mapping, ошибки строк, идемпотентность |
+| CSV и ручные планы | IMPLEMENTED (CSV) | `internal/importcsv`, `POST /v1/import/csv`, тесты preview/commit, CP1251, ошибки строк, повторный импорт и обновление счёта | XLSX не реализован; импорт факта требует явного `executed=true`, планы с неизвестной датой не допускаются к прогнозу |
 | Эксплуатация и PostgreSQL | PARTIAL | `cmd/server`, `internal/httpapi`, `internal/store/memory.go`, Dockerfile | PostgreSQL, миграции, tenant isolation, состояние источников |
 | Контракт для backend | PARTIAL | `docs/CONTRACT.md`, `docs/BACKEND_MAPPING.md`, `bridge/` | Версионированные DTO, handoff и совместимость |
 

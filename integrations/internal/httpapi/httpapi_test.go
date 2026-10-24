@@ -46,6 +46,38 @@ func upload(t *testing.T, handler http.Handler, company string, data []byte) *ht
 	return rec
 }
 
+func TestCSVPreviewCommit(t *testing.T) {
+	h := (API{Store: store.NewMemory(), SyncToken: "local-operator-token"}).Handler()
+	call := func(mode string) *httptest.ResponseRecorder {
+		var body bytes.Buffer
+		w := multipart.NewWriter(&body)
+		_ = w.WriteField("company_id", "demo-company")
+		_ = w.WriteField("mode", mode)
+		_ = w.WriteField("mapping", `{"category":"invoice","encoding":"utf-8"}`)
+		f, err := w.CreateFormFile("file", "invoices.csv")
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, _ = f.Write([]byte("external_id;date;amount;direction;due_date\ni1;2026-10-24;100,05;in;2026-11-05\n"))
+		_ = w.Close()
+		r := httptest.NewRequest("POST", "/v1/import/csv", &body)
+		r.Header.Set("Content-Type", w.FormDataContentType())
+		r.Header.Set("Authorization", "Bearer local-operator-token")
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, r)
+		return rec
+	}
+	if rec := call("preview"); rec.Code != 200 {
+		t.Fatalf("preview: %d %s", rec.Code, rec.Body.String())
+	}
+	if rec := call("commit"); rec.Code != 200 {
+		t.Fatalf("commit: %d %s", rec.Code, rec.Body.String())
+	}
+	if rec := call("commit"); rec.Code != 200 || !strings.Contains(rec.Body.String(), `"duplicates":1`) {
+		t.Fatalf("duplicate: %d %s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestHTTPImportAndIsolation(t *testing.T) {
 	data, err := os.ReadFile("../../testdata/onec_bank_utf8.txt")
 	if err != nil {

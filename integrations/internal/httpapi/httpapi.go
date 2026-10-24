@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/Fishing-Team-322/ww_zavozik_67/integrations/internal/contracts"
+	"github.com/Fishing-Team-322/ww_zavozik_67/integrations/internal/importcsv"
 	"github.com/Fishing-Team-322/ww_zavozik_67/integrations/internal/providers"
 	"github.com/Fishing-Team-322/ww_zavozik_67/integrations/internal/providers/dadata"
 	"github.com/Fishing-Team-322/ww_zavozik_67/integrations/internal/providers/onecbank"
@@ -37,12 +38,60 @@ func (a API) Handler() http.Handler {
 		writeJSON(w, http.StatusOK, providers.List(a.OneCConfig != nil, a.DaDataClient != nil))
 	})
 	mux.HandleFunc("POST /v1/import/onec-bank", a.importOneC)
+	mux.HandleFunc("POST /v1/import/csv", a.importCSV)
 	mux.HandleFunc("POST /v1/sync/onec-odata", a.syncOneC)
 	mux.HandleFunc("POST /v1/sync/onec-plans", a.syncOneCPlans)
 	mux.HandleFunc("POST /v1/enrich/dadata-party", a.enrichDaData)
 	mux.HandleFunc("GET /v1/batches/{companyId}", a.batches)
 	mux.HandleFunc("GET /v1/planned-events/{companyId}", a.plannedEvents)
 	return mux
+}
+
+func (a API) importCSV(w http.ResponseWriter, r *http.Request) {
+	if !authorized(r, a.SyncToken) {
+		writeError(w, 401, "unauthorized", "Invalid authorization")
+		return
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, 11<<20)
+	if err := r.ParseMultipartForm(1 << 20); err != nil {
+		writeError(w, 400, "invalid_request", "Malformed CSV upload")
+		return
+	}
+	if r.MultipartForm != nil {
+		defer r.MultipartForm.RemoveAll()
+	}
+	var mapping importcsv.Mapping
+	if err := json.Unmarshal([]byte(r.FormValue("mapping")), &mapping); err != nil {
+		writeError(w, 400, "invalid_mapping", "Expected JSON mapping")
+		return
+	}
+	files := r.MultipartForm.File["file"]
+	if len(files) != 1 {
+		writeError(w, 400, "invalid_file", "Exactly one CSV file is required")
+		return
+	}
+	file, err := files[0].Open()
+	if err != nil {
+		writeError(w, 400, "invalid_file", "Cannot open CSV file")
+		return
+	}
+	defer file.Close()
+	preview, err := importcsv.Parse(file, r.FormValue("company_id"), mapping)
+	if err != nil {
+		writeError(w, 400, "invalid_csv", err.Error())
+		return
+	}
+	if r.FormValue("mode") == "commit" {
+		if len(preview.Issues) != 0 {
+			writeJSON(w, 422, preview)
+			return
+		}
+		preview.Batch = a.Store.Add(preview.Batch)
+	} else if r.FormValue("mode") != "preview" {
+		writeError(w, 400, "invalid_mode", "Expected preview or commit")
+		return
+	}
+	writeJSON(w, 200, preview)
 }
 
 func (a API) syncOneCPlans(w http.ResponseWriter, r *http.Request) {
