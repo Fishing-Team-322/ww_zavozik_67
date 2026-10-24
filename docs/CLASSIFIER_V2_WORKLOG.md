@@ -352,3 +352,34 @@
 - Tests: splitting9PASS, selection5PASS, token guards2PASS; полный prod290PASS
   +3SKIP; optional train-env292PASS (без чужого trx), HDBSCAN FutureWarning only.
   Ни один новый model fit до завершения этих проверок не начат.
+
+## Новый pipeline запущен ПОСЛЕ аудитов, 17:15 МСК
+
+- Commit4a3b6b3 фиксирует split/protocol/audit до новых model predictions.
+  Root ml/data/classifier_v2/disjoint_v3_runs, immutable full package snapshot
+  source_snapshot (исключён чужой trx), experiment_protocol.json содержитSHA/
+  sourcecommit/рецепт/hidden choice. Snapshot НЕ РЕДАКТИРОВАТЬ во время fits.
+- Единственный controller PID38250/session1244:
+  ml/data/classifier_v2/run_disjoint_v3_pipeline.py. Атомарный статус в
+  disjoint_v3_runs/pipeline_state.json, лог controller disjoint_v3_pipeline.log,
+  каждый step в root/STEP.log. Не запускать этот script повторно: existing
+  root защищён от дубликата. Не возобновлять ни одну старую очередь.
+- Pipeline САМ делает по порядку: input-only audit frozen182 (без предсказаний),
+  baseline refit -> Rubert12epochs -> E512epochs -> cal-only selection -> fresh
+  hidden rent/utilities12epochs -> main/hidden export -> CPU benchmark -> ОДИН
+  final evaluate с новым baseline -> novelty experiment -> report. После этого
+  статус evaluations_complete_review_required: агент проверяет ошибки/ограничения,
+  live v2/v1/GBM, model card/immutable publication, финальные проверки/коммиты.
+  Не дублировать автоматические этапы, особенно evaluate после lock/результатов.
+- Linear baseline уже ЗАВЕРШЁН:56,502train rows из того же prepared файла,
+  clean211cal; L-BFGS сошёлся за88итераций,48.5s. Это cal agreement с weak labels,
+  НЕ real-world accuracy (веса/meta/calibration в root/linear_baseline).
+- Сейчас Rubert PID38362, fresh pretrained/base, source snapshot. E5 ещё НЕ
+  запущен: только sequential fitting, не создавать параллельный дубль.
+- Heartbeat classifier-v2 обновлён на этот controller/root. Когда pipeline
+  running, читать только актуальный статус/лог и делать независимую полезную
+  работу; при failed разбирать точный step, сохранять completed fits и не
+  повторять train/consumed final evaluation. Никакого tuning по final.
+- Примечание: export timing использует362 genuine cal_full inputs (341 после
+  hide), поскольку primary clean211 меньше256. Label/temperature calibration
+  остаётся на211 clean rows; это не добавление noise в оценку качества.
