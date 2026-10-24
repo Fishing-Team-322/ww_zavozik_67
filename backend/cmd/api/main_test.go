@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"syscall"
 	"testing"
@@ -14,6 +15,9 @@ import (
 func buildAPI(t *testing.T) string {
 	t.Helper()
 	bin := filepath.Join(t.TempDir(), "api")
+	if runtime.GOOS == "windows" {
+		bin += ".exe"
+	}
 	cmd := exec.Command("go", "build", "-o", bin, ".")
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("go build: %v\n%s", err, out)
@@ -37,6 +41,9 @@ func TestExitsNonzeroOnListenFailure(t *testing.T) {
 
 // Штатный SIGTERM остаётся успешным завершением.
 func TestExitsZeroOnSigterm(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows does not support Unix SIGTERM delivery")
+	}
 	logPath := filepath.Join(t.TempDir(), "api.log")
 	logFile, err := os.Create(logPath)
 	if err != nil {

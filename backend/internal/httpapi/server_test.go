@@ -55,7 +55,7 @@ func TestListModelsIncludesBuiltin(t *testing.T) {
 
 // Ещё не реализованный эндпоинт остаётся заглушкой 501.
 func TestUnimplementedRoute(t *testing.T) {
-	if rec := get(t, "/v1/companies"); rec.Code != http.StatusNotImplemented {
+	if rec := get(t, "/v1/models/quality"); rec.Code != http.StatusNotImplemented {
 		t.Fatalf("status %d: %s", rec.Code, rec.Body)
 	}
 }
