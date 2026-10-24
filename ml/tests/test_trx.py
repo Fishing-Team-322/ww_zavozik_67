@@ -1,0 +1,144 @@
+"""Трансформер транзакций: формат данных, обучение, генерация.
+
+Нужен torch — в прод-окружении без него тесты пропускаются.
+Запуск: PYTHONPATH=gen:. ml/data/chronos_venv/bin/python -m pytest tests/test_trx.py -q
+"""
+
+from datetime import date, timedelta
+
+import numpy as np
+import pytest
+
+torch = pytest.importorskip("torch")
+
+from zavozik_ml import calendar as cal  # noqa: E402
+from zavozik_ml.trx import schema  # noqa: E402
+from zavozik_ml.trx.dataset import Source, WindowDataset, build_vocab, collate, validation_windows  # noqa: E402
+from zavozik_ml.trx.generate import context_tokens, generate  # noqa: E402
+from zavozik_ml.trx.model import TrxConfig, TrxGPT  # noqa: E402
+from zavozik_ml.trx.shards import Shard, ShardWriter, encode_sequence  # noqa: E402
+
+
+def day_number(d: date) -> int:
+    return int(np.datetime64(d, "D").astype(np.int64))
+
+
+def company_ops(start: date, days: int, seed: int):
+    """Рабочие дни: выручка каждый день, зарплата 10-го и 25-го, ЕНП 28-го,
+    иногда перевод владельца."""
+    rng = np.random.default_rng(seed)
+    rows = []
+    for i in range(days):
+        d = start + timedelta(days=i)
+        n = day_number(d)
+        if not cal.is_workday(np.array([n], dtype="datetime64[D]"))[0]:
+            continue
+        rows.append((n, schema.DIR_IN, "case:revenue_acquiring", rng.gamma(4, 20_000)))
+        if d.day in (10, 25):
+            rows.append((n, schema.DIR_OUT, "case:salary", 150_000.0))
+        if d.day == 28:
+            rows.append((n, schema.DIR_OUT, "case:tax", 60_000.0))
+        if rng.random() < 0.02:
+            rows.append((n, schema.DIR_IN, "case:owner_loan", 500_000.0))
+    return rows
+
+
+@pytest.fixture(scope="module")
+def shard(tmp_path_factory):
+    path = tmp_path_factory.mktemp("case")
+    vocab = schema.TypeVocab()
+    w = ShardWriter(path, "case", vocab)
+    for c in range(6):
+        rows = company_ops(date(2025, 1, 1), 300, c)
+        days, dirs, names, amounts = map(np.array, zip(*rows))
+        types = np.array([vocab.add(n) for n in names])
+        w.add(f"C{c:03d}", encode_sequence(days, dirs, types, amounts.astype(float)),
+              role="audit" if c == 5 else "development")
+    w.close()
+    return Shard(path)
+
+
+def tiny_model(n_types: int) -> TrxGPT:
+    return TrxGPT(TrxConfig(n_types=n_types, d_model=64, n_layers=2, n_heads=4, d_ff=128, max_len=128, dropout=0.0))
+
+
+def test_schema_encoding_roundtrip():
+    a = np.array([1.0, 999.0, 150_000.0, 3e8])
+    b = schema.amount_bin(a)
+    back = schema.amount_from_bin(b)
+    assert np.all(np.abs(np.log10(back) - np.log10(a)) < 9 / schema.N_AMOUNT)
+    d = np.array([100, 100, 103, 200])
+    assert schema.delta_days(d).tolist() == [0, 0, 3, schema.DELTA_FAR]
+    c = schema.calendar_fields(np.array([day_number(date(2025, 12, 29))]))
+    assert c["weekday"][0] == 0 and c["dom"][0] == 28 and c["month"][0] == 11
+    assert c["flags"][0].tolist() == [1, 1, 0, 0]  # рабочий; ЕНП перенесён с вс 28-го на пн 29-е
+
+
+def test_shard_roundtrip_and_roles(shard):
+    assert len(shard) == 6 and shard.meta.source == "case"
+    t = shard.slice(0)
+    assert np.all(np.diff(t["day"]) >= 0) and t["flags"].shape[1] == 4
+    src = Source(shard, roles={"development"}, max_day=day_number(date(2025, 6, 30)))
+    vocab = build_vocab([src])
+    ds = WindowDataset([src], seq_len=64)
+    ex = next(iter(ds))
+    assert ex["x_delta"].shape == (64,) and ex["x_day"].max() <= src.max_day  # отсечка соблюдена
+    b = collate([ex, next(iter(ds))])
+    assert b["x_type"].dtype == torch.int64 and b["mask"].all() and len(vocab) == len(shard.vocab)
+
+
+def test_tiny_model_learns(shard):
+    src = Source(shard, roles={"development"})
+    vocab = build_vocab([src])
+    model = tiny_model(len(vocab))
+    windows = validation_windows([src], 64, 8)
+    b = collate(windows)
+    opt = torch.optim.AdamW(model.parameters(), lr=3e-3)
+    first = float(model(b)["loss"])
+    for _ in range(150):
+        loss = model(b)["loss"]
+        opt.zero_grad()
+        loss.backward()
+        opt.step()
+    assert float(model(b)["loss"]) < first * 0.5
+
+
+def test_generation_respects_calendar_horizon_and_internal(shard):
+    src = Source(shard)
+    vocab = build_vocab([src])
+    model = tiny_model(len(vocab))
+    tok = shard.slice(5)
+    origin = day_number(date(2025, 9, 30))
+    upto = int(np.searchsorted(tok["day"], origin, side="right"))
+    ctx = context_tokens({k: v[:upto] for k, v in tok.items()}, src.remap, "case")
+    g = generate(model, ctx, vocab, origin, horizon=30, n_paths=16, seed=1)
+    assert g.business_in.shape == (16, 30)
+    days = origin + 1 + np.arange(30)
+    off = ~cal.is_workday(days.astype("datetime64[D]"))
+    assert (g.business_in[:, off] == 0).all() and (g.business_out[:, off] == 0).all()
+    assert (g.business_in >= 0).all() and (g.business_out >= 0).all()
+    assert g.n_ops.sum() > 0
+    per_day = np.unique(ctx["day"], return_counts=True)[1].max()
+    assert g.n_ops.max() <= 30 * max(3, int(np.ceil(1.5 * per_day)))  # нет лавины операций в один день
+
+
+def test_resize_types_keeps_old_rows():
+    model = tiny_model(10)
+    before = model.type_emb.weight[:10].clone()
+    model.resize_types(14)
+    assert model.type_emb.num_embeddings == 14 and model.head_type[-1].out_features == 14
+    assert torch.equal(model.type_emb.weight[:10], before)
+
+
+def test_checkpoint_roundtrip(tmp_path, shard):
+    from argparse import Namespace
+
+    from zavozik_ml.trx.train import load_model, save_checkpoint
+
+    vocab = build_vocab([Source(shard)])
+    model = tiny_model(len(vocab))
+    save_checkpoint(tmp_path / "m.pt", model, None, 7, 1.5, vocab, Namespace(out=tmp_path, lr=1e-3))
+    m2, v2, ck = load_model(tmp_path / "m.pt")
+    assert v2.names == vocab.names and ck["step"] == 7 and ck["args"]["out"] == str(tmp_path)
+    for a, b in zip(model.state_dict().values(), m2.state_dict().values()):
+        assert torch.equal(a, b)
