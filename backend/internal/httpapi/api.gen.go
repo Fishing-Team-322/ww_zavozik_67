@@ -94,6 +94,12 @@ const (
 	ООО CompanyPatchLegalForm = "ООО"
 )
 
+// Defines values for ContractScheduleMode.
+const (
+	Explicit ContractScheduleMode = "explicit"
+	Terms    ContractScheduleMode = "terms"
+)
+
 // Defines values for CreateContractInputScheduleStatus.
 const (
 	CreateContractInputScheduleStatusCancelled CreateContractInputScheduleStatus = "cancelled"
@@ -134,6 +140,7 @@ const (
 
 // Defines values for CreateSourceInputKind.
 const (
+	BankApi      CreateSourceInputKind = "bank_api"
 	Excel        CreateSourceInputKind = "excel"
 	Fns          CreateSourceInputKind = "fns"
 	Gsheets      CreateSourceInputKind = "gsheets"
@@ -141,6 +148,7 @@ const (
 	OnecBankFile CreateSourceInputKind = "onec_bank_file"
 	OnecOdata    CreateSourceInputKind = "onec_odata"
 	Ozon         CreateSourceInputKind = "ozon"
+	TaxApi       CreateSourceInputKind = "tax_api"
 	Upload       CreateSourceInputKind = "upload"
 	Wb           CreateSourceInputKind = "wb"
 )
@@ -157,6 +165,11 @@ const (
 const (
 	In  Direction = "in"
 	Out Direction = "out"
+)
+
+// Defines values for GapExplanationBasis.
+const (
+	MedianBalancePaths GapExplanationBasis = "median_balance_paths"
 )
 
 // Defines values for HealthMl.
@@ -251,8 +264,10 @@ const (
 
 // Defines values for SourceDataMode.
 const (
-	Live SourceDataMode = "live"
-	Mock SourceDataMode = "mock"
+	Demo       SourceDataMode = "demo"
+	Live       SourceDataMode = "live"
+	Mock       SourceDataMode = "mock"
+	Unverified SourceDataMode = "unverified"
 )
 
 // Defines values for TaxDraftStatus.
@@ -582,6 +597,8 @@ type CompanyUpdates struct {
 
 // Contract defines model for Contract.
 type Contract struct {
+	// Additional true adds this obligation to the modeled business flow; false explicitly marks it as already covered.
+	Additional   *bool              `json:"additional,omitempty"`
 	Counterparty CounterpartyRef    `json:"counterparty"`
 	DeferralDays int                `json:"deferral_days"`
 	Direction    string             `json:"direction"`
@@ -593,9 +610,14 @@ type Contract struct {
 		Date   openapi_types.Date `json:"date"`
 		Status string             `json:"status"`
 	} `json:"schedule"`
-	Source string  `json:"source"`
-	Total  float64 `json:"total"`
+	ScheduleMode *ContractScheduleMode `json:"schedule_mode"`
+	Source       string                `json:"source"`
+	StartDate    *openapi_types.Date   `json:"start_date"`
+	Total        float64               `json:"total"`
 }
+
+// ContractScheduleMode defines model for Contract.ScheduleMode.
+type ContractScheduleMode string
 
 // Counterparty defines model for Counterparty.
 type Counterparty struct {
@@ -632,12 +654,15 @@ type CreateContractInput struct {
 	Direction        Direction `json:"direction"`
 	Number           string    `json:"number"`
 	Prepayment       *float64  `json:"prepayment,omitempty"`
-	Schedule         []struct {
+	Schedule         *[]struct {
 		Amount float64                            `json:"amount"`
 		Date   openapi_types.Date                 `json:"date"`
 		Status *CreateContractInputScheduleStatus `json:"status,omitempty"`
-	} `json:"schedule"`
-	Total float64 `json:"total"`
+	} `json:"schedule,omitempty"`
+
+	// StartDate Advance is due on start_date, balance after deferral_days. Explicit schedule contains final dates.
+	StartDate *openapi_types.Date `json:"start_date,omitempty"`
+	Total     float64             `json:"total"`
 }
 
 // CreateContractInputScheduleStatus defines model for CreateContractInput.Schedule.Status.
@@ -822,6 +847,9 @@ type Forecast struct {
 		Kind   string             `json:"kind"`
 		Title  string             `json:"title"`
 	} `json:"markers"`
+
+	// ModelAsOf Last date observed by the model used for the stored paths. May precede as_of when new actuals rebase the forecast.
+	ModelAsOf      *string `json:"model_as_of,omitempty"`
 	ModelUsed      string  `json:"model_used"`
 	ModelVersion   string  `json:"model_version"`
 	OpeningBalance float64 `json:"opening_balance"`
@@ -832,9 +860,12 @@ type Forecast struct {
 		P50       float64            `json:"p50"`
 		P90       float64            `json:"p90"`
 	} `json:"points"`
-	SafeToSpend float64  `json:"safe_to_spend"`
-	Status      string   `json:"status"`
-	Warnings    []string `json:"warnings"`
+	SafeToSpend float64 `json:"safe_to_spend"`
+	Status      string  `json:"status"`
+
+	// UpdateMode fresh_paths, reused_paths or updated_from_actuals. Empty for fallback.
+	UpdateMode *string  `json:"update_mode,omitempty"`
+	Warnings   []string `json:"warnings"`
 }
 
 // ForecastAccuracy defines model for ForecastAccuracy.
@@ -882,13 +913,18 @@ type ForgotPasswordRequest struct {
 
 // Gap defines model for Gap.
 type Gap struct {
-	Date         openapi_types.Date `json:"date"`
-	DaysLeft     int                `json:"days_left"`
-	Headline     string             `json:"headline"`
-	Id           string             `json:"id"`
-	Probability  float64            `json:"probability"`
-	Shortfall    float64            `json:"shortfall"`
-	ShortfallP90 float64            `json:"shortfall_p90"`
+	Date        openapi_types.Date `json:"date"`
+	DaysLeft    int                `json:"days_left"`
+	Explanation *GapExplanation    `json:"explanation,omitempty"`
+	Headline    string             `json:"headline"`
+	Id          string             `json:"id"`
+	Probability float64            `json:"probability"`
+
+	// ProbabilityOnDate Probability of falling below reserve on the first risk date. probability is the risk anywhere in the horizon.
+	ProbabilityOnDate *float32            `json:"probability_on_date,omitempty"`
+	Shortfall         float64             `json:"shortfall"`
+	ShortfallP90      float64             `json:"shortfall_p90"`
+	WorstDate         *openapi_types.Date `json:"worst_date,omitempty"`
 }
 
 // GapDetail defines model for GapDetail.
@@ -900,14 +936,35 @@ type GapDetail struct {
 		ItemsRef     *string `json:"items_ref"`
 		Title        string  `json:"title"`
 	} `json:"causes"`
-	Date         openapi_types.Date `json:"date"`
-	DaysLeft     int                `json:"days_left"`
-	Headline     string             `json:"headline"`
-	Id           string             `json:"id"`
-	Probability  float64            `json:"probability"`
-	Shortfall    float64            `json:"shortfall"`
-	ShortfallP90 float64            `json:"shortfall_p90"`
+	Date        openapi_types.Date `json:"date"`
+	DaysLeft    int                `json:"days_left"`
+	Explanation *GapExplanation    `json:"explanation,omitempty"`
+	Headline    string             `json:"headline"`
+	Id          string             `json:"id"`
+	Probability float64            `json:"probability"`
+
+	// ProbabilityOnDate Probability of falling below reserve on the first risk date. probability is the risk anywhere in the horizon.
+	ProbabilityOnDate *float32            `json:"probability_on_date,omitempty"`
+	Shortfall         float64             `json:"shortfall"`
+	ShortfallP90      float64             `json:"shortfall_p90"`
+	WorstDate         *openapi_types.Date `json:"worst_date,omitempty"`
 }
+
+// GapExplanation defines model for GapExplanation.
+type GapExplanation struct {
+	Balance        float32             `json:"balance"`
+	Basis          GapExplanationBasis `json:"basis"`
+	Date           openapi_types.Date  `json:"date"`
+	Inflow         float32             `json:"inflow"`
+	OpeningBalance float32             `json:"opening_balance"`
+	Outflow        float32             `json:"outflow"`
+	Reserve        float32             `json:"reserve"`
+	Shortfall      float32             `json:"shortfall"`
+	Summary        string              `json:"summary"`
+}
+
+// GapExplanationBasis defines model for GapExplanation.Basis.
+type GapExplanationBasis string
 
 // GapSimulation defines model for GapSimulation.
 type GapSimulation struct {
@@ -930,6 +987,8 @@ type HealthStatus string
 
 // Invoice defines model for Invoice.
 type Invoice struct {
+	// Additional true adds this obligation to the modeled business flow; false explicitly marks it as already covered.
+	Additional    *bool              `json:"additional,omitempty"`
 	Amount        float64            `json:"amount"`
 	Counterparty  CounterpartyRef    `json:"counterparty"`
 	Direction     string             `json:"direction"`
@@ -1072,6 +1131,8 @@ type PlanFactPoint struct {
 
 // PlannedEvent defines model for PlannedEvent.
 type PlannedEvent struct {
+	// Additional true adds this obligation to the modeled business flow; false explicitly marks it as already covered.
+	Additional       *bool               `json:"additional,omitempty"`
 	Amount           float64             `json:"amount"`
 	Category         string              `json:"category"`
 	Counterparty     CounterpartyRef     `json:"counterparty"`
@@ -1084,12 +1145,23 @@ type PlannedEvent struct {
 	ForecastEligible *bool               `json:"forecast_eligible,omitempty"`
 	Id               openapi_types.UUID  `json:"id"`
 	LinkStatus       *string             `json:"link_status,omitempty"`
+
+	// LinkedEventId Canonical obligation for a linked bank payment order; the order is excluded from financial totals.
+	LinkedEventId *openapi_types.UUID `json:"linked_event_id,omitempty"`
+
+	// LinkedSources Bank payment orders describing this same obligation.
+	LinkedSources *[]struct {
+		EventId    openapi_types.UUID  `json:"event_id"`
+		ExternalId string              `json:"external_id"`
+		Source     string              `json:"source"`
+		SourceId   *openapi_types.UUID `json:"source_id"`
+	} `json:"linked_sources,omitempty"`
 	PaidKopecks      *int64              `json:"paid_kopecks,omitempty"`
 	PaymentStatus    *string             `json:"payment_status,omitempty"`
 	Probability      float64             `json:"probability"`
 	RemainingKopecks *int64              `json:"remaining_kopecks,omitempty"`
 	Source           string              `json:"source"`
-	SourceId         *openapi_types.UUID `json:"source_id,omitempty"`
+	SourceId         *openapi_types.UUID `json:"source_id"`
 	Status           string              `json:"status"`
 	Title            string              `json:"title"`
 	TotalKopecks     *int64              `json:"total_kopecks,omitempty"`
@@ -1467,7 +1539,10 @@ type UpdateContractInput struct {
 		Date   openapi_types.Date                 `json:"date"`
 		Status *UpdateContractInputScheduleStatus `json:"status,omitempty"`
 	} `json:"schedule,omitempty"`
-	Total *float64 `json:"total,omitempty"`
+
+	// StartDate Advance is due on start_date, balance after deferral_days. Explicit schedule contains final dates.
+	StartDate *openapi_types.Date `json:"start_date,omitempty"`
+	Total     *float64            `json:"total,omitempty"`
 }
 
 // UpdateContractInputScheduleStatus defines model for UpdateContractInput.Schedule.Status.

@@ -418,6 +418,9 @@ func (s *Service) syncJob(ctx context.Context, j store.ProductJob) (Doc, error) 
 	if e = s.validateSourceConfig(ctx, j.UserID, j.CompanyID, kind, cfg, true); e != nil {
 		return nil, e
 	}
+	if kind == "bank_api" || kind == "tax_api" {
+		return s.syncObligations(ctx, j, id, kind, cfg)
+	}
 	if kind == "onec_odata" {
 		var c bridge.ODataConfig
 		json.Unmarshal(store.JSON(cfg), &c)
@@ -592,10 +595,13 @@ func (s *Service) trainJob(ctx context.Context, j store.ProductJob) (Doc, error)
 	if e = json.NewDecoder(io.LimitReader(res.Body, 64*1024)).Decode(&result); e != nil || !flag(result, "trained") || text(result, "model_version") == "" {
 		return nil, platform.Fail(502, "training_unconfirmed", "Сервис не вернул версию обученного артефакта")
 	}
+	if _, e = s.DB.Pool.Exec(ctx, "DELETE FROM forecast_baselines WHERE model=$1 OR model='auto'", text(j.Payload, "model")); e != nil {
+		return nil, e
+	}
 	return Doc{"model": text(j.Payload, "model"), "model_version": text(result, "model_version"), "result_ref": "/v1/admin/models"}, nil
 }
 func (s *Service) evaluateAlerts(ctx context.Context, uid, cid string, out Doc) error {
-	events, e := s.DB.ProductList(ctx, uid, cid, "event")
+	events, e := s.eventRows(ctx, uid, cid)
 	if e != nil {
 		return e
 	}

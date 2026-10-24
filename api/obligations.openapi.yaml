@@ -1,0 +1,50 @@
+openapi: 3.0.3
+info:
+  title: Prototype bank and accounting obligations API
+  version: 1.0.0
+  description: Own demonstration provider. Supplies loan installments, payroll, pending orders and accounting tax liabilities. No access to real bank accounts is claimed.
+servers:
+  - url: http://127.0.0.1:8092
+paths:
+  /v1/companies/{inn}/{kind}/obligations:
+    parameters:
+      - in: path
+        name: inn
+        required: true
+        schema: {type: string, pattern: '^[0-9]{10}([0-9]{2})?$'}
+      - in: path
+        name: kind
+        required: true
+        schema: {type: string, enum: [bank, tax]}
+    get:
+      summary: Read the last committed complete snapshot
+      security: [{reader: []}, {administrator: []}]
+      responses:
+        '200':
+          description: All current obligations, data_mode is demo
+          content:
+            application/json:
+              schema: {$ref: './openapi.yaml#/components/schemas/ExternalObligationFeed'}
+        '401': {description: Missing or invalid reader token}
+        '404': {description: Snapshot has not been created}
+    put:
+      summary: Atomically replace a demonstration bank or accounting snapshot
+      security: [{administrator: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: './openapi.yaml#/components/schemas/ExternalObligationFeed'}
+      responses:
+        '200':
+          description: Snapshot persisted to disk
+          content:
+            application/json:
+              schema: {$ref: './openapi.yaml#/components/schemas/ExternalObligationFeed'}
+        '400': {description: 'Invalid, incomplete or foreign-company snapshot'}
+        '401': {description: Missing or invalid administrator token}
+        '500': {description: Snapshot could not be persisted}
+components:
+  securitySchemes:
+    reader: {type: http, scheme: bearer}
+    administrator: {type: http, scheme: bearer}

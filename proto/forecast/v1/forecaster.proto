@@ -42,6 +42,20 @@ message ForecastRequest {
   // Пусто (совместимость) либо business_without_internal_transfers.
   // residual_only не поддерживается обученными сейчас артефактами.
   string flow_scope = 8;
+  // Optional ordered original operations for transaction-token models (TrxGPT).
+  // Older daily-flow servers ignore this field. Counterparties are pseudonymous;
+  // never log transaction payloads or purposes.
+  repeated HistoryTransaction transactions = 9;
+}
+
+message HistoryTransaction {
+  string id = 1;
+  string date = 2; // YYYY-MM-DD, inside the supplied daily history
+  double amount = 3; // RUB, nonnegative, direction supplies the sign
+  string direction = 4; // in | out
+  string category = 5;
+  string counterparty_id = 6; // company-scoped pseudonymous identity
+  string purpose = 7; // only within the trusted ML service boundary
 }
 
 // Path — одна траектория на horizon_days дней вперёд, начиная с дня после

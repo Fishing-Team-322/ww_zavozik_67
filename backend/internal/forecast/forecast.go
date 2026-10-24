@@ -35,19 +35,32 @@ type ModelInfo struct {
 }
 
 type StochasticRequest struct {
-	CompanyID string
-	Industry  string
-	Model     string // "auto" или имя модели
-	History   []domain.DailyFlow
-	Horizon   int
-	NPaths    int
-	Seed      int64
+	CompanyID    string
+	Industry     string
+	Model        string // "auto" или имя модели
+	History      []domain.DailyFlow
+	Transactions []HistoryTransaction
+	Horizon      int
+	NPaths       int
+	Seed         int64
 	// Обученный ML включает регулярные платежи, исключает own_transfer/owner_loan.
 	FlowScope string
 }
 
+type HistoryTransaction struct {
+	ID             string
+	Date           time.Time
+	Amount         domain.Money
+	Direction      domain.Direction
+	Category       domain.Category
+	CounterpartyID string
+	Purpose        domain.Purpose
+}
+
 // StochasticForecast — пути стохастической части: Inflow[path][day].
 type StochasticForecast struct {
+	UpdateMode    string
+	BaseAsOf      string
 	ModelUsed     string
 	Dates         []time.Time
 	Inflow        [][]float64

@@ -49,8 +49,9 @@ Input: request_id UUID for creation, kind, period, year, amount in RUB, title,
 source_ref describing the confirmed amount, confirmed boolean, additional boolean.
 Supported statutory rules: usn_advance (q1, h1, 9m), usn_annual (year), vat (q1..q4).
 VAT schedules three installments whose sum equals the confirmed liability.
-enp/contributions/other require an explicitly confirmed due_date. Individual tax
-deferrals use other. The production-calendar snapshot must cover statutory dates.
+ENP uses m01..m12 for the payment month; employer contributions use the accrual
+month and are payable in the following month. Other contributions and individual
+deferrals use an explicitly confirmed due_date. The calendar must cover the dates.
 
 The service schedules a confirmed liability. It does not infer taxable income
 from all bank credits, prepare a declaration, submit a payment or determine

@@ -16,7 +16,7 @@ func (s *Service) historyAnalysis(ctx context.Context, op, uid, cid string, r *h
 	if e != nil {
 		return Result{}, e
 	}
-	events, e := s.DB.ProductList(ctx, uid, cid, "event")
+	events, e := s.eventRows(ctx, uid, cid)
 	if e != nil {
 		return Result{}, e
 	}
@@ -96,7 +96,7 @@ func (s *Service) historyAnalysis(ctx context.Context, op, uid, cid string, r *h
 			}
 		}
 		for _, d := range events {
-			if text(d, "status") != "cancelled" {
+			if !in(text(d, "status"), "cancelled linked") {
 				amount := number(d, "amount")
 				// Calendar/forecast projections contain the outstanding balance.
 				// Plan-fact compares bank facts with the full invoice obligation.

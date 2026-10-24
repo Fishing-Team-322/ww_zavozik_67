@@ -15,6 +15,9 @@ func TestTaxCalendarAndKopecks(t *testing.T) {
 		{"usn_annual", "year", "ИП", 2026, []string{"2027-04-28"}},
 		{"usn_advance", "9m", "ООО", 2026, []string{"2026-10-28"}},
 		{"vat", "q1", "ООО", 2026, []string{"2026-04-28", "2026-05-28", "2026-06-29"}},
+		{"enp", "m11", "ООО", 2026, []string{"2026-11-30"}},
+		{"contributions", "m10", "ООО", 2026, []string{"2026-11-30"}},
+		{"contributions", "m12", "ИП", 2026, []string{"2027-01-28"}},
 	} {
 		dates, _, err := taxDates(tc.kind, tc.period, tc.legal, "", tc.year)
 		if err != nil {

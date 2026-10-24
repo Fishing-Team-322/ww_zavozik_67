@@ -81,6 +81,9 @@ func (m *MLClient) Forecast(ctx context.Context, req StochasticRequest) (Stochas
 			pb.History[i].ByCategory = m
 		}
 	}
+	for _, tx := range req.Transactions {
+		pb.Transactions = append(pb.Transactions, &forecastv1.HistoryTransaction{Id: tx.ID, Date: tx.Date.Format(domain.DateLayout), Amount: tx.Amount.Float(), Direction: string(tx.Direction), Category: string(tx.Category), CounterpartyId: tx.CounterpartyID, Purpose: string(tx.Purpose)})
+	}
 	resp, err := m.c.Forecast(ctx, pb)
 	if err != nil {
 		return StochasticForecast{}, err

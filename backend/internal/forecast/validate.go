@@ -48,6 +48,16 @@ func validateRequest(req StochasticRequest) error {
 	if !observed {
 		return status.Error(codes.FailedPrecondition, "forecast: history contains no observed days")
 	}
+	if len(req.Transactions) > 100000 {
+		return status.Error(codes.InvalidArgument, "forecast: too many history transactions")
+	}
+	seen := map[string]bool{}
+	for i, tx := range req.Transactions {
+		if tx.ID == "" || seen[tx.ID] || tx.Direction != domain.In && tx.Direction != domain.Out || !finiteFlow(tx.Amount.Float()) || tx.Date.Before(domain.Day(req.History[0].Date)) || tx.Date.After(last) || i > 0 && tx.Date.Before(req.Transactions[i-1].Date) {
+			return status.Error(codes.InvalidArgument, "forecast: invalid ordered transaction history")
+		}
+		seen[tx.ID] = true
+	}
 	return nil
 }
 
