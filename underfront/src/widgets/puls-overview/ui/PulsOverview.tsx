@@ -549,6 +549,32 @@ function DemoWarnings({ data, selected, onOpenGap, onOpenCalendar }: { data: Pul
     </div>
   </section>;
 }
+function OverviewPreviews({ data, selected, onChangeScenario, onOpenCalendar, onOpenScenarios }: {
+  data: PulsOverviewData;
+  selected: ScenarioKey;
+  onChangeScenario: (key: ScenarioKey) => void;
+  onOpenCalendar?: () => void;
+  onOpenScenarios?: () => void;
+}) {
+  const near = data.events.filter(event => event.day >= 0 && event.day <= 14);
+  const incoming = near.reduce((total, event) => total + Math.max(0, event.amount), 0);
+  const outgoing = near.reduce((total, event) => total + Math.max(0, -event.amount), 0);
+  const period = data.forecast.slice(0, (data.horizon ?? 30) + 1);
+  return <div className="mt-9 grid min-w-0 gap-5 lg:grid-cols-2 lg:gap-7">
+    <section aria-label="Превью платёжного календаря" className="min-w-0 border-t border-[color:var(--puls-border)]">
+      <header className="flex items-center justify-between gap-3 py-3"><div><h2 className="text-[16px] font-semibold text-[color:var(--puls-text)]">Платёжный календарь</h2><p className="mt-0.5 text-[12px] text-[color:var(--puls-text-muted)]">План на ближайшие 14 дней</p></div>{onOpenCalendar && <Button type="button" variant="ghost" size="sm" onClick={onOpenCalendar}>Открыть <ChevronRight aria-hidden="true"/></Button>}</header>
+      <div className="grid grid-cols-3 gap-2 border-t border-[color:var(--puls-border)] py-3 text-[12px]"><div><span className="block text-[color:var(--puls-text-muted)]">Событий</span><strong className="mt-1 block text-[15px] font-semibold tabular-nums text-[color:var(--puls-text)]">{near.length}</strong></div><div><span className="block text-[color:var(--puls-text-muted)]">Поступления</span><strong className="mt-1 block text-[15px] font-semibold tabular-nums text-[color:var(--puls-positive-text)]">{compactMoney(incoming)}</strong></div><div><span className="block text-[color:var(--puls-text-muted)]">Списания</span><strong className="mt-1 block text-[15px] font-semibold tabular-nums text-[color:var(--puls-text)]">{compactMoney(outgoing)}</strong></div></div>
+    </section>
+    <section aria-label="Превью сравнения сценариев" className="min-w-0 border-t border-[color:var(--puls-border)]">
+      <header className="flex items-center justify-between gap-3 py-3"><div><h2 className="text-[16px] font-semibold text-[color:var(--puls-text)]">Сценарии</h2><p className="mt-0.5 text-[12px] text-[color:var(--puls-text-muted)]">Остаток в конце периода</p></div>{onOpenScenarios && <Button type="button" variant="ghost" size="sm" onClick={onOpenScenarios}>Сравнить <ChevronRight aria-hidden="true"/></Button>}</header>
+      <div className="divide-y divide-[color:var(--puls-border)] border-t border-[color:var(--puls-border)]">{SCENARIOS.filter(scenario => scenarioSupported(data, scenario.key)).map(scenario => {
+        const stats = getForecastStats(period, scenario.key);
+        return <Button variant="ghost" key={scenario.key} type="button" aria-pressed={selected === scenario.key} onClick={() => onChangeScenario(scenario.key)} className={`h-auto! rounded-none! border-0! flex w-full items-center justify-between! gap-3! px-1! py-1.5! font-normal! text-left text-[12px] transition-colors hover:bg-[color:var(--puls-surface-soft)] focus-visible:outline-2 focus-visible:outline-[color:var(--puls-chart-primary)] ${selected === scenario.key ? "bg-[color:var(--puls-surface-muted)] text-[color:var(--puls-text)]" : "text-[color:var(--puls-text-secondary)]"}`}><span className="min-w-0 truncate">{scenario.label}</span><strong className="shrink-0 font-medium tabular-nums text-[color:var(--puls-text-strong)]">{compactMoney(stats.last)}</strong></Button>;
+      })}</div>
+    </section>
+  </div>;
+}
+
 export function PaymentTimeline({ data, onOpenCalendar }: { data: PulsOverviewData; onOpenCalendar?: () => void }) {
   const [selectedEvent, setSelectedEvent] = useState<string | null>(null);
   const current = data.events.find(e => e.id === selectedEvent);
@@ -669,6 +695,10 @@ export default function PulsOverview({
     <div className="puls-overview w-full min-w-0 bg-[color:var(--puls-bg)] pb-8 text-[color:var(--puls-text)] tabular-nums">
       {prepared ? (
         <>
+          <div className="mb-3 flex flex-wrap items-center justify-end gap-3 text-[11px] text-[color:var(--puls-text-muted)]">
+            {prepared.isDemo && <span className="text-[color:var(--puls-demo-text)]">Демо-данные</span>}
+            <span className="inline-flex items-center gap-1.5"><Clock3 size={13}/>{prepared.updatedAt ?? `Прогноз на ${horizon} дней`}</span>
+          </div>
           <FinancialStatus data={prepared} onOpenGap={onOpenGap} />
           <KpiStrip data={prepared} selected={selected} />
           <ForecastChart
@@ -696,6 +726,7 @@ export default function PulsOverview({
             onOpenCalendar={onOpenCalendar}
             onOpenEvent={onOpenEvent}
           />
+          <OverviewPreviews data={prepared} selected={selected} onChangeScenario={setRequested} onOpenCalendar={onOpenCalendar} onOpenScenarios={onOpenScenarios}/>
           <p className="mt-7 border-t border-[color:var(--puls-border)] pt-3 text-[11px] leading-[18px] text-[color:var(--puls-text-muted)]">
             {prepared.isDemo
               ? "Синтетические демонстрационные данные. Это не прогноз реальной компании."
