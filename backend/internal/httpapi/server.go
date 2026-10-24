@@ -6,9 +6,11 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/forecast"
+	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/platform"
 )
 
 var ErrNotImplemented = errors.New("not implemented")
@@ -21,31 +23,59 @@ type Server struct {
 	ML       forecast.StochasticForecaster // nil, если ML не настроен
 	Fallback forecast.StochasticForecaster
 	Log      *slog.Logger
+	Accounts *platform.Service
 }
 
 var _ StrictServerInterface = (*Server)(nil)
 
 // Handler — готовый http.Handler со всеми маршрутами контракта.
 func (s *Server) Handler() http.Handler {
+	mux := http.NewServeMux()
 	strict := NewStrictHandlerWithOptions(s, nil, StrictHTTPServerOptions{
 		RequestErrorHandlerFunc: func(w http.ResponseWriter, r *http.Request, err error) {
 			writeError(w, http.StatusBadRequest, "bad_request", err.Error())
 		},
 		ResponseErrorHandlerFunc: func(w http.ResponseWriter, r *http.Request, err error) {
+			var pe *platform.Error
+			if errors.As(err, &pe) {
+				s.platformError(w, err)
+				return
+			}
 			if errors.Is(err, ErrNotImplemented) {
 				writeError(w, http.StatusNotImplemented, "not_implemented", "Эндпоинт ещё не реализован")
 				return
 			}
-			s.Log.Error("handler failed", "method", r.Method, "path", r.URL.Path, "err", err)
+			s.Log.Error("handler failed", "method", r.Method, "path", r.URL.Path)
 			writeError(w, http.StatusInternalServerError, "internal", "Внутренняя ошибка")
 		},
 	})
-	return HandlerWithOptions(strict, StdHTTPServerOptions{
-		BaseRouter: http.NewServeMux(),
+	generated := HandlerWithOptions(strict, StdHTTPServerOptions{
+		BaseRouter: mux,
 		ErrorHandlerFunc: func(w http.ResponseWriter, r *http.Request, err error) {
 			writeError(w, http.StatusBadRequest, "bad_request", err.Error())
 		},
 	})
+	return s.withPlatform(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, pattern := mux.Handler(r)
+		if pattern == "" {
+			allowed := []string{}
+			for _, method := range []string{"GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"} {
+				probe := r.Clone(r.Context())
+				probe.Method = method
+				if _, p := mux.Handler(probe); p != "" {
+					allowed = append(allowed, method)
+				}
+			}
+			if len(allowed) > 0 {
+				w.Header().Set("Allow", strings.Join(allowed, ", "))
+				writeError(w, 405, "method_not_allowed", "Метод не поддерживается")
+			} else {
+				writeError(w, 404, "not_found", "Эндпоинт не найден")
+			}
+			return
+		}
+		generated.ServeHTTP(w, r)
+	}))
 }
 
 func writeError(w http.ResponseWriter, status int, code, msg string) {
