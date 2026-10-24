@@ -21,7 +21,7 @@ export function MarketplaceConnections({ companyId, onChanged }: { companyId: st
       await reload(); onChanged(); setNotice("Отчёт сохранён отдельно от банковских операций. Начисление не подтверждает поступление на расчётный счёт.");
     } catch (cause) { setError(message(cause)); onChanged(); } finally { setBusy(false); }
   }
-  return <section className="min-w-0 space-y-4 rounded-md border border-[color:var(--border)] p-5">
+  return <section id="marketplace-connections" className="min-w-0 space-y-4 rounded-md border border-[color:var(--border)] p-5">
     <h2 className="text-lg font-semibold">Маркетплейсы · отчёты продавца</h2>
     <p className="text-sm text-[color:var(--text-secondary)]">Продажи, возвраты и комиссии — учёт внутри площадки. Они не становятся банковским фактом или остатком и не добавляются в прогноз автоматически. Живая проверка требует вашего кабинета и ключей с правом чтения финансов. Адаптеры проверены на mock; ваш источник станет подключённым только после успешного запроса.</p>
     <form onSubmit={connect} className="grid gap-3 sm:grid-cols-2">

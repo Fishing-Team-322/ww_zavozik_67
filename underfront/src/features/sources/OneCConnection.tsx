@@ -126,7 +126,7 @@ export function OneCConnection({ companyId, companyINN, sources, onChanged }: Pr
     }
   }
   return (
-    <SectionCard className="space-y-4 p-5">
+    <SectionCard id="onec-connection" className="space-y-4 p-5">
       <div>
         <h2 className="text-lg font-semibold">Подключить 1С:Бухгалтерию 3.0</h2>
         <p className="mt-1 text-sm text-[color:var(--text-secondary)]">

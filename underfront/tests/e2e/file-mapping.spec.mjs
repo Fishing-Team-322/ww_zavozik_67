@@ -31,4 +31,49 @@ test('browser registration and XLSX mapping preserve cents, zero balance and dup
  expect(items).toHaveLength(1);expect(items[0].amount).toBe(100.01);
  const dashboard=await request.get(`${api}/v1/companies/${cid}/dashboard`,{headers});expect((await dashboard.json()).balance_now).toBe(0);
  await page.reload();await expect(page.getByRole('heading',{name:'Источники данных',exact:true})).toBeVisible();
+ await page.goto('/companies/new');
+ await page.getByLabel('Название компании',{exact:true}).fill('Synthetic 1C bank file');
+ await page.getByLabel('Вид деятельности',{exact:true}).fill('Tests');
+ await page.getByLabel('ИНН',{exact:true}).fill('7707083893');
+ await page.getByRole('button',{name:'Создать компанию',exact:true}).click();await expect(page).toHaveURL(/\/sources$/);
+ await page.getByRole('button',{name:'Импортировать файлы из 1С',exact:true}).click();
+ await expect(page.getByLabel('Адрес OData 1С',{exact:true})).toHaveCount(0);
+ await page.getByRole('button',{name:'Перейти к импорту банковской выписки',exact:true}).click();
+ const bank=`1CClientBankExchange
+ВерсияФормата=1.03
+Кодировка=UTF-8
+ДатаНачала=24.10.2026
+ДатаКонца=24.10.2026
+РасчСчет=40702810000000000001
+СекцияРасчСчет
+ДатаНачала=24.10.2026
+ДатаКонца=24.10.2026
+РасчСчет=40702810000000000001
+НачальныйОстаток=10000.00
+КонечныйОстаток=9000.00
+КонецРасчСчет
+СекцияДокумент=Платежное поручение
+Номер=SYNTHETIC-1
+Дата=24.10.2026
+Сумма=1000.00
+ПлательщикСчет=40702810000000000001
+ПлательщикИНН=7707083893
+Плательщик1=Synthetic test workspace
+ПолучательСчет=40702810000000000099
+ПолучательИНН=6164138513
+Получатель1=Synthetic supplier
+ДатаСписано=24.10.2026
+НазначениеПлатежа=SYNTHETIC BANK FILE
+КонецДокумента
+КонецФайла
+`;
+ for(let run=0;run<2;run++){
+  await file.setInputFiles({name:'synthetic-bank.1c',mimeType:'text/plain',buffer:Buffer.from(bank)});
+  const report=page.locator('section').filter({has:page.getByRole('heading',{name:'Результат импорта',exact:true})});
+  await expect(report).toContainText(`Добавлено: ${run===0?'1':'0'}`,{timeout:60000});
+  if(run===1)await expect(report).toContainText('Дубли: 1');
+ }
+ const finalProfile=await request.get(`${api}/v1/me`,{headers});const bankCID=(await finalProfile.json()).companies.find(c=>c.name==='Synthetic 1C bank file').id;
+ const bankOperations=await request.get(`${api}/v1/companies/${bankCID}/operations`,{headers});expect((await bankOperations.json()).items).toHaveLength(1);
+ const bankDashboard=await request.get(`${api}/v1/companies/${bankCID}/dashboard`,{headers});expect((await bankDashboard.json()).balance_now).toBe(9000);
 });
