@@ -10,6 +10,10 @@ func (s *Server) ApplyAction(ctx context.Context, r ApplyActionRequestObject) (A
 	return s.productReply(ctx, "applyAction", nil)
 }
 func (a reply) VisitApplyActionResponse(w http.ResponseWriter) error { return a.write(w) }
+func (s *Server) CancelTax(ctx context.Context, r CancelTaxRequestObject) (CancelTaxResponseObject, error) {
+	return s.productReply(ctx, "cancelTax", nil)
+}
+func (a reply) VisitCancelTaxResponse(w http.ResponseWriter) error { return a.write(w) }
 func (s *Server) CompareSavedScenario(ctx context.Context, r CompareSavedScenarioRequestObject) (CompareSavedScenarioResponseObject, error) {
 	return s.productReply(ctx, "compareSavedScenario", nil)
 }
@@ -42,6 +46,10 @@ func (s *Server) CreateSource(ctx context.Context, r CreateSourceRequestObject) 
 	return s.productReply(ctx, "createSource", nil)
 }
 func (a reply) VisitCreateSourceResponse(w http.ResponseWriter) error { return a.write(w) }
+func (s *Server) CreateTax(ctx context.Context, r CreateTaxRequestObject) (CreateTaxResponseObject, error) {
+	return s.productReply(ctx, "createTax", nil)
+}
+func (a reply) VisitCreateTaxResponse(w http.ResponseWriter) error { return a.write(w) }
 func (s *Server) DeleteContract(ctx context.Context, r DeleteContractRequestObject) (DeleteContractResponseObject, error) {
 	return s.productReply(ctx, "deleteContract", nil)
 }
@@ -98,6 +106,10 @@ func (s *Server) GetClassifierQuality(ctx context.Context, r GetClassifierQualit
 	return s.productReply(ctx, "getClassifierQuality", nil)
 }
 func (a reply) VisitGetClassifierQualityResponse(w http.ResponseWriter) error { return a.write(w) }
+func (s *Server) GetCompanyUpdates(ctx context.Context, r GetCompanyUpdatesRequestObject) (GetCompanyUpdatesResponseObject, error) {
+	return s.productReply(ctx, "getCompanyUpdates", nil)
+}
+func (a reply) VisitGetCompanyUpdatesResponse(w http.ResponseWriter) error { return a.write(w) }
 func (s *Server) GetConcentration(ctx context.Context, r GetConcentrationRequestObject) (GetConcentrationResponseObject, error) {
 	return s.productReply(ctx, "getConcentration", nil)
 }
@@ -262,6 +274,10 @@ func (s *Server) PreviewScenario(ctx context.Context, r PreviewScenarioRequestOb
 	return s.productReply(ctx, "previewScenario", nil)
 }
 func (a reply) VisitPreviewScenarioResponse(w http.ResponseWriter) error { return a.write(w) }
+func (s *Server) PreviewTax(ctx context.Context, r PreviewTaxRequestObject) (PreviewTaxResponseObject, error) {
+	return s.productReply(ctx, "previewTax", nil)
+}
+func (a reply) VisitPreviewTaxResponse(w http.ResponseWriter) error { return a.write(w) }
 func (s *Server) PreviewUpload(ctx context.Context, r PreviewUploadRequestObject) (PreviewUploadResponseObject, error) {
 	return s.productReply(ctx, "previewUpload", nil)
 }

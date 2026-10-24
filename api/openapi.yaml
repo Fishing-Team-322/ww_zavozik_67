@@ -2056,29 +2056,59 @@ paths:
   /v1/companies/{companyId}/taxes:
     get:
       tags:
-      - product
+        - product
       operationId: getTaxes
       parameters:
-      - name: companyId
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-      - name: months
-        in: query
-        required: false
-        schema:
-          type: integer
+        - name: companyId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: months
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: year
+          in: query
+          schema:
+            type: integer
       responses:
-        default:
-          $ref: '#/components/responses/Error'
         '200':
           description: OK
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Object'
+                $ref: '#/components/schemas/TaxOverview'
+        default:
+          $ref: '#/components/responses/Error'
+    post:
+      tags:
+        - product
+      operationId: createTax
+      parameters:
+        - name: companyId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaxInput'
+      responses:
+        '201':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaxObligation'
+        default:
+          $ref: '#/components/responses/Error'
   /v1/companies/{companyId}/plan-fact/missed:
     get:
       tags:
@@ -2831,6 +2861,71 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/RegistryDocument'
+        default:
+          $ref: '#/components/responses/Error'
+  /v1/companies/{companyId}/taxes/preview:
+    post:
+      tags:
+        - product
+      operationId: previewTax
+      parameters:
+        - name: companyId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaxInput'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaxDraft'
+        default:
+          $ref: '#/components/responses/Error'
+  /v1/taxes/{taxId}/cancel:
+    post:
+      tags:
+        - product
+      operationId: cancelTax
+      parameters:
+        - name: taxId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Cancelled; received payments remain in history
+        default:
+          $ref: '#/components/responses/Error'
+  /v1/companies/{companyId}/updates:
+    get:
+      tags:
+        - product
+      operationId: getCompanyUpdates
+      parameters:
+        - name: companyId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompanyUpdates'
         default:
           $ref: '#/components/responses/Error'
 components:
@@ -3907,17 +4002,23 @@ components:
           type: number
         fact_in:
           type: number
+          nullable: true
         fact_out:
           type: number
+          nullable: true
         deviation:
           type: number
+          nullable: true
+        observed:
+          type: boolean
       required:
-      - period
-      - plan_in
-      - plan_out
-      - fact_in
-      - fact_out
-      - deviation
+        - period
+        - plan_in
+        - plan_out
+        - fact_in
+        - fact_out
+        - deviation
+        - observed
     PlannedEvent:
       type: object
       required:
@@ -5698,3 +5799,243 @@ components:
           type: object
           additionalProperties:
             type: string
+
+    TaxKind:
+      type: string
+      enum:
+        - usn_advance
+        - usn_annual
+        - vat
+        - enp
+        - contributions
+        - other
+    TaxInput:
+      type: object
+      required:
+        - kind
+        - period
+        - year
+        - amount
+        - title
+        - source_ref
+        - confirmed
+        - additional
+      properties:
+        request_id:
+          type: string
+          format: uuid
+        kind:
+          $ref: '#/components/schemas/TaxKind'
+        period:
+          type: string
+        year:
+          type: integer
+        amount:
+          type: number
+          format: double
+        title:
+          type: string
+        due_date:
+          type: string
+          format: date
+        source_ref:
+          type: string
+        confirmed:
+          type: boolean
+        additional:
+          type: boolean
+    TaxPayment:
+      type: object
+      required:
+        - date
+        - amount
+        - status
+      properties:
+        date:
+          type: string
+          format: date
+        amount:
+          type: number
+          format: double
+        status:
+          type: string
+          enum:
+            - expected
+            - received
+            - missed
+            - cancelled
+        event_id:
+          type: string
+          format: uuid
+    TaxDraft:
+      type: object
+      required:
+        - kind
+        - period
+        - year
+        - amount
+        - title
+        - source_ref
+        - source_url
+        - confirmed
+        - additional
+        - status
+        - calculation_basis
+        - date_rule
+        - payments
+      properties:
+        kind:
+          $ref: '#/components/schemas/TaxKind'
+        period:
+          type: string
+        year:
+          type: integer
+        amount:
+          type: number
+          format: double
+        title:
+          type: string
+        source_ref:
+          type: string
+        source_url:
+          type: string
+        confirmed:
+          type: boolean
+        additional:
+          type: boolean
+        status:
+          type: string
+          enum:
+            - active
+            - cancelled
+        calculation_basis:
+          type: string
+        date_rule:
+          type: string
+        payments:
+          type: array
+          items:
+            $ref: '#/components/schemas/TaxPayment'
+    TaxObligation:
+      allOf:
+        - $ref: '#/components/schemas/TaxDraft'
+        - type: object
+          required:
+            - id
+            - created_at
+            - paid_amount
+          properties:
+            id:
+              type: string
+              format: uuid
+            created_at:
+              type: string
+              format: date-time
+            paid_amount:
+              type: number
+              format: double
+    TaxCalendarRule:
+      type: object
+      required:
+        - kind
+        - period
+        - year
+        - dates
+        - source_url
+      properties:
+        kind:
+          $ref: '#/components/schemas/TaxKind'
+        period:
+          type: string
+        year:
+          type: integer
+        dates:
+          type: array
+          items:
+            type: string
+            format: date
+        source_url:
+          type: string
+    TaxOverview:
+      type: object
+      required:
+        - tax_regime
+        - regime_detected
+        - items
+        - calendar
+        - obligations
+        - year
+        - calculation_basis
+        - notice
+      properties:
+        tax_regime:
+          $ref: '#/components/schemas/TaxRegime'
+        regime_detected:
+          type: string
+          nullable: true
+        items:
+          type: array
+          items:
+            type: object
+            required:
+              - date
+              - title
+              - amount_estimate
+              - how_calculated
+              - event_id
+            properties:
+              date:
+                type: string
+                format: date
+              title:
+                type: string
+              amount_estimate:
+                type: number
+                format: double
+              how_calculated:
+                type: string
+              event_id:
+                type: string
+                format: uuid
+        calendar:
+          type: array
+          items:
+            $ref: '#/components/schemas/TaxCalendarRule'
+        obligations:
+          type: array
+          items:
+            $ref: '#/components/schemas/TaxObligation'
+        year:
+          type: integer
+        calculation_basis:
+          type: string
+        notice:
+          type: string
+    CompanyUpdates:
+      type: object
+      required:
+        - data_revision
+        - forecast_revision
+        - data_as_of
+        - pending_jobs
+        - last_job_finished_at
+        - last_job_error
+      properties:
+        data_revision:
+          type: integer
+        forecast_revision:
+          type: integer
+          nullable: true
+        data_as_of:
+          type: string
+          format: date-time
+          nullable: true
+        pending_jobs:
+          type: integer
+        last_job_finished_at:
+          type: string
+          format: date-time
+          nullable: true
+        last_job_error:
+          type: string
+          nullable: true

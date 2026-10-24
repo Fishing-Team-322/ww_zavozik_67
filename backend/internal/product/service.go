@@ -300,11 +300,17 @@ func (s *Service) Execute(ctx context.Context, op string, p platform.Principal, 
 		return s.crud(ctx, uid, cid, desc, r, body)
 	}
 	switch op {
+	case "previewTax", "createTax", "cancelTax":
+		return s.taxAction(ctx, op, uid, cid, r, body)
+	case "getTaxes":
+		return s.taxes(ctx, uid, cid, r)
+	case "getCompanyUpdates":
+		return s.updates(ctx, uid, cid)
 	case "listCategories":
 		return ok(Categories())
 	case "listOperations", "summarizeOperations", "exportOperations", "recategorizeOperations":
 		return s.operations(ctx, op, uid, cid, r, body)
-	case "getForecast", "getDashboard", "getForecastDay", "getGap", "previewForecast", "simulateGap", "getCalendar", "getForecastAccuracy", "getRetro", "getPlanFact", "getMissedPlanFact", "getTaxes":
+	case "getForecast", "getDashboard", "getForecastDay", "getGap", "previewForecast", "simulateGap", "getCalendar", "getForecastAccuracy", "getRetro", "getPlanFact", "getMissedPlanFact":
 		return s.financial(ctx, op, uid, cid, r, body)
 	case "listCounterparties", "getCounterparty", "getConcentration":
 		return s.counterparties(ctx, op, uid, cid, r)

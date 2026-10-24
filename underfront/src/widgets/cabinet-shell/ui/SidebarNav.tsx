@@ -61,6 +61,7 @@ export const defaultCabinetNav: SidebarNavItem[] = [
   { href: "/calendar", label: "Платёжный календарь", icon: PaymentCalendarIcon, section: "Planning" },
   { href: "/recurring", label: "Регулярные платежи", icon: PaymentCalendarIcon, section: "Planning" },
   { href: "/documents", label: "Счета и договоры", icon: FileSpreadsheet, section: "Planning" },
+  { href: "/taxes", label: "Налоги", icon: FileSpreadsheet, section: "Planning" },
   { href: "/plan-fact", label: "План-факт", icon: ForecastIcon, section: "Analytics" },
   { href: "/counterparties", label: "Контрагенты", icon: TransactionsIcon, section: "Workspace" },
   { href: "/notifications", label: "Уведомления", icon: Activity, section: "Workspace" },

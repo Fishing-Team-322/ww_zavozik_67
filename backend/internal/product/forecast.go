@@ -291,7 +291,7 @@ func (s *Service) persistForecast(ctx context.Context, uid, cid string, rev int6
 }
 func (s *Service) financial(ctx context.Context, op, uid, cid string, r *http.Request, b Doc) (Result, error) {
 	switch op {
-	case "getPlanFact", "getMissedPlanFact", "getTaxes", "getRetro", "getForecastAccuracy":
+	case "getPlanFact", "getMissedPlanFact", "getRetro", "getForecastAccuracy":
 		return s.historyAnalysis(ctx, op, uid, cid, r)
 	}
 	h, e := horizon(r)

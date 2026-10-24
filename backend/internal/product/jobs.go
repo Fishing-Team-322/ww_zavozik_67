@@ -474,7 +474,7 @@ func (s *Service) exportJob(ctx context.Context, j store.ProductJob) (Doc, error
 	if _, e = file.Write(store.JSON(company)); e != nil {
 		return nil, e
 	}
-	for _, kind := range []string{"operation", "event", "recurring", "scenario", "invoice", "contract", "source", "alert"} {
+	for _, kind := range []string{"operation", "event", "recurring", "scenario", "invoice", "contract", "tax", "source", "alert"} {
 		rows, e := s.DB.ProductList(ctx, j.UserID, j.CompanyID, kind)
 		if e != nil {
 			return nil, e
@@ -553,6 +553,37 @@ func (s *Service) trainJob(ctx context.Context, j store.ProductJob) (Doc, error)
 	return Doc{"model": text(j.Payload, "model"), "model_version": text(result, "model_version"), "result_ref": "/v1/admin/models"}, nil
 }
 func (s *Service) evaluateAlerts(ctx context.Context, uid, cid string, out Doc) error {
+	events, e := s.DB.ProductList(ctx, uid, cid, "event")
+	if e != nil {
+		return e
+	}
+	activeMissed := map[string]bool{}
+	for _, event := range events {
+		if text(event, "status") != "missed" {
+			continue
+		}
+		id := idFor(cid, "alert:missed:"+text(event, "id")+":"+date(event["event_date"]))
+		activeMissed[id] = true
+		if _, e := s.DB.ProductGet(ctx, uid, "alert", id); e == nil {
+			continue
+		}
+		d := Doc{"id": id, "severity": "warning", "title": "Плановый платёж не подтверждён выпиской", "body": text(event, "title") + " · " + date(event["event_date"]) + ". Проверьте срок, факт оплаты и актуальность выписки.", "kind": "missed_payment", "read": false, "ref": Doc{"screen": "event", "id": event["id"]}}
+		if _, e := s.DB.ProductSave(ctx, uid, cid, "alert", id, d, true); e != nil {
+			return e
+		}
+	}
+	alerts, e := s.DB.ProductList(ctx, uid, cid, "alert")
+	if e != nil {
+		return e
+	}
+	for _, alert := range alerts {
+		if text(alert, "kind") == "missed_payment" && !activeMissed[text(alert, "id")] && !flag(alert, "read") {
+			alert["read"] = true
+			if _, e = s.DB.ProductSave(ctx, uid, cid, "alert", text(alert, "id"), alert, false); e != nil {
+				return e
+			}
+		}
+	}
 	for _, gap := range docs(out["gaps"]) {
 		id := idFor(cid, "alert:"+text(gap, "id"))
 		if _, e := s.DB.ProductGet(ctx, uid, "alert", id); e == nil {

@@ -21,7 +21,7 @@ func productQuery(kind string) (string, error) {
 		return "SELECT t.extra||(to_jsonb(t)-'extra'-'config'-'config_secret') AS doc FROM " + table + " t", nil
 	}
 	switch kind {
-	case "invoice", "contract", "action", "signal", "import", "model_quality", "classifier_quality", "drift", "registry", "registry_preview", "marketplace_report":
+	case "invoice", "contract", "tax", "action", "signal", "import", "model_quality", "classifier_quality", "drift", "registry", "registry_preview", "marketplace_report":
 		return "SELECT data||jsonb_build_object('id',id,'company_id',company_id,'created_at',created_at,'updated_at',updated_at) AS doc FROM product_documents t WHERE kind='" + kind + "'", nil
 	}
 	return "", errors.New("unknown resource kind")
@@ -189,6 +189,9 @@ func writeProduct(ctx context.Context, tx pgx.Tx, cid, kind, id string, d Doc) e
 	}
 	if kind == "invoice" || kind == "contract" {
 		return syncDocumentEvents(ctx, tx, cid, kind, id, d)
+	}
+	if kind == "tax" {
+		return syncTaxEvents(ctx, tx, cid, id, d)
 	}
 	if kind == "recurring" {
 		_, err = tx.Exec(ctx, "DELETE FROM planned_events WHERE company_id=$1 AND extra->>'recurring_id'=$2 AND event_date>=current_date AND status='expected' AND COALESCE((extra->>'user_override')::boolean,false)=false", cid, id)

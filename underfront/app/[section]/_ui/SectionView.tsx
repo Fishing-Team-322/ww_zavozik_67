@@ -9,6 +9,7 @@ import { ScenariosScreen } from "./ScenariosScreen";
 import { CalendarScreen } from "./CalendarScreen";
 import { RecurringScreen } from "./RecurringScreen";
 import { DocumentsScreen } from "./DocumentsScreen";
+import { TaxesScreen } from "./TaxesScreen";
 import { PlanFactScreen } from "./PlanFactScreen";
 import { CounterpartiesScreen } from "./CounterpartiesScreen";
 import { NotificationsScreen } from "@/src/features/notifications";
@@ -23,6 +24,7 @@ const screens = {
   calendar: CalendarScreen,
   recurring: RecurringScreen,
   documents: DocumentsScreen,
+  taxes: TaxesScreen,
   "plan-fact": PlanFactScreen,
   counterparties: CounterpartiesScreen,
   notifications: NotificationsScreen,

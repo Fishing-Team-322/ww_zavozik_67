@@ -109,6 +109,70 @@ jobs:
 
   docker:
     runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      COMPOSE_PROJECT_NAME: case-acceptance
+      PUBLIC_URL: http://localhost:8080
+      FRONTEND_URL: http://localhost:3000
+      COOKIE_SECURE: "false"
+      INTEGRATION_SANDBOX: "true"
+      CATEGORIZER_MODE: hybrid
+      GIT_SHA: ${{ github.sha }}
     steps:
       - uses: actions/checkout@v4
-      - run: docker compose -f infra/docker-compose.yml build
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: underfront/package-lock.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Configure isolated acceptance stack
+        run: |
+          echo "JWT_SECRET=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+          echo "DATA_ENCRYPTION_KEY=$(openssl rand -base64 32)" >> "$GITHUB_ENV"
+          echo "POSTGRES_PASSWORD=$(openssl rand -hex 24)" >> "$GITHUB_ENV"
+      - name: Build and start all services from the clean checkout
+        run: docker compose -f compose.yaml up -d --build
+      - name: Wait for API and frontend
+        run: |
+          for i in $(seq 1 90); do
+            if curl -fsS http://localhost:8080/readyz >/dev/null && curl -fsS http://localhost:3000/login >/dev/null; then exit 0; fi
+            sleep 2
+          done
+          exit 1
+      - name: Verify financial path with the trained ML service
+        run: python scripts/acceptance-smoke.py --require-ml --state /tmp/case-private-state.json --output acceptance-results/financial-path.json
+      - run: npm ci
+        working-directory: underfront
+      - run: npx playwright install --with-deps chromium
+        working-directory: underfront
+      - name: Browser acceptance on the isolated synthetic stack
+        run: npm run test:e2e
+        working-directory: underfront
+        env:
+          E2E_BASE_URL: http://localhost:3000
+          E2E_API_URL: http://localhost:8080
+          E2E_INTEGRATION_SANDBOX: "1"
+      - name: Restart services without deleting the database
+        run: |
+          docker compose -f compose.yaml restart postgres ml api worker frontend
+          for i in $(seq 1 60); do
+            if curl -fsS http://localhost:8080/readyz >/dev/null; then exit 0; fi
+            sleep 2
+          done
+          exit 1
+      - name: Verify persistence after restart
+        run: python scripts/acceptance-smoke.py --require-ml --verify-restart --state /tmp/case-private-state.json --output acceptance-results/persistence.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: case-acceptance
+          path: |
+            acceptance-results/
+            underfront/test-results/
+          if-no-files-found: warn
+      - name: Stop isolated acceptance stack
+        if: always()
+        run: docker compose -f compose.yaml down --volumes

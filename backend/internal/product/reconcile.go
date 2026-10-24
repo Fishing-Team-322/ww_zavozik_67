@@ -146,14 +146,19 @@ func (s *Service) reconcileFacts(ctx context.Context, uid, cid string) error {
 		}
 		matches := []Doc{}
 		for _, op := range rows {
-			if used[text(op, "id")] || flag(op, "is_duplicate") || text(op, "direction") != text(event, "direction") || math.Abs(number(op, "amount")-number(event, "amount")) > .011 {
+			if used[text(op, "id")] || flag(op, "is_duplicate") || flag(op, "is_internal") || text(op, "direction") != text(event, "direction") || math.Abs(number(op, "amount")-number(event, "amount")) > .011 {
 				continue
 			}
-			if text(event, "counterparty_name") == "" || text(event, "counterparty_name") != text(op, "counterparty_name") {
+			taxMatch := text(event, "source_kind") == "tax_calendar" && text(op, "category") == "tax"
+			if !taxMatch && (text(event, "counterparty_name") == "" || text(event, "counterparty_name") != text(op, "counterparty_name")) {
 				continue
 			}
 			actual, _ := day(date(op["op_date"]))
-			if math.Abs(actual.Sub(dt).Hours()/24) <= 3 {
+			window := 3.0
+			if text(event, "source_kind") == "manual" || text(event, "source_kind") == "invoice" || text(event, "source_kind") == "tax_calendar" {
+				window = 31
+			}
+			if math.Abs(actual.Sub(dt).Hours()/24) <= window {
 				matches = append(matches, op)
 				possibleUses[text(op, "id")]++
 			}

@@ -5,9 +5,9 @@ import (
 	"math"
 	"net/http"
 	"sort"
-	"strconv"
 
 	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/domain"
+	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/ingest"
 	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/store"
 )
 
@@ -52,6 +52,26 @@ func (s *Service) historyAnalysis(ctx context.Context, op, uid, cid string, r *h
 			return d.AddDate(0, 0, -offset).Format(domain.DateLayout)
 		}
 		groups := map[string]Doc{}
+		known := map[string]bool{}
+		if operations := domainOperations(operations); len(operations) > 0 {
+			for _, flow := range ingest.DailyFlows(operations, operations[0].Date, asOf, nil) {
+				known[flow.Date.Format(domain.DateLayout)] = !flow.Missing
+			}
+		}
+		start, _ := day(from)
+		stop, _ := day(to)
+		if stop.Sub(start).Hours()/24 > 1096 {
+			return Result{}, bad("Для графика выберите период до трёх лет")
+		}
+		for dt := start; !dt.After(stop); dt = dt.AddDate(0, 0, 1) {
+			p := key(dt.Format(domain.DateLayout))
+			if groups[p] == nil {
+				groups[p] = Doc{"period": p, "plan_in": float64(0), "plan_out": float64(0), "fact_in": float64(0), "fact_out": float64(0), "deviation": float64(0), "observed": true}
+			}
+			if !known[dt.Format(domain.DateLayout)] {
+				groups[p]["observed"] = false
+			}
+		}
 		add := func(dt, k string, n float64) {
 			if dt < from || dt > to {
 				return
@@ -75,6 +95,9 @@ func (s *Service) historyAnalysis(ctx context.Context, op, uid, cid string, r *h
 		out := []Doc{}
 		for _, g := range groups {
 			g["deviation"] = money(number(g, "fact_in") - number(g, "fact_out") - number(g, "plan_in") + number(g, "plan_out"))
+			if !flag(g, "observed") {
+				g["fact_in"], g["fact_out"], g["deviation"] = nil, nil, nil
+			}
 			out = append(out, g)
 		}
 		sort.Slice(out, func(i, j int) bool { return text(out[i], "period") < text(out[j], "period") })
@@ -99,42 +122,11 @@ func (s *Service) historyAnalysis(ctx context.Context, op, uid, cid string, r *h
 				unexpected = append(unexpected, view("operation", d))
 			}
 		}
-		return ok(Doc{"missed": missed, "unexpected": unexpected, "forecast_change": Doc{"gap_date": nil, "probability_before": nil, "probability_after": nil}, "data_as_of": asOf.Format(domain.DateLayout)})
-	case "getTaxes":
-		months := 3
-		if raw := r.URL.Query().Get("months"); raw != "" {
-			n, e := strconv.Atoi(raw)
-			if e != nil || n < 1 || n > 12 {
-				return Result{}, bad("months должен быть от 1 до 12")
-			}
-			months = n
-		}
-		patterns, e := s.DB.ProductList(ctx, uid, cid, "recurring")
+		change, e := s.forecastChange(ctx, cid)
 		if e != nil {
 			return Result{}, e
 		}
-		company, e := s.DB.GetCompany(ctx, uid, cid)
-		if e != nil {
-			return Result{}, e
-		}
-		items := []Doc{}
-		until := today().AddDate(0, months, 0)
-		for _, p := range patterns {
-			if text(p, "category") != "tax" || !flag(p, "active") || !flag(p, "confirmed") {
-				continue
-			}
-			dt, e := day(date(p["next_date"]))
-			if e != nil {
-				return Result{}, e
-			}
-			for i := 0; i < 100 && dt.Before(until); i++ {
-				if !dt.Before(today()) {
-					items = append(items, Doc{"date": dt.Format(domain.DateLayout), "title": p["title"], "amount_estimate": p["amount"], "how_calculated": "Проекция подтверждённого регулярного платежа; налоговая декларация и расчёт по ставке не выполнялись"})
-				}
-				dt = nextOccurrence(dt, text(p, "period"), int(number(p, "day_of_month")))
-			}
-		}
-		return ok(Doc{"tax_regime": company.TaxRegime, "regime_detected": nil, "items": items, "calculation_basis": "confirmed_recurring_payments"})
+		return ok(Doc{"missed": missed, "unexpected": unexpected, "forecast_change": change, "data_as_of": asOf.Format(domain.DateLayout)})
 	case "getRetro":
 		company, e := s.DB.GetCompany(ctx, uid, cid)
 		if e != nil {
