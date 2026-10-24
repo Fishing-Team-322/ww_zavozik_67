@@ -1,0 +1,65 @@
+{
+  "application_revision": "a7cb248943da569defa88849b0f41c65a734ac1c",
+  "frontend_build_id": "V9bBIRHUkgGgUoxrsbnsQ",
+  "browser_main": {
+    "startTime": "2026-10-24T17:39:35.884Z",
+    "duration": 63730.593,
+    "expected": 8,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  },
+  "browser_sandbox": {
+    "passed": 1,
+    "live_providers": false
+  },
+  "browser_restart": {
+    "passed": 1,
+    "counts_preserved": {
+      "users": 85,
+      "companies": 80,
+      "operations": 3390,
+      "events": 135,
+      "sources": 47,
+      "versions": 120,
+      "documents": 117
+    }
+  },
+  "go": {
+    "backend": {
+      "test": "PASS",
+      "race": "PASS",
+      "vet": "PASS",
+      "postgresql": true
+    },
+    "integrations": {
+      "test": "PASS",
+      "race": "PASS",
+      "vet": "PASS"
+    }
+  },
+  "frontend": {
+    "typecheck": "PASS",
+    "lint_errors": 0,
+    "lint_existing_warnings": 4,
+    "unit_passed": 9,
+    "production_build": "PASS"
+  },
+  "live_onec": {
+    "facts": 15,
+    "invoices": 7,
+    "invoice_kopecks": 35000000,
+    "paid_kopecks": 10000000,
+    "remaining_before_cancel_kopecks": 25000000,
+    "cancelled_remaining_kopecks": 0,
+    "restored_posted": false,
+    "restored_deletion_mark": true
+  },
+  "external_live_not_tested": [
+    "wb",
+    "ozon",
+    "gsheets",
+    "dadata"
+  ],
+  "public_deployment_performed": false
+}
