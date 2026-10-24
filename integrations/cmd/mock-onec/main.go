@@ -40,6 +40,42 @@ func main() {
 			map[string]any{"Ref_Key": "22222222-2222-2222-2222-222222222222", "Number": "ИСХ-1", "Date": "2026-10-21T09:00:00", "ExecutionDate": "2026-10-21T10:00:00", "Amount": 850.10, "Posted": true, "Account_Key": "bank-account-1", "Counterparty": map[string]any{"INN": "7700000001", "Description": "Поставщик"}, "PaymentPurpose": "Оплата счёта"},
 		}}})
 	})
+	// Synthetic invoices and explicit payment-detail links. These names are
+	// fixtures, not a claim about the local accounting infobase's $metadata.
+	mux.HandleFunc("GET /odata/standard.odata/Document_CustomerInvoice", func(w http.ResponseWriter, r *http.Request) {
+		if !authorized(w, r, username, password) {
+			return
+		}
+		write(w, map[string]any{"value": []any{
+			map[string]any{"Ref_Key": "invoice-in", "Number": "СФ-1", "Date": "2026-10-20", "DueDate": "2026-11-05", "Amount": "350000.00", "Posted": true, "DeletionMark": false, "Organization_Key": "org-demo", "DataVersion": "1"},
+		}})
+	})
+	mux.HandleFunc("GET /odata/standard.odata/Document_SupplierInvoice", func(w http.ResponseWriter, r *http.Request) {
+		if !authorized(w, r, username, password) {
+			return
+		}
+		write(w, map[string]any{"value": []any{
+			map[string]any{"Ref_Key": "invoice-out", "Number": "ПС-1", "Date": "2026-10-20", "DueDate": "2026-11-06", "Amount": "180000.00", "Posted": true, "DeletionMark": false, "Organization_Key": "org-demo", "DataVersion": "1"},
+		}})
+	})
+	mux.HandleFunc("GET /odata/standard.odata/Document_ReceiptParent", func(w http.ResponseWriter, r *http.Request) {
+		if !authorized(w, r, username, password) {
+			return
+		}
+		write(w, map[string]any{"value": []any{map[string]any{"Ref_Key": "receipt-1", "Posted": true, "Organization_Key": "org-demo"}}})
+	})
+	mux.HandleFunc("GET /odata/standard.odata/Document_ReceiptDetail", func(w http.ResponseWriter, r *http.Request) {
+		if !authorized(w, r, username, password) {
+			return
+		}
+		write(w, map[string]any{"value": []any{map[string]any{"Ref_Key": "receipt-1", "LineNumber": "1", "Invoice_Key": "invoice-in", "Amount": "100000.00"}}})
+	})
+	mux.HandleFunc("GET /odata/standard.odata/Document_PaymentDetail", func(w http.ResponseWriter, r *http.Request) {
+		if !authorized(w, r, username, password) {
+			return
+		}
+		write(w, map[string]any{"value": []any{}})
+	})
 	srv := &http.Server{Addr: "127.0.0.1:8092", Handler: mux, ReadHeaderTimeout: 5 * time.Second}
 	log.Print("synthetic 1C OData mock listening on loopback")
 	if err := srv.ListenAndServe(); err != nil {

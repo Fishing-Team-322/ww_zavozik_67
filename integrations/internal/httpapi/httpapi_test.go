@@ -46,6 +46,38 @@ func upload(t *testing.T, handler http.Handler, company string, data []byte) *ht
 	return rec
 }
 
+func TestCSVPreviewCommit(t *testing.T) {
+	h := (API{Store: store.NewMemory(), SyncToken: "local-operator-token"}).Handler()
+	call := func(mode string) *httptest.ResponseRecorder {
+		var body bytes.Buffer
+		w := multipart.NewWriter(&body)
+		_ = w.WriteField("company_id", "demo-company")
+		_ = w.WriteField("mode", mode)
+		_ = w.WriteField("mapping", `{"category":"invoice","encoding":"utf-8"}`)
+		f, err := w.CreateFormFile("file", "invoices.csv")
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, _ = f.Write([]byte("external_id;date;amount;direction;due_date\ni1;2026-10-24;100,05;in;2026-11-05\n"))
+		_ = w.Close()
+		r := httptest.NewRequest("POST", "/v1/import/csv", &body)
+		r.Header.Set("Content-Type", w.FormDataContentType())
+		r.Header.Set("Authorization", "Bearer local-operator-token")
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, r)
+		return rec
+	}
+	if rec := call("preview"); rec.Code != 200 {
+		t.Fatalf("preview: %d %s", rec.Code, rec.Body.String())
+	}
+	if rec := call("commit"); rec.Code != 200 {
+		t.Fatalf("commit: %d %s", rec.Code, rec.Body.String())
+	}
+	if rec := call("commit"); rec.Code != 200 || !strings.Contains(rec.Body.String(), `"duplicates":1`) {
+		t.Fatalf("duplicate: %d %s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestHTTPImportAndIsolation(t *testing.T) {
 	data, err := os.ReadFile("../../testdata/onec_bank_utf8.txt")
 	if err != nil {
@@ -96,7 +128,7 @@ func TestHealthAndProviderStatuses(t *testing.T) {
 	if rec.Code != 200 || json.Unmarshal(rec.Body.Bytes(), &got) != nil {
 		t.Fatal(rec.Body.String())
 	}
-	want := map[string]string{"onecbank": "ready", "onecodata": "not_configured", "dadata": "not_configured", "fnsopendata": "not_implemented", "wb": "not_implemented"}
+	want := map[string]string{"onecbank": "ready", "onecodata": "not_configured", "dadata": "not_configured", "fnsopendata": "ready", "wb": "mock_ready", "ozon": "mock_ready", "csv": "ready"}
 	if len(got) != len(want) {
 		t.Fatalf("provider count: %d", len(got))
 	}
@@ -181,11 +213,11 @@ func TestOneCODataSyncRequiresTokenAndDeduplicates(t *testing.T) {
 
 func TestDaDataEnrichmentRequiresToken(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_, _ = w.Write([]byte(`{"suggestions":[{"data":{"inn":"7707083893","name":{"short_with_opf":"ПАО СБЕРБАНК"},"state":{"status":"ACTIVE"}}}]}`))
+		_, _ = w.Write([]byte(`{"suggestions":[{"data":{"inn":"7707083893","ogrn":"1027700132195","type":"LEGAL","name":{"short_with_opf":"ПАО СБЕРБАНК"},"state":{"status":"ACTIVE"}}}]}`))
 	}))
 	defer upstream.Close()
 	client := dadata.Client{Token: "api-secret", Endpoint: upstream.URL}
-	h := (API{Store: store.NewMemory(), DaDataClient: &client, SyncToken: "local-token"}).Handler()
+	h := (API{Store: store.NewMemory(), CompanyID: "demo-company", DaDataClient: &client, SyncToken: "local-token"}).Handler()
 	request := func(token, body string) *httptest.ResponseRecorder {
 		r := httptest.NewRequest("POST", "/v1/enrich/dadata-party", strings.NewReader(body))
 		if token != "" {
@@ -204,6 +236,13 @@ func TestDaDataEnrichmentRequiresToken(t *testing.T) {
 	rec := request("local-token", `{"inn":"7707083893"}`)
 	if rec.Code != 200 || !strings.Contains(rec.Body.String(), `"source_kind":"dadata"`) || !strings.Contains(rec.Body.String(), `"status":"ACTIVE"`) {
 		t.Fatalf("%d %s", rec.Code, rec.Body.String())
+	}
+	storedRequest := httptest.NewRequest("GET", "/v1/counterparties/demo-company", nil)
+	storedRequest.Header.Set("Authorization", "Bearer local-token")
+	stored := httptest.NewRecorder()
+	h.ServeHTTP(stored, storedRequest)
+	if stored.Code != 200 || !strings.Contains(stored.Body.String(), `"name":"ПАО СБЕРБАНК"`) {
+		t.Fatalf("counterparty storage: %d %s", stored.Code, stored.Body.String())
 	}
 	status := httptest.NewRecorder()
 	h.ServeHTTP(status, httptest.NewRequest("GET", "/v1/providers", nil))

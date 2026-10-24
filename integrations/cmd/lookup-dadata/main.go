@@ -12,8 +12,13 @@ import (
 
 func main() {
 	inn := flag.String("inn", "", "10- or 12-digit INN")
+	id := flag.String("id", "", "INN or OGRN")
 	flag.Parse()
-	party, err := (dadata.Client{Token: os.Getenv("DADATA_API_TOKEN")}).Lookup(context.Background(), *inn)
+	identifier := *id
+	if identifier == "" {
+		identifier = *inn
+	}
+	party, err := (dadata.Client{Token: os.Getenv("DADATA_API_TOKEN")}).Lookup(context.Background(), identifier)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)

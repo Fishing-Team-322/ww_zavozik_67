@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zavozik.local/integrations/contracts/v1/import-batch.schema.json",
+  "title": "Go Integration Hub ImportBatch v1",
+  "type": "object",
+  "required": ["schema_version", "company_id", "source_kind", "source_mode", "import_id", "imported_at", "operations", "planned_events", "issues", "stats"],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "company_id": {"type": "string", "minLength": 1},
+    "source_kind": {"type": "string", "minLength": 1},
+    "source_mode": {"type": "string"},
+    "import_id": {"type": "string", "minLength": 1},
+    "imported_at": {"type": "string", "format": "date-time"},
+    "operations": {"type": "array", "items": {"$ref": "#/$defs/operation"}},
+    "planned_events": {"type": "array", "items": {"$ref": "#/$defs/planned_event"}},
+    "issues": {"type": "array"},
+    "stats": {"type": "object", "required": ["parsed", "accepted", "duplicates", "rejected"]}
+  },
+  "$defs": {
+    "operation": {
+      "type": "object",
+      "required": ["dedup_key", "date", "amount_kopecks", "direction", "source_kind", "executed"],
+      "properties": {
+        "external_id": {"type": "string"},
+        "dedup_key": {"type": "string", "minLength": 1},
+        "date": {"type": "string", "format": "date"},
+        "amount_kopecks": {"type": "integer", "minimum": 0},
+        "direction": {"enum": ["in", "out"]},
+        "source_kind": {"type": "string"},
+        "executed": {"const": true},
+        "version": {"type": "integer", "minimum": 1}
+      }
+    },
+    "planned_event": {
+      "type": "object",
+      "required": ["external_id", "date", "amount_kopecks", "direction", "source_kind", "status", "due_date", "date_quality", "total_kopecks", "paid_kopecks", "remaining_kopecks", "currency", "link_status", "forecast_eligible", "data_mode", "observed_at", "version"],
+      "properties": {
+        "external_id": {"type": "string", "minLength": 1},
+        "date": {"type": "string", "format": "date"},
+        "amount_kopecks": {"type": "integer", "minimum": 0},
+        "direction": {"enum": ["in", "out"]},
+        "source_kind": {"type": "string"},
+        "status": {"enum": ["expected", "partially_paid", "paid", "cancelled", "overdue", "unmatched"]},
+        "due_date": {"type": ["string", "null"], "format": "date"},
+        "date_quality": {"type": "string"},
+        "total_kopecks": {"type": "integer", "minimum": 0},
+        "paid_kopecks": {"type": "integer", "minimum": 0},
+        "remaining_kopecks": {"type": "integer", "minimum": 0},
+        "currency": {"type": "string"},
+        "link_status": {"type": "string"},
+        "forecast_eligible": {"type": "boolean"},
+        "data_mode": {"enum": ["live", "mock", "fixture", "import", "manual"]},
+        "observed_at": {"type": "string", "format": "date-time"},
+        "version": {"type": "integer", "minimum": 1}
+      }
+    }
+  }
+}

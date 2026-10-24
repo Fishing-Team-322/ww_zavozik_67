@@ -553,7 +553,11 @@ func (s *Service) prepare(ctx context.Context, uid, cid, kind string, d Doc, cre
 		d["next_date"] = nextOccurrence(today().AddDate(0, 0, -1), text(d, "period"), int(number(d, "day_of_month"))).Format(domain.DateLayout)
 	case "source":
 		defaults("enabled", true)
-		defaults("status", "ok")
+		if create && text(d, "kind") == "onec_odata" {
+			defaults("status", "pending")
+		} else {
+			defaults("status", "ok")
+		}
 		if !flag(d, "enabled") {
 			d["status"] = "disabled"
 		}
@@ -564,7 +568,7 @@ func (s *Service) prepare(ctx context.Context, uid, cid, kind string, d Doc, cre
 			return bad("Для сетевого источника укажите config")
 		}
 		if cfg, yes := d["config"].(map[string]any); yes {
-			if e := s.validateSourceConfig(ctx, uid, cid, text(d, "kind"), Doc(cfg)); e != nil {
+			if e := s.validateSourceConfig(ctx, uid, cid, text(d, "kind"), Doc(cfg), false); e != nil {
 				return e
 			}
 		}

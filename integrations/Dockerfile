@@ -1,6 +1,7 @@
 FROM golang:1.25-alpine AS build
 WORKDIR /src
 COPY go.mod ./
+COPY go.sum ./
 COPY cmd ./cmd
 COPY internal ./internal
 RUN CGO_ENABLED=0 go build -trimpath -o /out/integration-server ./cmd/server

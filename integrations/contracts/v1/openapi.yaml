@@ -1,0 +1,182 @@
+openapi: 3.1.0
+info:
+  title: Go Integration Hub
+  version: 1.0.0
+  description: Local single-company operator API. Backend calls require a trusted service credential.
+servers:
+  - url: http://127.0.0.1:8091
+security:
+  - operatorBearer: []
+components:
+  securitySchemes:
+    operatorBearer:
+      type: http
+      scheme: bearer
+paths:
+  /v1/fns/egrul/import:
+    post:
+      summary: Import a downloaded EGRUL PDF extract
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema: {type: object, required: [company_id, file], properties: {company_id: {type: string}, file: {type: string, format: binary}}}
+      responses:
+        '200': {description: Dated registry record and updated/duplicate/outdated status}
+        '403': {description: Company scope mismatch}
+        '422': {description: Unrecognized or incomplete PDF}
+  /v1/fns/egrip/import:
+    post:
+      summary: Import a downloaded EGRIP PDF extract
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema: {type: object, required: [company_id, file], properties: {company_id: {type: string}, file: {type: string, format: binary}}}
+      responses:
+        '200': {description: Dated registry record and updated/duplicate/outdated status}
+  /v1/fns/xml/import:
+    post:
+      summary: Import official-format EGRUL/EGRIP XML or ZIP
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema: {type: object, required: [company_id, file], properties: {company_id: {type: string}, file: {type: string, format: binary}}}
+      responses:
+        '200': {description: Counts of records, changes, duplicates and older snapshots}
+        '422': {description: Invalid XML or ZIP}
+  /v1/fns/counterparties/{inn}:
+    get:
+      parameters:
+        - {name: inn, in: path, required: true, schema: {type: string}}
+      responses:
+        '200': {description: Current imported FNS registry records}
+        '404': {description: No imported record for this company}
+  /v1/fns/counterparties/{inn}/history:
+    get:
+      parameters:
+        - {name: inn, in: path, required: true, schema: {type: string}}
+      responses:
+        '200': {description: Dated versions, newest first}
+  /v1/counterparty-intelligence/{inn}:
+    get:
+      parameters:
+        - {name: inn, in: path, required: true, schema: {type: string}}
+      responses:
+        '200':
+          description: Scoped profile with field provenance and dated risk signals
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [company_id, profile]
+                properties:
+                  company_id: {type: string}
+                  profile: {$ref: './counterparty-intelligence.schema.json'}
+  /v1/fns/opendata/sync:
+    post:
+      summary: Check official FNS debt dataset page and import a newer archive
+      responses:
+        '200': {description: updated or unchanged with publication metadata}
+        '409': {description: Identical sync is in progress}
+        '502': {description: FNS unavailable or archive invalid; last snapshot retained}
+  /v1/fns/opendata/status:
+    get:
+      responses:
+        '200': {description: Last successful snapshot and recent runs}
+  /healthz:
+    get:
+      security: []
+      responses:
+        '200': {description: Process alive}
+  /readyz:
+    get:
+      security: []
+      responses:
+        '200': {description: PostgreSQL ready}
+        '503': {description: PostgreSQL unavailable}
+  /v1/integrations/capabilities:
+    get:
+      responses:
+        '200': {description: Configured source capabilities}
+  /v1/import/onec-bank:
+    post:
+      description: Multipart 1CClientBankExchange import; company_id, company_inn, company_account, file.
+      responses:
+        '200': {description: ImportBatch v1}
+  /v1/import/csv:
+    post:
+      description: Multipart file, company_id, mapping JSON, mode=preview or commit.
+      responses:
+        '200': {description: Preview or committed ImportBatch v1}
+        '422': {description: Row errors; nothing committed}
+  /v1/sync/onec-odata:
+    post:
+      responses:
+        '200': {description: Posted bank operations ImportBatch v1}
+  /v1/sync/onec-plans:
+    post:
+      responses:
+        '200': {description: Invoice obligations ImportBatch v1}
+  /v1/sync/wb-finance:
+    post:
+      description: JSON from/to dates; accounting rows only.
+      responses:
+        '200': {description: Fetched, changed and duplicate counts}
+        '503': {description: WB token absent}
+  /v1/sync/ozon-finance:
+    post:
+      description: JSON from/to dates; accounting rows only.
+      responses:
+        '200': {description: Fetched, changed and duplicate counts}
+        '503': {description: Ozon credentials absent}
+  /v1/enrich/dadata-party:
+    post:
+      description: JSON identifier or inn; does not post bank operations.
+      responses:
+        '200': {description: Dated counterparty profile}
+  /v1/operations/{companyId}:
+    get:
+      parameters:
+        - {name: companyId, in: path, required: true, schema: {type: string}}
+      responses:
+        '200': {description: Stored executed operations}
+        '403': {description: Other company}
+  /v1/planned-events/{companyId}:
+    get:
+      parameters:
+        - {name: companyId, in: path, required: true, schema: {type: string}}
+      responses:
+        '200': {description: Stored planned obligations}
+        '403': {description: Other company}
+  /v1/batches/{companyId}:
+    get:
+      parameters:
+        - {name: companyId, in: path, required: true, schema: {type: string}}
+      responses:
+        '200': {description: Recent import batches}
+  /v1/sync-runs/{companyId}:
+    get:
+      parameters:
+        - {name: companyId, in: path, required: true, schema: {type: string}}
+      responses:
+        '200': {description: Recent synchronization outcomes}
+  /v1/marketplace-entries/{companyId}:
+    get:
+      parameters:
+        - {name: companyId, in: path, required: true, schema: {type: string}}
+      responses:
+        '200': {description: Marketplace accounting rows, never bank facts}
+  /v1/risk-signals/{companyId}:
+    get:
+      parameters:
+        - {name: companyId, in: path, required: true, schema: {type: string}}
+      responses:
+        '200': {description: Dated FNS public-dataset observations}
+  /v1/counterparties/{companyId}:
+    get:
+      parameters:
+        - {name: companyId, in: path, required: true, schema: {type: string}}
+      responses:
+        '200': {description: Dated DaData party profiles}

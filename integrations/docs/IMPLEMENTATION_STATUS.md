@@ -1,0 +1,22 @@
+# Состояние Go Integration Hub
+
+Проверено по ветке `integration` после объединения с `main` 24.10.2026. Статус относится только к автономному модулю `integrations/`; основной backend развивается отдельно.
+
+| Этап | Статус | Проверяемое основание | Следующий шаг / блокер |
+|---|---|---|---|
+| 1С: проведённые платежи | LIVE_VERIFIED | `docs/REAL_1C_TEST.md`, `internal/providers/onecodata/*_test.go`; 14 демоплатежей из локальной учебной базы | Сохранять изменения документов, добавить постоянное хранилище |
+| 1С: будущие обязательства | MOCK_READY | `internal/providers/onecodata/plans.go`, `plans_test.go`, `testdata/onec_plans_mock.json`; тестирует 350 000 ₽ − 100 000 ₽ = 250 000 ₽, изменение срока, отмену, полную оплату, повторный sync | В живой учебной OData публикации нет коллекций счетов; см. `ONEC_PLAN_MAPPING.md`. До публикации счетов live не подтверждён |
+| DaData | MOCK_READY / BLOCKED (live) | `internal/providers/dadata/client_test.go`, `/v1/enrich/dadata-party`, PostgreSQL `counterparties`, `/v1/counterparties/{companyId}`; ИНН/ОГРН, ЮЛ/ИП, 429/5xx, кеш и датированная актуальность | Живой ответ проверить после появления ключа в локальном окружении; не в чате |
+| ФНС: открытые данные | LIVE_VERIFIED (локальный импорт) | `internal/providers/fns/debt.go`, `cmd/import-fns`, PostgreSQL `risk_signals`, `/v1/risk-signals/{companyId}`; официальный архив: 971 XML, 874002 документа, 1 совпадение, повтор `duplicates=1` | Добавить расписание обновления и серверную настройку набора/ИНН; снимок на 01.09.2026 не является текущим балансом ЕНС |
+| Налоговый календарь | IMPLEMENTED (узкая область) | `internal/taxcalendar/usn.go`, `usn_test.go`: подтверждённые сроки УСН на 2026 год, отдельная ручная фиксация суммы | Не поддержаны другие режимы/годы; без подтверждённой суммы обязательство не создаётся |
+| Wildberries | MOCK_READY / BLOCKED (live) | `internal/providers/wb/client.go`, `/v1/sync/wb-finance`, PostgreSQL `marketplace_entries`; RRD-пагинация, 204, исправления/дубли, без записи в банковский факт | Локального токена/кабинета WB нет; получение фактической выплаты требует отдельной сверки с банком |
+| Ozon | MOCK_READY / BLOCKED (live) | `internal/providers/ozon/client.go`, `/v1/sync/ozon-finance`, PostgreSQL `marketplace_entries`; страницы, интервалы, исправления/дубли, без записи в банковский факт | Локальных `OZON_CLIENT_ID` и `OZON_API_KEY` нет; выплаты сверять отдельно с банком |
+| CSV и ручные планы | IMPLEMENTED (CSV) | `internal/importcsv`, `POST /v1/import/csv`, тесты preview/commit, CP1251, ошибки строк, повторный импорт и обновление счёта | XLSX не реализован; импорт факта требует явного `executed=true`, планы с неизвестной датой не допускаются к прогнозу |
+| Эксплуатация и PostgreSQL | IMPLEMENTED (демо, частично для production) | `internal/store/postgres.go`, миграции, `compose.yaml`, `postgres_test.go`; Docker e2e: запись, дубль, 403 для чужой компании, сохранение после перезапуска; `/readyz`, `/operations`, `/sync-runs` | Одна `demo-company`/операторский токен; аккаунты, безопасное хранение ключей подключений, курсоры и планирование всех источников — следующий этап с backend |
+| Контракт для backend | IMPLEMENTED (handoff) | `contracts/v1/` (JSON Schema, OpenAPI, пример и contract test), `docs/BACKEND_HANDOFF.md`, `cmd/demo`; 220k → 350k/180k/140k и 100k+250k без дубля | Фактическое подключение backend, пользовательские аккаунты и несколько компаний намеренно отложены |
+
+`IMPLEMENTED` означает реализованный код с тестом, `MOCK_READY` — воспроизводимый ответ синтетического источника, `LIVE_VERIFIED` — подтверждённое обращение к настоящему источнику, `BLOCKED` — невозможность продолжать без внешнего условия, `NOT_STARTED` — отсутствие реализации. Метки этапов будут уточняться по ходу работы.
+
+Повторная live-проверка 1С 24.10.2026 в конце этапа получила таймаут на `127.0.0.1:8093` (порт не слушает; W3SVC работает, но публикация не поднята). Строка `LIVE_VERIFIED` для платежей отражает ранее задокументированный успешный тест, а не текущую доступность демосервиса. Для нового live-теста потребуется восстановить локальную публикацию 1С.
+
+Текущие интерфейсы, которые сохраняем: `contracts.ImportBatch`, `onecodata.Client.Fetch`, `onecbank.Parser.Parse`, `dadata.Client.Lookup`, маршруты `/healthz`, `/v1/providers`, `/v1/import/onec-bank`, `/v1/sync/onec-odata`, `/v1/enrich/dadata-party`, `/v1/batches/{companyId}`. Новые поля и маршруты добавляются совместимо.
