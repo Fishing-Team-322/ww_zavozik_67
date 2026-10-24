@@ -225,3 +225,20 @@ the corresponding filters.
 Regression coverage: scenario composition unit tests (no database required),
 counterparty_calculation_regressions_test.go, scenario_probability_regressions_test.go
 (API quantiles for incoming/outgoing plans at probabilities 0%, 50% and 100%).
+
+Gap recommendation snapshots and preview validation
+---------------------------------------------------
+Gap action IDs identify the data revision and forecast output, including the
+horizon. A 90-day funding recommendation cannot reuse a 30-day persisted amount.
+Applying an unapplied recommendation checks its revision under the company lock;
+after financial changes, refresh the forecast and select a new recommendation.
+Previously applied actions remain idempotent on retry. Legacy unapplied actions
+without snapshot metadata require refresh as well; no schema migration is needed.
+
+Forecast preview combines changes to existing plans with newly supplied events.
+Both arrays are validated without discarding null/non-object elements; malformed
+entries return 400. The combined limit is 100 changes, and previews do not modify
+the actual plans.
+
+Regression coverage: action_snapshot_regressions_test.go (stale actions, refreshed
+actions, horizon-specific funding, idempotent retry, combined previews and nulls).

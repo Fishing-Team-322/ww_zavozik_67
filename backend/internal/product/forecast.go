@@ -220,6 +220,7 @@ func (s *Service) build(ctx context.Context, uid, cid string, h int, model strin
 		}
 		return nil, empty, platform.Fail(502, "forecast_unavailable", "Не удалось рассчитать прогноз")
 	}
+	res.DataRevision = revision
 	for _, event := range events {
 		prob := number(event, "probability")
 		if !flag(event, "additional") || prob <= 0 || prob >= 1 {
@@ -364,12 +365,25 @@ func (s *Service) financial(ctx context.Context, op, uid, cid string, r *http.Re
 		if e = fields(b, "changes events"); e != nil {
 			return Result{}, e
 		}
-		preview = docs(b["changes"])
-		if len(preview) == 0 {
-			preview = docs(b["events"])
-		}
-		if len(preview) > 100 {
-			return Result{}, bad("Слишком много изменений")
+		for _, key := range []string{"changes", "events"} {
+			value, provided := b[key]
+			if !provided {
+				continue
+			}
+			items, valid := value.([]any)
+			if !valid {
+				return Result{}, bad(key + ": нужен массив объектов")
+			}
+			if len(preview)+len(items) > 100 {
+				return Result{}, bad("Слишком много изменений")
+			}
+			for _, item := range items {
+				change, valid := item.(map[string]any)
+				if !valid {
+					return Result{}, bad(key + ": каждый элемент должен быть объектом")
+				}
+				preview = append(preview, Doc(change))
+			}
 		}
 	}
 	out, res, e := s.build(ctx, uid, cid, h, r.URL.Query().Get("model"), steps, preview, op == "getForecast" && len(steps) == 0)

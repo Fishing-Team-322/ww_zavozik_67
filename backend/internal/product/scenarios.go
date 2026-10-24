@@ -2,6 +2,8 @@ package product
 
 import (
 	"context"
+	"crypto/sha256"
+	"fmt"
 	"math"
 	"net/http"
 	"strings"
@@ -275,6 +277,10 @@ func (s *Service) compare(ctx context.Context, op, uid, cid string, r *http.Requ
 	return ok(Doc{"base": base, "scenario": other, "delta": forecastDelta(base, other)})
 }
 func (s *Service) gapResult(ctx context.Context, op, uid, cid string, gap, out Doc, res forecast.Result, b Doc) (Result, error) {
+	// IDs must identify the actual recommendation, including its horizon/model
+	// output. Persisting another forecast must never reuse an old funding amount.
+	snapshot := sha256.Sum256(store.JSON(out))
+	forecastKey := fmt.Sprintf("%s:revision:%d:%x", text(gap, "id"), res.DataRevision, snapshot)
 	events, e := s.DB.ProductList(ctx, uid, cid, "event")
 	if e != nil {
 		return Result{}, e
@@ -292,18 +298,19 @@ func (s *Service) gapResult(ctx context.Context, op, uid, cid string, gap, out D
 		}
 		newDate := dt.AddDate(0, 0, 14)
 		steps := []Doc{{"kind": "move_event", "event_id": event["id"], "date": newDate.Format(domain.DateLayout)}}
-		actions = append(actions, Doc{"id": idFor(cid, text(gap, "id")+":shift:"+text(event, "id")), "kind": "shift_supplier_payment", "title": "Перенести платёж", "description": "Согласовать перенос платежа на 14 дней", "cost": float64(0), "steps": steps, "refs": Doc{"event_id": event["id"]}, "draft_message": nil})
+		actions = append(actions, Doc{"id": idFor(cid, forecastKey+":shift:"+text(event, "id")), "kind": "shift_supplier_payment", "title": "Перенести платёж", "description": "Согласовать перенос платежа на 14 дней", "cost": float64(0), "steps": steps, "refs": Doc{"event_id": event["id"]}, "draft_message": nil})
 	}
 	amount := number(gap, "shortfall_p90")
 	if amount <= 0 {
 		amount = number(gap, "shortfall")
 	}
-	actions = append(actions, Doc{"id": idFor(cid, text(gap, "id")+":overdraft"), "kind": "overdraft", "title": "Запланировать привлечение средств", "description": "Добавляет плановое поступление; банк не выдаёт кредит через этот метод", "cost": float64(0), "steps": []Doc{}, "refs": Doc{}, "date": gap["date"], "amount": amount, "draft_message": nil})
+	actions = append(actions, Doc{"id": idFor(cid, forecastKey+":overdraft"), "kind": "overdraft", "title": "Запланировать привлечение средств", "description": "Добавляет плановое поступление; банк не выдаёт кредит через этот метод", "cost": float64(0), "steps": []Doc{}, "refs": Doc{}, "date": gap["date"], "amount": amount, "draft_message": nil})
 	company, e := s.DB.GetCompany(ctx, uid, cid)
 	if e != nil {
 		return Result{}, e
 	}
 	for _, a := range actions {
+		a["data_revision"] = res.DataRevision
 		changed := res.Clone()
 		if text(a, "kind") == "overdraft" {
 			dt, _ := day(text(a, "date"))
@@ -394,8 +401,8 @@ func (s *Service) applyAction(ctx context.Context, uid, id string) (Result, erro
 		return Result{}, e
 	}
 	defer tx.Rollback(ctx)
-	var locked string
-	if e = tx.QueryRow(ctx, "SELECT c.id::text FROM companies c JOIN memberships m ON m.company_id=c.id WHERE c.id=$1 AND m.user_id=$2 AND m.role='owner' FOR UPDATE OF c", cid, uid).Scan(&locked); e != nil {
+	var revision int64
+	if e = tx.QueryRow(ctx, "SELECT c.data_revision FROM companies c JOIN memberships m ON m.company_id=c.id WHERE c.id=$1 AND m.user_id=$2 AND m.role='owner' FOR UPDATE OF c", cid, uid).Scan(&revision); e != nil {
 		return Result{}, platform.ErrNotFound
 	}
 	var data []byte
@@ -405,6 +412,10 @@ func (s *Service) applyAction(ctx context.Context, uid, id string) (Result, erro
 	current := store.Decode(data)
 	if flag(current, "applied") {
 		return ok(Doc{"applied": true, "result_ref": current["result_ref"]})
+	}
+	version, recorded := current["data_revision"].(float64)
+	if !recorded || int64(version) != revision {
+		return Result{}, platform.Fail(409, "stale_action", "Данные изменились. Обновите прогноз и выберите рекомендацию заново.")
 	}
 	d = current
 	var ref string
