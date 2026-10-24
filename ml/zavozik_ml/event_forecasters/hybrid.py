@@ -124,6 +124,7 @@ class _Stream:
     occurrences: int
     due: int
     days: np.ndarray
+    periods: np.ndarray  # observed schedule occurrences, not generated-event IDs
 
     @property
     def key(self):
@@ -155,7 +156,7 @@ def _stream_candidates(days, window, anchors):
             last_week = int(_week_starts(np.array([as_of], dtype=np.int64))[0])
             weeks = np.arange(int(starts[0]), last_week + 1, 7, dtype=np.int64)
             out.append(dict(
-                kind="weekly", anchor=anchor, periods=starts,
+                kind="weekly", anchor=anchor, periods=starts, supported_days=days,
                 shifts=days - (starts + anchor),
                 expected=[int(w) for w in weeks if int(w) + anchor in observed],
                 score=min(gap_share, weekday_share)))
@@ -168,9 +169,10 @@ def _stream_candidates(days, window, anchors):
     monthly = len(months) / len(np.unique(months)) <= 1.5 and len(months) / len(span) >= 0.5
     if dom_share >= _MIN_STABILITY and monthly:
         anchor_day = dict(zip(span.tolist(), _month_day(span, dom_anchor).tolist()))
+        matched = np.abs(dom - dom_anchor) <= _DAY_OF_MONTH_TOLERANCE
         out.append(dict(
-            kind="monthly_dom", anchor=dom_anchor, periods=months,
-            shifts=days - np.array([anchor_day[int(m)] for m in months], dtype=np.int64),
+            kind="monthly_dom", anchor=dom_anchor, periods=months[matched], supported_days=days[matched],
+            shifts=days[matched] - np.array([anchor_day[int(m)] for m in months[matched]], dtype=np.int64),
             expected=[int(m) for m, day in anchor_day.items() if day in observed],
             score=dom_share))
 
@@ -182,7 +184,7 @@ def _stream_candidates(days, window, anchors):
             continue
         periods = months[matched]
         out.append(dict(
-            kind="calendar", anchor=name, periods=periods,
+            kind="calendar", anchor=name, periods=periods, supported_days=days[matched],
             shifts=days[matched] - np.array([table[int(m)] for m in periods], dtype=np.int64),
             expected=[m for m in table if int(periods[0]) <= m <= as_of_month],
             score=share))
@@ -193,14 +195,16 @@ def _group_stream(counterparty, direction, category, days, amounts, window, anch
     unique = np.unique(days)
     if len(unique) < min_occ:
         return None
-    candidates = _stream_candidates(unique, window, anchors)
+    candidates = [c for c in _stream_candidates(unique, window, anchors)
+                  if len(c["supported_days"]) >= min_occ]
     if not candidates:
         return None
     best = max(candidates, key=lambda c: (round(c["score"], 6), _KIND_PRIORITY[c["kind"]]))
+    supported = np.asarray(best["supported_days"], dtype=np.int64)
     return _Stream(counterparty, int(direction), category, best["kind"], best["anchor"],
-                   np.asarray(best["shifts"], dtype=np.int64), np.asarray(amounts, dtype=float),
+                   np.asarray(best["shifts"], dtype=np.int64), np.asarray(amounts, dtype=float)[np.isin(days, supported)],
                    int(len(np.unique(best["periods"]))), int(_due(best["periods"], best["expected"])),
-                   unique)
+                   supported, np.unique(best["periods"]))
 
 
 def _detect_streams(events, window_days):
@@ -220,8 +224,8 @@ def _detect_streams(events, window_days):
     for (counterparty, direction, category), group in frame.groupby(
             ["counterparty", "direction", "category"], sort=True):
         days = group["day"].to_numpy(np.int64)
-        if counterparty == "" and len(np.unique(days)) != len(days):
-            continue  # the pooled fallback never merges same-day bursts into a schedule
+        if len(np.unique(days)) != len(days):
+            continue  # leave bursts intact in residuals until schedules model multiplicity
         min_occ = _MIN_OCCURRENCES + (_FALLBACK_OCCURRENCES if counterparty == "" else 0)
         stream = _group_stream(str(counterparty), int(direction), str(category), days,
                                group["amount"].to_numpy(float), window, anchors, min_occ)
@@ -256,11 +260,11 @@ def _complete_weeks(history):
 
 def _residual_by_week(residual, history):
     complete = set(_complete_weeks(history))
-    if not len(residual) or not complete:
+    if not complete:
         return [], {}
     day = _to_int(residual.date)
     week = _week_starts(day)
-    by_week = {}
+    by_week = {int(start): [] for start in complete}  # silence is observed exposure, too
     for week_start, stamp, direction, amount, category, counterparty in zip(
             week.tolist(), day.tolist(), residual.direction.to_numpy(int),
             residual.amount.to_numpy(float),
@@ -370,7 +374,11 @@ def _stream_plan(stream, dates, allowed, horizon_anchors, first, last):
         anchors = [table[m] for m in np.unique(_month_index(dates)).tolist() if m in table]
     shifts = stream.shifts if len(stream.shifts) else np.zeros(1, dtype=np.int64)
     plan = []
+    fulfilled = set(stream.periods.tolist())
     for anchor in sorted(int(value) for value in anchors):
+        period = anchor - int(stream.anchor) if stream.kind == "weekly" else int(_month_index(np.array([anchor]))[0])
+        if period in fulfilled:
+            continue
         days = []
         for shift in shifts.tolist():
             day = anchor + int(shift)

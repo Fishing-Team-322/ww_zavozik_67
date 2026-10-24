@@ -68,7 +68,6 @@ DISPERSION_BOUNDS = (1.0, 200.0)  # 1.0 is the documented geometric fallback
 LAMBDA_CAP = 64.0  # explicit cap on a single negative-binomial rate
 HOLDOUT_SHARE = 0.3  # latest share of eligible days, used only to size overdispersion
 MIN_HOLDOUT_ROWS = 40
-MIN_ROWS_PER_COMPANY = 60  # a training-row cap never starves a single company
 
 HURDLE_PARAMS = dict(
     objective="binary",
@@ -137,7 +136,10 @@ def _feature_frame(targets, activity):
 
 def _training_frame(histories, max_training_rows):
     """Eligible (origin, target) rows from complete days, newest rows first."""
-    per_company = max(MIN_ROWS_PER_COMPANY, int(max_training_rows) // max(len(histories), 1))
+    budget = int(max_training_rows)
+    if budget < 1:
+        raise ValueError("max_training_rows must be positive")
+    per_company = max(1, budget // max(len(histories), 1))
     frames, labels, splits = [], {direction: [] for direction in DIRECTIONS}, []
     for history in histories:
         activity, exposure = _activity_arrays(history)
@@ -157,8 +159,16 @@ def _training_frame(histories, max_training_rows):
     if not frames:
         return None, None, None
     features = pd.concat(frames, ignore_index=True)
-    return (features, {direction: np.concatenate(rows) for direction, rows in labels.items()},
-            np.concatenate(splits))
+    labels = {direction: np.concatenate(rows) for direction, rows in labels.items()}
+    held = np.concatenate(splits)
+    if len(features) > budget:
+        # When even one row per company exceeds the budget, retain a balanced,
+        # deterministic subset and apply the same selection to every target.
+        take = np.linspace(0, len(features) - 1, budget, dtype=int)
+        features = features.iloc[take].reset_index(drop=True)
+        labels = {direction: values[take] for direction, values in labels.items()}
+        held = held[take]
+    return features, labels, held
 
 
 def _mark_pools(histories, marks):

@@ -11,7 +11,6 @@ import importlib
 import json
 import pickle
 import platform
-import resource
 import time
 from pathlib import Path
 
@@ -23,6 +22,7 @@ import case_counts as reference
 from case_compare import assert_paired, histories_for_training, validate_reference, verify_count_replay
 from zavozik_ml import calendar as cal
 from zavozik_ml import data
+from zavozik_ml.runtime_stats import peak_rss_mib
 from zavozik_ml.event_forecasters.core import EventHistory, FitOptions
 from zavozik_ml.forecasters import base, ensemble, gbm  # noqa: F401
 
@@ -273,7 +273,7 @@ def run(args):
                                      "No transformer training/checkpoint is included.", "Aggregate models have no marked event-set scores.",
                                      "Tiny already explored synthetic unseen cohort; descriptive paired scores, not external validation."],
                         total_seconds=time.monotonic() - started,
-                        peak_rss_mib=resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024,
+                        peak_rss_mib=peak_rss_mib(),
                         versions=dict(python=platform.python_version(), numpy=np.__version__, pandas=pd.__version__, lightgbm=reference.lgb.__version__),
                         sha256={str(p): reference.file_hash(p) for p in [args.flows, args.transactions, args.events, args.split, *sources]})
         (args.out / "metadata.json").write_text(json.dumps(metadata, indent=2, default=lambda value: value.item() if isinstance(value, np.generic) else value.tolist() if isinstance(value, np.ndarray) else str(value)) + "\n")

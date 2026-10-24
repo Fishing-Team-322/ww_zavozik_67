@@ -10,7 +10,6 @@ import argparse
 import hashlib
 import json
 import platform
-import resource
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -20,6 +19,7 @@ import numpy as np
 import pandas as pd
 
 from zavozik_ml import calendar as cal
+from zavozik_ml.runtime_stats import peak_rss_mib
 
 DIRECTIONS = ("in", "out")
 HORIZON = 30
@@ -346,7 +346,7 @@ def run(args):
                 "train_ids": [c.id for c in train_cs], "calibration_ids": [c.id for c in cal_cs],
                 "test_ids": [c.id for c in test_cs], "industries": industries, "dispersion": alpha.tolist(),
                 "training_rows": nrows, "fit_seconds": fit_seconds, "total_seconds": time.monotonic() - started,
-                "peak_rss_mib": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024,
+                "peak_rss_mib": peak_rss_mib(),
                 "versions": {"python": platform.python_version(), "lightgbm": lgb.__version__, "numpy": np.__version__, "pandas": pd.__version__},
                 "sha256": {str(p): file_hash(p)
                            for p in (args.flows, args.transactions, args.split, Path(__file__), Path(cal.__file__),

@@ -42,7 +42,7 @@ from .core import (
 
 DIRECTIONS = 2
 _UNKNOWN_MARK = "unknown"
-_MAX_COUNT_BUCKET = 8
+_MAX_COUNT_BUCKET = 128
 _MAX_HIDDEN = 32
 _MAX_EPOCHS = 8
 _MAX_MARKS = 8
@@ -135,6 +135,12 @@ class Model:
 
     def __init__(self, options: FitOptions | None = None):
         self.options = options or FitOptions()
+        requested = getattr(self.options, "device", "cpu")
+        if requested == "auto":
+            requested = "cuda" if torch.cuda.is_available() else "cpu"
+        self.device = torch.device(requested)
+        if self.device.type == "cuda" and not torch.cuda.is_available():
+            raise ValueError("CUDA was requested but is unavailable")
         self.count_cap = int(max(1, min(_MAX_COUNT_BUCKET, self.options.max_events_per_day)))
         self.hidden_size = int(max(4, min(_MAX_HIDDEN, self.options.hidden_size)))
         self.epochs = int(max(1, min(_MAX_EPOCHS, self.options.epochs)))
@@ -172,6 +178,9 @@ class Model:
         usable = sorted((h for h in histories if len(h.dates) > 1), key=lambda h: h.company_id)
         if not usable:
             raise ValueError("event GRU needs a history with at least two days")
+        observed_counts = [h.daily_counts[h.known].sum(axis=1) for h in usable if h.known.any()]
+        maximum = max((int(values.max()) for values in observed_counts if len(values)), default=0)
+        self.count_cap = max(1, min(maximum, self.options.max_events_per_day, _MAX_COUNT_BUCKET))
         self.marks = [_UNKNOWN_MARK] + self._fit_marks(usable)
         self.mark_index = {mark: slot for slot, mark in enumerate(self.marks)}
         self.scale = self._fit_scale(usable)
@@ -204,6 +213,7 @@ class Model:
             "threads_requested": self.threads_requested,
             "threads_used": self.threads_used,
             "amount_fallback": "ConditionalAmounts pools when a positive bin has no donors",
+            "device": str(self.device),
         }
         return self
 
@@ -376,7 +386,7 @@ class Model:
         torch.manual_seed(int(self.options.seed))
         torch.set_num_threads(self.threads_used)
         self.net = _DayGRU(self.n_features, self.hidden_size, self.n_marks, self.n_buckets,
-                           self.n_amount_bins)
+                           self.n_amount_bins).to(self.device)
         self.final_loss = float("nan")
         if not windows:
             self.net.eval()
@@ -388,15 +398,15 @@ class Model:
             order = sampler.permutation(len(windows))
             for begin in range(0, len(order), _BATCH_WINDOWS):
                 batch = order[begin:begin + _BATCH_WINDOWS]
-                features = torch.from_numpy(np.stack([windows[i]["features"] for i in batch]))
+                features = torch.from_numpy(np.stack([windows[i]["features"] for i in batch])).to(self.device)
                 count_logits, direction_logits, mark_logits, amount_logits = self.net(features)
                 loss = _batch_loss(
                     count_logits, direction_logits, mark_logits, amount_logits,
-                    torch.from_numpy(np.stack([windows[i]["count"] for i in batch]))[:, 1:],
-                    torch.from_numpy(np.stack([windows[i]["direction"] for i in batch]))[:, 1:],
-                    torch.from_numpy(np.stack([windows[i]["mark"] for i in batch]))[:, 1:],
-                    torch.from_numpy(np.stack([windows[i]["amount"] for i in batch]))[:, 1:],
-                    torch.from_numpy(np.stack([windows[i]["valid"] for i in batch]))[:, 1:],
+                    torch.from_numpy(np.stack([windows[i]["count"] for i in batch])).to(self.device)[:, 1:],
+                    torch.from_numpy(np.stack([windows[i]["direction"] for i in batch])).to(self.device)[:, 1:],
+                    torch.from_numpy(np.stack([windows[i]["mark"] for i in batch])).to(self.device)[:, 1:],
+                    torch.from_numpy(np.stack([windows[i]["amount"] for i in batch])).to(self.device)[:, 1:],
+                    torch.from_numpy(np.stack([windows[i]["valid"] for i in batch])).to(self.device)[:, 1:],
                 )
                 optimizer.zero_grad()
                 loss.backward()
@@ -427,11 +437,11 @@ class Model:
         self.net.eval()
         torch.set_num_threads(self.threads_used)
         with torch.no_grad():
-            _, state = self.net.sequence(torch.from_numpy(context[None]))
+            _, state = self.net.sequence(torch.from_numpy(context[None]).to(self.device))
             state = state.repeat(1, n_paths, 1)
             for step in range(horizon):
                 count_logits, direction_logits, mark_logits, amount_logits = self.net.heads(state[-1])
-                counts = _categorical(_softmax(count_logits.numpy()), rng.random(n_paths))
+                counts = _categorical(_softmax(count_logits.detach().cpu().numpy()), rng.random(n_paths))
                 if not allowed[step]:
                     suppressed += int((counts > 0).sum())
                     counts = np.zeros_like(counts)
@@ -442,8 +452,8 @@ class Model:
                 total = int(counts.sum())
                 if total:
                     owner = np.repeat(np.arange(n_paths), counts)
-                    directions = _categorical(_softmax(direction_logits.numpy())[owner], rng.random(total))
-                    mark_prob = _softmax(mark_logits.numpy())
+                    directions = _categorical(_softmax(direction_logits.detach().cpu().numpy())[owner], rng.random(total))
+                    mark_prob = _softmax(mark_logits.detach().cpu().numpy())
                     slots = np.zeros(total, dtype=np.int64)
                     for direction in range(DIRECTIONS):
                         chosen = directions == direction
@@ -451,7 +461,7 @@ class Model:
                             slots[chosen] = _categorical(mark_prob[owner[chosen], direction],
                                                          rng.random(int(chosen.sum())))
                     # learned (direction, mark) amount-bin distribution, exact zero in bin 0
-                    bin_prob = _softmax(amount_logits.numpy())
+                    bin_prob = _softmax(amount_logits.detach().cpu().numpy())
                     values = np.zeros(total)
                     for direction in range(DIRECTIONS):
                         chosen = np.flatnonzero(directions == direction)
@@ -460,7 +470,7 @@ class Model:
                         bins = _categorical(bin_prob[owner[chosen], direction, slots[chosen]],
                                             rng.random(len(chosen)))
                         values[chosen], missing = self._bin_values(direction, bins,
-                                                                   history.amount_scale(direction), rng)
+                                                                   self.scale[direction], rng)
                         if not missing.any():
                             continue
                         fallback += int(missing.sum())
@@ -478,7 +488,7 @@ class Model:
                 known = np.ones(n_paths, dtype=bool)
                 calendar = np.broadcast_to(calendar_rows[step], (n_paths, calendar_rows.shape[1]))
                 raw = self._raw_features(known, day_counts, day_amounts, day_marks, calendar, self.scale)
-                _, state = self.net.sequence(torch.from_numpy(self._standardize(raw)[:, None, :]), state)
+                _, state = self.net.sequence(torch.from_numpy(self._standardize(raw)[:, None, :]).to(self.device), state)
         return EventPaths.from_records(history, horizon, n_paths, records, diagnostics={
             "model": "gru",
             "n_events": len(records),
@@ -489,6 +499,7 @@ class Model:
             "observed_context_days": int(seq["known"][-self.context_days:].sum()),
             "marks": list(self.marks),
             "amount_bins": self.n_amount_bins,
+            "device": str(self.device),
             "amount_fallback_events": fallback,
             "zero_amount_events": sum(1 for record in records if record["amount"] == 0.0),
             "threads_requested": self.threads_requested,
@@ -499,7 +510,7 @@ class Model:
         })
 
     def _bin_values(self, direction, bins, scale, rng):
-        """Within-bin fit-only donors in own-history units; bin 0 is exact zero mass."""
+        """Decode donors in their fitted units; bin 0 is exact zero mass."""
         values = np.zeros(len(bins))
         missing = np.zeros(len(bins), dtype=bool)
         for slot in range(1, self.n_amount_bins):

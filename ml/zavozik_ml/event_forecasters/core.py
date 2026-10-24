@@ -26,6 +26,7 @@ class FitOptions:
     max_training_rows: int = 100_000
     hidden_size: int = 32
     max_events_per_day: int = 128
+    device: str = "cpu"
 
 
 @dataclass(frozen=True)

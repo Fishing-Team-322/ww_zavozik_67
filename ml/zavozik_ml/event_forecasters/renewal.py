@@ -434,6 +434,8 @@ class Model:
             "model": "renewal",
             "hazard_kind": self.hazard_kind,
             "streams": [f"{d}:{c}" for d, c in streams],
+            "dropped_streams": self.diagnostics.get("dropped_streams", []),
+            "dropped_events": self.diagnostics.get("dropped_events", 0),
             "horizon": horizon,
             "paths": n_paths,
             "hazard_clipped": 0,
@@ -466,11 +468,9 @@ class Model:
                 frame = _design(np.tile(calendar_rows[t - 1], (n_streams * n_paths, 1)),
                                 stream_codes, age.ravel(), age_known.ravel(),
                                 active_30.ravel(), np.full(n_streams * n_paths, known_30),
-                                rate_30.ravel(), np.repeat(rate_90, n_streams), n_streams)
+                                rate_30.ravel(), np.tile(rate_90, n_streams), n_streams)
                 probability = self._predict(frame, stream_codes, age.ravel(), age_known.ravel())
-                odds = probability
-                if len(theta) > 1:
-                    odds = _sigmoid(_logit(probability) + np.tile(theta, n_streams))
+                odds = _sigmoid(_logit(probability) + np.tile(theta, n_streams))
                 clipped = int(np.count_nonzero(odds > HAZARD_CEILING))
                 diagnostics["hazard_clipped"] += clipped
                 probability = np.clip(odds, 0.0, HAZARD_CEILING)

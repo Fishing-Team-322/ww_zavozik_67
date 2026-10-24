@@ -9,7 +9,6 @@ from __future__ import annotations
 import argparse
 import json
 import platform
-import resource
 import time
 from pathlib import Path
 
@@ -19,6 +18,7 @@ import pandas as pd
 import case_counts as reference
 from zavozik_ml import calendar as cal
 from zavozik_ml import data
+from zavozik_ml.runtime_stats import peak_rss_mib
 from zavozik_ml.forecasters import base, ensemble, gbm  # noqa: F401: register compared models
 
 NAMES = ("count_bootstrap", "seasonal_naive", "gbm_global", "ensemble")
@@ -205,7 +205,7 @@ def run(args):
                                      "Paired scores are descriptive: only 9 unseen companies with 18 eligible origins.",
                                      "All companies were explored previously; this is not a fresh audit."],
                         total_seconds=time.monotonic() - started,
-                        peak_rss_mib=resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024,
+                        peak_rss_mib=peak_rss_mib(),
                         versions=dict(python=platform.python_version(), lightgbm=reference.lgb.__version__,
                                       numpy=np.__version__, pandas=pd.__version__),
                         sha256={str(p): reference.file_hash(p) for p in [args.flows, args.transactions, args.split, *source_files]})
