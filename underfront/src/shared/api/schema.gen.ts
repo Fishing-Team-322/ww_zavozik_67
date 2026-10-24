@@ -1591,7 +1591,7 @@ export interface components {
         SourceCreate: {
             kind: components["schemas"]["SourceKind"];
             title?: string;
-            /** @description Например, spreadsheet_id для gsheets. Секреты здесь не возвращаются. */
+            /** @description Например, spreadsheet_id для gsheets; для 1С:Бухгалтерии 3.0 — template=accounting3, base_url, company_account, username, password. Backend найдёт маппинг по ИНН компании и номеру счёта. Секреты не возвращаются. */
             config?: {
                 [key: string]: unknown;
             };
@@ -1851,6 +1851,23 @@ export interface components {
             source: string;
             status: string;
             editable: boolean;
+            /** Format: uuid */
+            source_id?: string;
+            external_id?: string;
+            /** Format: date */
+            due_date?: string | null;
+            /** Format: int64 */
+            total_kopecks?: number;
+            /** Format: int64 */
+            paid_kopecks?: number;
+            /** Format: int64 */
+            remaining_kopecks?: number;
+            forecast_eligible?: boolean;
+            link_status?: string;
+            data_mode?: string;
+            payment_status?: string;
+            /** Format: int64 */
+            version?: number;
         };
         PlannedEventCreate: {
             /** Format: date */
@@ -2145,6 +2162,7 @@ export interface components {
             /** @enum {string} */
             kind: "upload" | "onec_bank_file" | "excel" | "gsheets" | "onec_odata" | "fns" | "manual";
             title: string;
+            /** @description Для onec_odata шаблон accounting3 принимает base_url, company_account, username и password; сервер подбирает OData маппинг по ИНН компании и номеру счёта. Данные подключения не возвращаются в Source. */
             config?: {
                 [key: string]: unknown;
             };

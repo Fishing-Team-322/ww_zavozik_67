@@ -31,6 +31,9 @@ func FetchOData(ctx context.Context, cfg ODataConfig, username, password string)
 func FetchODataPlans(ctx context.Context, cfg ODataPlanConfig, username, password string) (Batch, error) {
 	return (onecodata.Client{Username: username, Password: password}).FetchPlans(ctx, cfg)
 }
+func SuggestODataAccounting(ctx context.Context, baseURL, companyID, companyINN, account, username, password string) (ODataConfig, *ODataPlanConfig, error) {
+	return (onecodata.Client{Username: username, Password: password}).SuggestAccounting(ctx, baseURL, companyID, companyINN, account)
+}
 func InspectOData(ctx context.Context, baseURL, username, password string) (ODataDiscovery, error) {
 	return (onecodata.Client{Username: username, Password: password}).Inspect(ctx, baseURL)
 }

@@ -6,6 +6,13 @@ export type Forecast = Schemas["Forecast"];
 export type PlannedEvent = Schemas["PlannedEvent"];
 export type Gap = Schemas["Gap"];
 export type Job = Schemas["Job"];
+export type Source = Schemas["Source"];
+export type SourceTest = {
+  ok: boolean;
+  ready_to_sync: boolean;
+  message: string;
+  missing?: string[];
+};
 
 export class ApiError extends Error {
   constructor(
@@ -189,6 +196,29 @@ export class ApiClient {
     return this.request<Company>("/v1/companies", {
       method: "POST",
       json: input,
+    });
+  }
+  updateCompany(id: string, input: Schemas["CompanyPatch"], signal?: AbortSignal) {
+    return this.request<Company>(`/v1/companies/${encodeURIComponent(id)}`, {
+      method: "PATCH", json: input, signal,
+    });
+  }
+  createSource(company: string, input: Schemas["CreateSourceInput"], signal?: AbortSignal) {
+    return this.request<Source>(
+      `/v1/companies/${encodeURIComponent(company)}/sources`,
+      { method: "POST", json: input, signal },
+    );
+  }
+  testSource(id: string, signal?: AbortSignal) {
+    return this.request<SourceTest>(`/v1/sources/${encodeURIComponent(id)}/test`, {
+      method: "POST",
+      signal,
+    });
+  }
+  syncSource(id: string, signal?: AbortSignal) {
+    return this.request<Job>(`/v1/sources/${encodeURIComponent(id)}/sync`, {
+      method: "POST",
+      signal,
     });
   }
   dashboard(company: string, signal?: AbortSignal) {

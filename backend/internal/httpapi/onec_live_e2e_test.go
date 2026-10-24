@@ -34,6 +34,7 @@ func TestLiveOneCBackendFacts(t *testing.T) {
 		t.Fatal(err)
 	}
 	hasPlans := cfg["plan_config"] != nil
+	companyINN := cfg["company_inn"]
 	address, err := url.Parse(cfg["base_url"].(string))
 	if err != nil {
 		t.Fatal(err)
@@ -41,6 +42,12 @@ func TestLiveOneCBackendFacts(t *testing.T) {
 	if username := os.Getenv("LIVE_ONEC_USERNAME"); username != "" {
 		cfg["username"] = username
 		cfg["password"] = os.Getenv("LIVE_ONEC_PASSWORD")
+	}
+	if os.Getenv("LIVE_ONEC_AUTOCONFIG") == "1" {
+		cfg = product.Doc{
+			"base_url": cfg["base_url"], "company_account": cfg["company_account"],
+			"username": cfg["username"], "password": cfg["password"], "template": "accounting3",
+		}
 	}
 	h := integration(t)
 	owner, _ := h.register("live-onec-owner@example.test")
@@ -61,7 +68,7 @@ func TestLiveOneCBackendFacts(t *testing.T) {
 		status(t, response, want)
 		return decode[product.Doc](t, response)
 	}
-	company := call(http.MethodPost, "/v1/companies", product.Doc{"name": "Live 1C QA", "legal_form": "ООО", "industry": "services", "inn": cfg["company_inn"]}, owner, 201)
+	company := call(http.MethodPost, "/v1/companies", product.Doc{"name": "Live 1C QA", "legal_form": "ООО", "industry": "services", "inn": companyINN}, owner, 201)
 	cid := company["id"].(string)
 	source := call(http.MethodPost, "/v1/companies/"+cid+"/sources", product.Doc{"title": "Local educational 1C", "kind": "onec_odata", "config": cfg}, owner, 201)
 	sid := source["id"].(string)

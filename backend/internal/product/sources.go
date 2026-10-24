@@ -118,6 +118,22 @@ func (s *Service) validateSourceConfig(ctx context.Context, uid, cid, kind strin
 		if !allowed {
 			return platform.Fail(403, "source_host_not_allowed", "Адрес 1С должен быть разрешён администратором в SOURCE_ALLOWED_HOSTS")
 		}
+		if template, exists := cfg["template"]; exists {
+			if template != "accounting3" {
+				return bad("Неизвестный шаблон настройки 1С")
+			}
+			suggested, plans, err := bridge.SuggestODataAccounting(ctx, c.BaseURL, cid, *company.INN, c.CompanyAccount, text(cfg, "username"), text(cfg, "password"))
+			if err != nil {
+				return platform.Fail(422, "onec_mapping_unavailable", "Не удалось подобрать настройки Бухгалтерии 3.0 по ИНН и счёту. Проверьте публикацию OData, номер счёта и доступ 1С")
+			}
+			for key, value := range store.Decode(store.JSON(suggested)) {
+				cfg[key] = value
+			}
+			if plans != nil {
+				cfg["plan_config"] = store.Decode(store.JSON(plans))
+			}
+			delete(cfg, "template")
+		}
 	case "gsheets":
 		id := text(cfg, "spreadsheet_id")
 		if id == "" || len(id) > 150 || strings.ContainsAny(id, "/\\?.#&") {
