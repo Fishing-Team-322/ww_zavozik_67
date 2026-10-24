@@ -31,7 +31,7 @@ Coarse same + fine different допустимо; fine same + coarse different з
 
 
 def endpoint(r):
-    return {k: r[k] for k in ("content_key", "id", "direction", "purpose")}
+    return {k: r[k] for k in ("content_key", "id", "direction", "purpose", "semantic_text")}
 
 
 def sample(corpus: Path, out: Path, per_partition=1000, seed=42):

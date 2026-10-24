@@ -49,3 +49,15 @@ def test_unknown_without_evidence_is_valid_but_economic_same_is_not():
     value.update(coarse="same", fine="same")
     with pytest.raises(ValueError, match="without evidence"):
         parse_response(json.dumps(value), pair())
+
+
+def test_teacher_cannot_use_budget_code_hidden_from_encoder_view():
+    row = pair()
+    row["left"].update(purpose="КЕКВ 2111; Зарплата", semantic_text="зарплата")
+    row["right"].update(purpose="КЕКВ 2111; Оклад", semantic_text="оклад")
+    value = json.loads(response())
+    value.update(left_evidence="КЕКВ 2111", right_evidence="КЕКВ 2111")
+    with pytest.raises(ValueError, match="exact source substring"):
+        parse_response(json.dumps(value), row)
+    value.update(left_evidence="зарплата", right_evidence="оклад")
+    assert parse_response(json.dumps(value), row)["evidence_scope"] == "encoder_semantic_text"

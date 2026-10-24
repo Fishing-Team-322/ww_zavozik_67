@@ -9,6 +9,7 @@ from zavozik_ml.classify_v2.model import sha256_file
 from .corpus import read_rows, write_rows
 from .economic_regressions import CASES
 from .local_teacher import annotate
+from .normalization import semantic_text
 from .preparation import digest
 from .semantic_pairs import SCHEMA
 
@@ -22,7 +23,8 @@ def create(out: Path):
         for expected, text in (("same", positive), ("different", negative)):
             pid = digest(name + ":" + expected)[:24]
             def side(text):
-                return dict(id="authored-"+digest(text)[:16], content_key="authored-"+digest(text)[:24], direction="out", purpose=text)
+                return dict(id="authored-"+digest(text)[:16], content_key="authored-"+digest(text)[:24],
+                            direction="out", purpose=text, semantic_text=semantic_text(text))
             rows.append(dict(schema=SCHEMA, pair_id=pid, partition="train", left=side(anchor), right=side(text),
                 coarse=None, fine=None, rationale="", reviewer="", reviewer_kind=""))
             key.append(dict(pair_id=pid, id=name, level=level, expected=expected))
