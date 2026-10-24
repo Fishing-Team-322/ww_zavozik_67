@@ -1,0 +1,40 @@
+{
+  "dataset": "heldout_v1.tsv",
+  "sha256": "b457c8d7453bee48a3683853f6aeb37b72da3ce6f478e487e18c1f1dc5c73d23",
+  "frozen_at_utc": "2026-10-24T08:39:47.517341+00:00",
+  "rows": 182,
+  "author": "Synthetic examples authored before v2 training; not independent human gold",
+  "usage": "Final evaluation only. No fitting, selection, threshold tuning or edits after freezing.",
+  "categories": {
+    "revenue_acquiring": 8,
+    "revenue_sbp": 8,
+    "revenue_cash": 9,
+    "revenue_b2b": 9,
+    "revenue_marketplace": 9,
+    "supplier": 10,
+    "salary": 9,
+    "tax": 9,
+    "rent": 9,
+    "utilities": 9,
+    "loan_payment": 9,
+    "leasing": 9,
+    "bank_fee": 9,
+    "marketing": 9,
+    "services": 9,
+    "own_transfer": 9,
+    "owner_loan": 9,
+    "refund": 9,
+    "enforcement": 9,
+    "other": 12
+  },
+  "channels": {
+    "card_acquiring": 7,
+    "digital_ruble": 38,
+    "sbp": 21,
+    "cash": 16,
+    "bank_transfer": 35,
+    "unknown": 46,
+    "marketplace_payout": 8,
+    "internal_bank": 11
+  }
+}
