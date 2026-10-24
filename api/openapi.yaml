@@ -3721,6 +3721,35 @@ components:
           type: string
         editable:
           type: boolean
+        source_id:
+          type: string
+          format: uuid
+        external_id:
+          type: string
+        due_date:
+          type: string
+          format: date
+          nullable: true
+        total_kopecks:
+          type: integer
+          format: int64
+        paid_kopecks:
+          type: integer
+          format: int64
+        remaining_kopecks:
+          type: integer
+          format: int64
+        forecast_eligible:
+          type: boolean
+        link_status:
+          type: string
+        data_mode:
+          type: string
+        payment_status:
+          type: string
+        version:
+          type: integer
+          format: int64
     PlannedEventCreate:
       type: object
       required:
