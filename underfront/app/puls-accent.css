@@ -1,0 +1,108 @@
+/* Green accent for the PULS theme. Loaded after globals.css. */
+:root, html[data-theme="light"] {
+  --accent: #087f5b;
+  --accent-hover: #066c4c;
+  --accent-soft: rgba(8,127,91,.1);
+  --accent-border: rgba(8,127,91,.25);
+  --brand: #087f5b;
+  --brand-hover: #066c4c;
+  --brand-active: #05573d;
+  --brand-gradient: linear-gradient(135deg, #087f5b, #16a77a);
+  --focus-ring: rgba(8,127,91,.2);
+  --focus-ring-strong: #087f5b;
+  --ring: #087f5b;
+  --input-border-focus: #087f5b;
+  --auth-glow: rgba(8, 127, 91, 0.065);
+  --auth-card-bg: #fbfaf8;
+}
+html[data-theme="dark"] {
+  --accent: #48d6a3;
+  --accent-hover: #62edb9;
+  --accent-soft: rgba(72,214,163,.14);
+  --accent-border: rgba(72,214,163,.27);
+  --brand: #10996e;
+  --brand-hover: #17ad7d;
+  --brand-active: #087f5b;
+  --brand-gradient: linear-gradient(135deg, #087f5b, #1bbf8d);
+  --focus-ring: rgba(72,214,163,.22);
+  --focus-ring-strong: #48d6a3;
+  --ring: #48d6a3;
+  --input-border-focus: #48d6a3;
+  --auth-glow: rgba(72, 214, 163, 0.055);
+  --auth-card-bg: #1b1b1a;
+}
+
+/* The overview keeps its warm Runway palette while following the app theme. */
+.puls-overview {
+  --puls-bg: #ffffff;
+  --puls-surface-soft: #fbfaf8;
+  --puls-surface-muted: #f8f7f5;
+  --puls-surface-active: #eeeee8;
+  --puls-text: #29271f;
+  --puls-text-strong: #28261f;
+  --puls-text-secondary: #69655c;
+  --puls-text-muted: #96938b;
+  --puls-text-faint: #aaa69d;
+  --puls-border: #e5e4df;
+  --puls-border-strong: #cac9c4;
+  --puls-grid: #eae8e3;
+  --puls-chart-primary: #16a984;
+  --puls-chart-secondary: #7060d6;
+  --puls-chart-zero: #ce655f;
+  --puls-good-bg: #f1faf7;
+  --puls-good-border: #d8eae3;
+  --puls-good-text: #235f4c;
+  --puls-good-muted: #668374;
+  --puls-risk-bg: #fdf4f1;
+  --puls-risk-border: #f2e2dc;
+  --puls-risk-text: #47352c;
+  --puls-risk-muted: #867a70;
+  --puls-demo-bg: #fff7df;
+  --puls-demo-border: #eeddb5;
+  --puls-demo-text: #927021;
+  --puls-purple-bg: #e8d5fb;
+  --puls-purple-text: #3b234d;
+  --puls-purple-border: #d8b4ee;
+  --puls-purple-hover: #e1c5f5;
+  --puls-positive-bg: #dff4ed;
+  --puls-positive-text: #0f9070;
+  --puls-negative-bg: #f5eae4;
+  --puls-negative-text: #a6765e;
+}
+
+html[data-theme="dark"] .puls-overview {
+  --puls-bg: #141414;
+  --puls-surface-soft: #1a1a1a;
+  --puls-surface-muted: #202020;
+  --puls-surface-active: #2c2c2c;
+  --puls-text: #f4f4f5;
+  --puls-text-strong: #ffffff;
+  --puls-text-secondary: #c6c6c9;
+  --puls-text-muted: #a1a1a6;
+  --puls-text-faint: #85858b;
+  --puls-border: #343434;
+  --puls-border-strong: #505050;
+  --puls-grid: #303030;
+  --puls-chart-primary: #48d6a3;
+  --puls-chart-secondary: #a58bff;
+  --puls-chart-zero: #ff8c84;
+  --puls-good-bg: #17352b;
+  --puls-good-border: #2f6650;
+  --puls-good-text: #a9f7ce;
+  --puls-good-muted: #91c9ac;
+  --puls-risk-bg: #3a2523;
+  --puls-risk-border: #7a443d;
+  --puls-risk-text: #ffd7cd;
+  --puls-risk-muted: #d6a69f;
+  --puls-demo-bg: #3b321b;
+  --puls-demo-border: #806b33;
+  --puls-demo-text: #f6d583;
+  --puls-purple-bg: #39294a;
+  --puls-purple-text: #ead5ff;
+  --puls-purple-border: #8e65aa;
+  --puls-purple-hover: #49345c;
+  --puls-positive-bg: #164331;
+  --puls-positive-text: #7ce4b7;
+  --puls-negative-bg: #402b25;
+  --puls-negative-text: #efb89b;
+}
