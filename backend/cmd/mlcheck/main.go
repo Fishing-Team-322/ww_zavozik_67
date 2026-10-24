@@ -1,0 +1,167 @@
+// mlcheck verifies real Go clients against a running Python gRPC server.
+// No database, HTTP handlers, or external financial data are involved.
+package main
+
+import (
+	"context"
+	"flag"
+	"fmt"
+	"os"
+	"reflect"
+	"time"
+
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+
+	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/categorize"
+	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/domain"
+	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/forecast"
+	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/risk"
+)
+
+func main() {
+	addr := flag.String("ml", "127.0.0.1:50051", "gRPC address")
+	flag.Parse()
+	if err := check(*addr); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+}
+func check(addr string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	ml, err := forecast.DialML(addr)
+	if err != nil {
+		return err
+	}
+	defer ml.Close()
+	cats, err := categorize.DialMLCategorizer(addr)
+	if err != nil {
+		return err
+	}
+	defer cats.Close()
+	cats.FailOpen = false
+	labels, err := (categorize.Hybrid{ML: cats}).Categorize(ctx, []domain.Operation{
+		{ID: "a", Direction: domain.Out, Amount: 1000, Purpose: "Зарплата на кошелек цифрового рубля", CounterpartyName: "ПАО Банк"},
+		{ID: "b", Direction: domain.Out, Amount: 1000, Purpose: "Перечисление остатка в связи с закрытием счета", CounterpartyName: "ПАО Банк"},
+	})
+	if err != nil {
+		return err
+	}
+	if labels[0].Category != domain.CatSalary || labels[1].Category != domain.CatOwnTransfer {
+		return fmt.Errorf("unexpected classification: %s %s", labels[0].Category, labels[1].Category)
+	}
+	history := make([]domain.DailyFlow, 120)
+	start := time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC)
+	for i := range history {
+		d := start.AddDate(0, 0, i)
+		history[i].Date = d
+		if d.Weekday() != time.Saturday && d.Weekday() != time.Sunday {
+			history[i].Inflow = 10000
+			history[i].Outflow = 7000
+		}
+	}
+	req := forecast.StochasticRequest{CompanyID: "integration-fixture", Model: "ensemble", History: history, Horizon: 30, NPaths: 64, Seed: 42, FlowScope: "business_without_internal_transfers"}
+	a, err := ml.Forecast(ctx, req)
+	if err != nil {
+		return err
+	}
+	b, err := ml.Forecast(ctx, req)
+	if err != nil {
+		return err
+	}
+	if !reflect.DeepEqual(a.Inflow, b.Inflow) || !reflect.DeepEqual(a.Outflow, b.Outflow) {
+		return fmt.Errorf("non-reproducible seeded forecast")
+	}
+	if a.ModelVersion == "" || a.FlowScope != req.FlowScope {
+		return fmt.Errorf("missing model metadata")
+	}
+	if a.ModelUsed != "ensemble" {
+		return fmt.Errorf("trained ensemble was not used")
+	}
+	req.Model = "auto"
+	for i := range req.History {
+		req.History[i].Inflow = 0
+		req.History[i].Outflow = 100
+	}
+	fallback, err := ml.Forecast(ctx, req)
+	if err != nil {
+		return err
+	}
+	if fallback.ModelUsed != "seasonal_naive" || !fallback.FallbackUsed || !fallback.LowConfidence {
+		return fmt.Errorf("out-of-domain fallback not exposed")
+	}
+	// Verify the complete ML -> Go balance -> risk path, with an exactly known
+	// constant cash burn. There must be no off-by-one date or double counting.
+	asOf := req.History[len(req.History)-1].Date
+	input := forecast.Input{AsOf: asOf, OpeningBalance: 250, Stochastic: req}
+	assembler := forecast.Assembler{Primary: ml, Fallback: forecast.SeasonalNaive{}}
+	result, err := assembler.Build(ctx, input)
+	if err != nil {
+		return err
+	}
+	if err := checkRisk(result, asOf); err != nil {
+		return err
+	}
+	// A closed client is a deterministic service outage, without depending on
+	// an unused port or interrupting the shared Python service.
+	closed, err := forecast.DialML(addr)
+	if err != nil {
+		return err
+	}
+	closed.Close()
+	assembler.Primary = closed
+	degraded, err := assembler.Build(ctx, input)
+	if err != nil {
+		return err
+	}
+	if !degraded.Stochastic.FallbackUsed || !degraded.Stochastic.LowConfidence || degraded.Stochastic.ModelUsed != forecast.NaiveName {
+		return fmt.Errorf("service outage metadata not propagated")
+	}
+	if err := checkRisk(degraded, asOf); err != nil {
+		return err
+	}
+	// Historical observations outside the sampling window must not turn into
+	// a plausible flat balance, whether the Python service is up or down.
+	stale := req
+	stale.History = append([]domain.DailyFlow(nil), req.History...)
+	for i := len(stale.History) - 56; i < len(stale.History); i++ {
+		stale.History[i].Missing = true
+	}
+	if _, err := ml.Forecast(ctx, stale); status.Code(err) != codes.FailedPrecondition {
+		return fmt.Errorf("stale history must fail precondition, got %v", err)
+	}
+	for _, primary := range []forecast.StochasticForecaster{ml, closed} {
+		guarded := forecast.Assembler{Primary: primary, Fallback: forecast.SeasonalNaive{}}
+		if _, err := guarded.Build(ctx, forecast.Input{AsOf: asOf, OpeningBalance: 250, Stochastic: stale}); err == nil {
+			return fmt.Errorf("stale history invented a forecast through fallback")
+		}
+	}
+	quietSunday := req
+	quietSunday.Model = "seasonal_naive"
+	quietSunday.History = []domain.DailyFlow{{Date: time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC)}}
+	guarded := forecast.Assembler{Primary: ml, Fallback: forecast.SeasonalNaive{}}
+	if _, err := guarded.Build(ctx, forecast.Input{AsOf: quietSunday.History[0].Date, Stochastic: quietSunday}); status.Code(err) != codes.FailedPrecondition {
+		return fmt.Errorf("calendar sampling precondition hidden by fallback: %v", err)
+	}
+	req.FlowScope = "residual_only"
+	if _, err = ml.Forecast(ctx, req); err == nil {
+		return fmt.Errorf("unsupported scope accepted")
+	}
+	fmt.Printf("PASS: classifier + hybrid, forecast %s, 64x30 paths, reproducibility, scope validation, auto fallback, balance/risk end-to-end, service outage, stale-history rejection; version %s\n", a.ModelUsed, a.ModelVersion)
+	return nil
+}
+
+func checkRisk(result forecast.Result, asOf time.Time) error {
+	median := result.Quantile(0.5)
+	for i, v := range median {
+		if v != 250-100*float64(i+1) {
+			return fmt.Errorf("wrong accumulated balance at day %d: %g", i+1, v)
+		}
+	}
+	gaps := risk.FindGaps(result, 0)
+	if len(gaps) != 1 || !gaps[0].Date.Equal(asOf.AddDate(0, 0, 3)) || gaps[0].Probability != 1 || gaps[0].Shortfall.Float() != 2750 {
+		return fmt.Errorf("incorrect ML -> Go gap result: %+v", gaps)
+	}
+	return nil
+}
