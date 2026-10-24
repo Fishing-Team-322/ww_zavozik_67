@@ -13,6 +13,7 @@ import (
 	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/categorize"
 	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/domain"
 	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/forecast"
+	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/risk"
 )
 
 func main() {
@@ -87,10 +88,54 @@ func check(addr string) error {
 	if fallback.ModelUsed != "seasonal_naive" || !fallback.FallbackUsed || !fallback.LowConfidence {
 		return fmt.Errorf("out-of-domain fallback not exposed")
 	}
+	// Verify the complete ML -> Go balance -> risk path, with an exactly known
+	// constant cash burn. There must be no off-by-one date or double counting.
+	asOf := req.History[len(req.History)-1].Date
+	input := forecast.Input{AsOf: asOf, OpeningBalance: 250, Stochastic: req}
+	assembler := forecast.Assembler{Primary: ml, Fallback: forecast.SeasonalNaive{}}
+	result, err := assembler.Build(ctx, input)
+	if err != nil {
+		return err
+	}
+	if err := checkRisk(result, asOf); err != nil {
+		return err
+	}
+	// A closed client is a deterministic service outage, without depending on
+	// an unused port or interrupting the shared Python service.
+	closed, err := forecast.DialML(addr)
+	if err != nil {
+		return err
+	}
+	closed.Close()
+	assembler.Primary = closed
+	degraded, err := assembler.Build(ctx, input)
+	if err != nil {
+		return err
+	}
+	if !degraded.Stochastic.FallbackUsed || !degraded.Stochastic.LowConfidence || degraded.Stochastic.ModelUsed != forecast.NaiveName {
+		return fmt.Errorf("service outage metadata not propagated")
+	}
+	if err := checkRisk(degraded, asOf); err != nil {
+		return err
+	}
 	req.FlowScope = "residual_only"
 	if _, err = ml.Forecast(ctx, req); err == nil {
 		return fmt.Errorf("unsupported scope accepted")
 	}
-	fmt.Printf("PASS: classifier + hybrid, forecast %s, 64x30 paths, reproducibility, scope validation, auto fallback; version %s\n", a.ModelUsed, a.ModelVersion)
+	fmt.Printf("PASS: classifier + hybrid, forecast %s, 64x30 paths, reproducibility, scope validation, auto fallback, balance/risk end-to-end, service outage; version %s\n", a.ModelUsed, a.ModelVersion)
+	return nil
+}
+
+func checkRisk(result forecast.Result, asOf time.Time) error {
+	median := result.Quantile(0.5)
+	for i, v := range median {
+		if v != 250-100*float64(i+1) {
+			return fmt.Errorf("wrong accumulated balance at day %d: %g", i+1, v)
+		}
+	}
+	gaps := risk.FindGaps(result, 0)
+	if len(gaps) != 1 || !gaps[0].Date.Equal(asOf.AddDate(0, 0, 3)) || gaps[0].Probability != 1 || gaps[0].Shortfall.Float() != 2750 {
+		return fmt.Errorf("incorrect ML -> Go gap result: %+v", gaps)
+	}
 	return nil
 }

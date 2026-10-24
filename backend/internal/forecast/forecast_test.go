@@ -75,14 +75,14 @@ func (invalidInput) Forecast(context.Context, StochasticRequest) (StochasticFore
 }
 func TestAssemblerDoesNotHideInputErrors(t *testing.T) {
 	a := Assembler{Primary: invalidInput{}, Fallback: SeasonalNaive{}}
-	_, err := a.Build(context.Background(), Input{Stochastic: StochasticRequest{History: history(10), Horizon: 7, NPaths: 3}})
+	_, err := a.Build(context.Background(), Input{AsOf: history(10)[9].Date, Stochastic: StochasticRequest{History: history(10), Horizon: 7, NPaths: 3}})
 	if status.Code(err) != codes.InvalidArgument {
 		t.Fatalf("got %v", err)
 	}
 }
 func TestFallbackMetadataAndCloneAreIndependent(t *testing.T) {
 	a := Assembler{Primary: failing{}, Fallback: SeasonalNaive{}}
-	r, err := a.Build(context.Background(), Input{Stochastic: StochasticRequest{History: history(10), Horizon: 7, NPaths: 3}})
+	r, err := a.Build(context.Background(), Input{AsOf: history(10)[9].Date, Stochastic: StochasticRequest{History: history(10), Horizon: 7, NPaths: 3}})
 	if err != nil || !r.Stochastic.FallbackUsed || !r.Stochastic.LowConfidence || len(r.Stochastic.Warnings) == 0 {
 		t.Fatalf("%+v %v", r.Stochastic, err)
 	}
