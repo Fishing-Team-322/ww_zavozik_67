@@ -32,6 +32,11 @@ make test              # go test + pytest
 make backtest          # бэктест на датасете → ml/data/backtest.csv
 ```
 
+Перед первым `make up` скопировать `.env.example` в `.env`, задать случайный
+`JWT_SECRET` (минимум 32 байта) и пароль Postgres. Compose применяет миграции
+отдельным сервисом `migrate` до старта API. Аккаунты, компании, сессии и облачное
+состояние описаны в [ACCOUNTS_API.md](docs/ACCOUNTS_API.md).
+
 Без Docker:
 
 ```bash
