@@ -1,0 +1,53 @@
+{
+  "models": [
+    {
+      "protocol": "development_only_shadow",
+      "model": "amazon/chronos-t5-tiny",
+      "revision": "29d808298f1a62493e7b9a5e08529d0d930fa189",
+      "license": "apache-2.0",
+      "weights_sha256": "eed458758bd8165d80f496a90bcd2cfed9f1bf7d7b08677acd64e0f7d72bdcf2",
+      "script_sha256": "657263af0f3ecfbc9498a063fe68f9c074851775183bd3a882ade4e125511f1c",
+      "source_sha256": "a5dbf6234dee681f4dc1a1c138636237426cadd1507afe906df9f713d683b340",
+      "flows_sha256": "21d1e925e6d9ca1450e9d5254dd3e57ea6a6c6ad72096eb6bd0a2da307c668c5",
+      "paths": 600,
+      "scenarios": [
+        "standard",
+        "short_14",
+        "short_28"
+      ],
+      "origins": 320,
+      "fitted_on_case": false,
+      "target": "signed net business flow; not gross inflow/outflow",
+      "calendar_mask": "history-based existing policy",
+      "seconds": 2198.2083002500003,
+      "p50_request_seconds": 1.7071900414302945,
+      "p95_request_seconds": 4.300962452142265,
+      "source_sha256_at_start": "ecf8c0e8bab309a0849b476bd9f10b887a29dda9ea09eaaa475dd269baa5863f",
+      "source_changed_during_run": true,
+      "forecast_code_unchanged": true,
+      "source_change_note": "Classifier training and report formatting changed while the process ran; captured forecast, calendar, data and evaluation files were unchanged.",
+      "forecast_file_hashes": {
+        "calendar.py": "2c1f1bb1dcf817ddf572a9b14d0a69a2e8cca96215480fb35bd4694ea04b7051",
+        "calendar_data/ru_2024.json": "e7dfc9c1bec9c8493653cbf21d6207393990d2ebb9797e491370fe6e55d2f070",
+        "calendar_data/ru_2025.json": "c1ef56ec60453728d4f4cd51a9206d34ce10d9c0cb68d7a765c32562c5413f77",
+        "calendar_data/ru_2026.json": "84bee6de7a19f5cd599488671d377936f749afe87621c7a84f3951e511531d01",
+        "calendar_data/ru_2027.json": "bd906c5a9b5f0397855b3462dd26d8a5a4c2ffdbf15c415bd3b08e0c70ed3dbc",
+        "data.py": "a44a044d74a64e9fd0363cbe0d8487195f1e1d5c4c4e70029409da2786fd307d",
+        "eval/backtest.py": "466135cca62baf8b827891ea70c7b202ed34c85ea6b6372a6b373778febd7783",
+        "forecasters/__init__.py": "8a555166306ad4de40172f371844639c0fdafa50bc2d10766a0a6e9dd14aa830",
+        "forecasters/base.py": "429e782019439626e6848593ed31ad8d61be7cccc6e27c49b138771171b3f8f3",
+        "forecasters/ensemble.py": "d9fbc1bd1474a6f8fd63a6733390bcd9c6938b0693a272f32d9e82cdd197ac55",
+        "forecasters/ets.py": "322c5a12a577719795f7f1c3995cc84edafcd640ffe14076a8b5671ed2d67429",
+        "forecasters/gbm.py": "0c65a41e32fc754212121116da84211b76bc8295c2e7f5189cdf89b54aa5a9de",
+        "forecasters/models.py": "076e952da9478b58bb1d2ec3c4cc424bd2d02832163815b16c96e6cb2c36869f",
+        "forecasters/naive.py": "5974238faa15e5306c7baa158631a46a095623558f28f9e6db758b40be8c3104"
+      }
+    }
+  ],
+  "pending": [
+    "chronos_small"
+  ],
+  "serving_model_changed": false,
+  "protocol": "development_v1_origins_only",
+  "limitation": "No new independent audit. Foundation-model pretraining may include public datasets; this experiment is not an external NN5 test."
+}
