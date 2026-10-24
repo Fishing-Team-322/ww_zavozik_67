@@ -1,10 +1,30 @@
 name: zavozik-integrations
 services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: integrations
+      POSTGRES_USER: integrations
+      POSTGRES_PASSWORD: ${INTEGRATIONS_DB_PASSWORD:?set INTEGRATIONS_DB_PASSWORD before starting}
+    volumes:
+      - integrations_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U integrations -d integrations"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    ports:
+      - "127.0.0.1:5543:5432"
   hub:
     build: .
+    depends_on:
+      postgres:
+        condition: service_healthy
     environment:
       INTEGRATIONS_ADDR: 0.0.0.0:8091
+      INTEGRATIONS_COMPANY_ID: demo-company
       INTEGRATIONS_SYNC_TOKEN: ${INTEGRATIONS_SYNC_TOKEN:?set INTEGRATIONS_SYNC_TOKEN before starting}
+      DATABASE_URL: postgres://integrations:${INTEGRATIONS_DB_PASSWORD}@postgres:5432/integrations?sslmode=disable
     ports:
       - "127.0.0.1:8091:8091"
     read_only: true
@@ -12,3 +32,5 @@ services:
       - /tmp
     security_opt:
       - no-new-privileges:true
+volumes:
+  integrations_pgdata:

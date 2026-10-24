@@ -41,6 +41,7 @@ func digits(s string) bool {
 }
 
 type Operation struct {
+	Version           int64  `json:"version,omitempty"`
 	ExternalID        string `json:"external_id,omitempty"`
 	DedupKey          string `json:"dedup_key"`
 	Date              string `json:"date"`

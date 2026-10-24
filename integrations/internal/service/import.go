@@ -13,7 +13,7 @@ import (
 	"github.com/Fishing-Team-322/ww_zavozik_67/integrations/internal/store"
 )
 
-type Importer struct{ Store *store.Memory }
+type Importer struct{ Store store.Repository }
 
 func (i Importer) OneCBank(ctx context.Context, r io.Reader, identity contracts.Identity) (contracts.ImportBatch, error) {
 	batch, err := (onecbank.Parser{}).Parse(ctx, r, identity)
@@ -47,7 +47,7 @@ func (i Importer) finish(batch contracts.ImportBatch) (contracts.ImportBatch, er
 	batch.ImportID = hex.EncodeToString(random[:])
 	batch.ImportedAt = time.Now().UTC().Format(time.RFC3339Nano)
 	if i.Store != nil {
-		batch = i.Store.Add(batch)
+		return i.Store.Save(batch)
 	}
 	return batch, nil
 }

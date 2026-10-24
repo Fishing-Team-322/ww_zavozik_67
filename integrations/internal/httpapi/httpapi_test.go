@@ -128,7 +128,7 @@ func TestHealthAndProviderStatuses(t *testing.T) {
 	if rec.Code != 200 || json.Unmarshal(rec.Body.Bytes(), &got) != nil {
 		t.Fatal(rec.Body.String())
 	}
-	want := map[string]string{"onecbank": "ready", "onecodata": "not_configured", "dadata": "not_configured", "fnsopendata": "not_implemented", "wb": "not_implemented"}
+	want := map[string]string{"onecbank": "ready", "onecodata": "not_configured", "dadata": "not_configured", "fnsopendata": "ready", "wb": "mock_ready", "ozon": "mock_ready", "csv": "ready"}
 	if len(got) != len(want) {
 		t.Fatalf("provider count: %d", len(got))
 	}
