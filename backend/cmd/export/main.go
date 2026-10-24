@@ -13,6 +13,7 @@ package main
 import (
 	"context"
 	"encoding/csv"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
@@ -63,6 +64,7 @@ func main() {
 	defer w.Flush()
 
 	header := []string{"company_id", "industry", "date", "inflow", "outflow", "missing", "balance"}
+	header = append(header, "missing_known_on")
 	for _, c := range domain.AllCategories {
 		header = append(header, "cat_"+string(c))
 	}
@@ -70,6 +72,7 @@ func main() {
 
 	cat := categorize.Chain{Steps: []categorize.Categorizer{categorize.DefaultRules}, Threshold: 0.5}
 	rows := 0
+	quality := map[string]any{}
 	for _, f := range files {
 		c, err := dataset.Load(ctx, f, cat)
 		if err != nil {
@@ -79,22 +82,45 @@ func main() {
 			continue
 		}
 		first, last := c.Ops[0].Date, c.Ops[len(c.Ops)-1].Date
-		flows := ingest.DailyFlows(c.Ops, first, last, dataset.NotInternal)
+		flows, detected := ingest.DailyFlowsWithDetection(c.Ops, first, last, dataset.NotInternal)
 		dataset.FillBalance(flows)
-
+		missingDays := 0
 		for _, fl := range flows {
+			if fl.Missing {
+				missingDays++
+			}
+		}
+		quality[c.ID] = map[string]any{"duplicates_removed": c.Quality.Removed, "duplicate_candidates_retained": c.Quality.Unconfirmed, "missing_days": missingDays}
+
+		for i, fl := range flows {
 			bal := ""
 			if fl.Balance != nil {
 				bal = fl.Balance.String()
 			}
 			rec := []string{c.ID, industries[c.ID], fl.Date.Format(domain.DateLayout), fl.Inflow.String(),
 				fl.Outflow.String(), strconv.FormatBool(fl.Missing), bal}
+			known := ""
+			if !detected[i].IsZero() {
+				known = detected[i].Format(domain.DateLayout)
+			}
+			rec = append(rec, known)
 			for _, c := range domain.AllCategories {
 				rec = append(rec, fl.ByCategory[c].String())
 			}
 			_ = w.Write(rec)
 			rows++
 		}
+	}
+	w.Flush()
+	if err := w.Error(); err != nil {
+		fail(err)
+	}
+	meta, err := json.MarshalIndent(map[string]any{"schema_version": 2, "target": "business_without_internal_transfers", "companies": quality}, "", "  ")
+	if err != nil {
+		fail(err)
+	}
+	if err := os.WriteFile(*outPath+".quality.json", meta, 0644); err != nil {
+		fail(err)
 	}
 	fmt.Printf("companies: %d, rows: %d, out: %s\n", len(files), rows, *outPath)
 }

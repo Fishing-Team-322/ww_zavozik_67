@@ -40,6 +40,9 @@ class History:
     industry: str = ""
     # Сумма за день по категории со знаком (+ приход, − расход); может быть пустым.
     categories: dict[str, np.ndarray] = field(default_factory=dict)
+    # Когда нарушение сверки стало известно. Маска истории на дату прогноза
+    # не должна зависеть от более поздней банковской выписки.
+    missing_known_on: np.ndarray | None = None
 
     def __len__(self) -> int:
         return len(self.dates)
@@ -60,13 +63,19 @@ class History:
 
     def head(self, n: int) -> History:
         """Первые n дней — история на момент n-1."""
+        n = max(0, min(n, len(self)))
+        missing = self.missing[:n].copy()
+        known = self.missing_known_on[:n] if self.missing_known_on is not None else None
+        if n and known is not None:
+            missing &= np.isnat(known) | (known <= np.datetime64(self.dates[n - 1]))
         return History(
             dates=self.dates[:n],
             inflow=self.inflow[:n],
             outflow=self.outflow[:n],
-            missing=self.missing[:n],
+            missing=missing,
             industry=self.industry,
             categories={k: v[:n] for k, v in self.categories.items()},
+            missing_known_on=known,
         )
 
 
@@ -134,6 +143,25 @@ def get(name: str) -> Forecaster:
         return _REGISTRY[name]
     except KeyError:
         raise KeyError(f"unknown model {name!r}; available: {sorted(_REGISTRY)}") from None
+
+
+def domain_warnings(history: History) -> list[str]:
+    """Observable support checks, without looking at future targets."""
+    from zavozik_ml.calendar import uses_workday_calendar
+    warnings = []
+    if not uses_workday_calendar(history):
+        warnings.append("nonworkday_activity_detected")
+    valid = ~history.missing
+    if valid.any() and (not (history.inflow[valid] > 0).any() or not (history.outflow[valid] > 0).any()):
+        warnings.append("single_channel_history")
+    return warnings
+
+
+def select_model(name: str, history: History) -> Forecaster:
+    """Auto abstains from cross-company transfer outside observed training support."""
+    if name in ("", "auto") and domain_warnings(history):
+        return get("seasonal_naive")
+    return get(name)
 
 
 def all_models() -> list[Forecaster]:

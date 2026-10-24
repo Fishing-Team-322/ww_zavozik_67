@@ -42,6 +42,8 @@ type StochasticRequest struct {
 	Horizon   int
 	NPaths    int
 	Seed      int64
+	// Обученный ML включает регулярные платежи, исключает own_transfer/owner_loan.
+	FlowScope string
 }
 
 // StochasticForecast — пути стохастической части: Inflow[path][day].
@@ -51,6 +53,10 @@ type StochasticForecast struct {
 	Inflow        [][]float64
 	Outflow       [][]float64
 	LowConfidence bool
+	ModelVersion  string
+	FlowScope     string
+	Warnings      []string
+	FallbackUsed  bool
 }
 
 // StochasticForecaster — то, что умеет ML-сервис (gRPC-клиент) и

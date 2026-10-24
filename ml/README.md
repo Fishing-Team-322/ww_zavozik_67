@@ -16,8 +16,10 @@ make ml-serve                # gRPC на :50051, подхватывает ml/art
 ```
 
 `make ml-backtest MODELS=seasonal_naive,gbm_global` — только выбранные модели.
-Главная оценка — как на чужих данных: `python -m zavozik_ml.eval.backtest --cv 5`
-(каждая компания оценена как новая).
+Разработка: `python -m zavozik_ml.eval.backtest --protocol development --cv 3`.
+Фиксированный split в `eval/split_v1.json`: 120 development-компаний до 2026-07-01,
+30 audit-компаний с этой даты. Audit исключён из fit и из выбора настроек.
+Все компании уже исследовались ранее; это внутренний, не внешний тест.
 
 Производственный календарь — `zavozik_ml/calendar_data/` (xmlcalendar.ru);
 на новый год добавить файл `ru_<год>.json`. Без файла — пятидневка.
@@ -42,7 +44,69 @@ make ml-serve                # gRPC на :50051, подхватывает ml/art
 
 ## Бэктест (`zavozik_ml/eval/backtest.py`)
 
-6 точек старта на компанию с шагом 30 дней, горизонт 30, без пропусков в окне —
-как в Go-бэктесте (naive совпадает с ним до десятых). Глобальные модели
-переобучаются раз в месяц только на прошлом и не видят 20% компаний.
-Метрики и определения — в docstring модуля и в `ml/reports/quality.md`.
+До 6 точек старта с шагом 30 дней; горизонт 30. Неполная/короткая история
+не выкидывается из оценки; неизвестный будущий факт исключается.
+`missing_known_on` не позволяет увидеть будущие обнаружения пропусков.
+Глобальные модели переобучаются на общей календарной границе; калибровка
+разброса также выделяет отдельные компании и исключает более поздние данные.
+
+```bash
+cd ml
+PYTHONPATH=gen .venv/bin/python -m zavozik_ml.eval.backtest --protocol development --cv 3 --models seasonal_naive,gbm_global,ensemble --scenarios standard,short_14,short_28,short_56,gap_14,missing_30pct --out data/development.parquet
+# Только после фиксации настроек; не подбирать параметры по audit:
+PYTHONPATH=gen .venv/bin/python -m zavozik_ml.eval.backtest --protocol audit --models seasonal_naive,gbm_global,ensemble --paths 600 --out data/audit.parquet
+PYTHONPATH=gen .venv/bin/python -m zavozik_ml.eval.report --results data/audit.parquet --out reports/quality.md
+```
+
+Рядом сохраняются summary, segments, calibration и metadata с хешами данных/кода.
+Бизнес-остаток и фактический остаток счёта оцениваются отдельно. Порог сигнала
+совпадает с Go: дневная вероятность ≥0.1. WAPE 7/14/30 относится к конкретному
+дню; path WAPE — ко всему пути. Итоговые артефакты `make ml-train` обучены на всех
+компаниях, поэтому их нельзя использовать для оценки отложенных компаний.
+
+## Классификатор категорий операций (`zavozik_ml/classify/`)
+
+Второй сервис в том же gRPC-сервере: `proto/categorize/v1` (`CategorizerService.Classify`,
+батч операций → категория из закрытого списка + уверенность). В Go —
+`categorize.MLCategorizer`, прежняя `Chain` и opt-in `Hybrid`. Hybrid сохраняет
+ручные метки и позволяет уверенной модели исправлять слишком широкие правила.
+Готовый контракт и границы интеграции: `docs/ML_INTEGRATION.md`.
+
+```bash
+cd ml && PYTHONPATH=gen:. .venv/bin/python -m zavozik_ml.classify.train --ablation   # → artifacts/classifier, reports/classifier.md
+cd ml && PYTHONPATH=gen:. .venv/bin/python -m zavozik_ml.classify.evaluate           # только «новый» набор на артефакте
+```
+
+Нужны датасет (`cashflow_dataset_participants/` в корне репо) и Go: слабые метки
+считают сами правила Go (`backend/cmd/rulelabel`), без копии регулярок в Python.
+Модель — логистическая регрессия на хэшированных словах и символьных n-граммах
+(инференс на numpy, артефакт — несколько МБ). Классифицирует по смыслу, а не по каналу:
+цифровой рубль вырезается при нормализации. Метрики, решения по спорным
+категориям и ограничения — `ml/reports/classifier.md`; регрессионный набор —
+`zavozik_ml/classify/novel_test.csv`.
+
+
+Обучение/калибровка/тест классификатора разделены по компаниям 60/20/20.
+Температура не подбирается на test. Отдельно доступен более строгий тест
+`python -m zavozik_ml.classify.template_audit`: целые нормализованные назначения
+исключаются из обучения, включая точные совпадения в аугментации. Метки остаются
+слабыми, а novel-набор уже просматривался при разработке.
+
+## Проверки
+
+```bash
+PYTHONPATH=ml/gen ml/.venv/bin/python -m pytest ml/tests -q
+cd backend && go test -race ./... && go vet ./...
+# При работающем ML-сервисе:
+cd backend && go run ./cmd/mlcheck -ml 127.0.0.1:50051
+```
+
+ML-specific CI: `.github/workflows/ml.yml`. Он выполняет живую проверку Go↔Python
+на собранном Docker-образе. Артефакты классификатора и GBM поставляются с образом;
+календарные JSON включены в Python package. Сырые данные и `.venv` исключены из build context.
+
+`auto` выбирает готовый ансамбль для истории в области обучения; при наблюдаемой
+активности в нерабочие дни или отсутствии одного направления потока выбирает
+`seasonal_naive` с явным предупреждением. Для 14–55 дней истории глобальная модель
+использует общий уровень + локальные остатки, отмечая низкую уверенность; менее
+14 дней — naive. Сведения о границах применимости важнее одного общего процента.

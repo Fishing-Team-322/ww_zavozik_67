@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import time
 from datetime import datetime, timezone
@@ -20,6 +21,7 @@ from zavozik_ml import forecasters
 from zavozik_ml.data import DEFAULT_FLOWS, load_companies
 from zavozik_ml.forecasters import models  # noqa: F401
 from zavozik_ml.serving.server import DEFAULT_ARTIFACTS
+from zavozik_ml.provenance import source_fingerprint
 
 
 def main() -> None:
@@ -31,6 +33,7 @@ def main() -> None:
 
     companies = load_companies(args.flows)
     histories = [c.history for c in companies]
+    source_hash = source_fingerprint()
     for name in args.models.split(","):
         model = forecasters.get(name)
         if not model.is_global:
@@ -44,6 +47,11 @@ def main() -> None:
             "companies": len(histories),
             "last_date": str(max(h.dates[-1] for h in histories)),
             "flows": str(args.flows.name),
+            "flows_sha256": hashlib.sha256(args.flows.read_bytes()).hexdigest(),
+            "source_sha256_at_start": source_hash,
+            "source_changed_during_run": source_hash != source_fingerprint(),
+            "flow_scope": "business_without_internal_transfers_including_recurring",
+            "evaluation": "production fit on all companies; do not evaluate holdout quality with this artifact",
         }
         (args.out / name / "train_info.json").write_text(json.dumps(info, indent=1))
         print(f"{name}: trained on {len(histories)} companies in {time.perf_counter() - t0:.0f}s -> {args.out / name}")

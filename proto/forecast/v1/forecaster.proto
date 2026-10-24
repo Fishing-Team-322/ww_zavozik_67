@@ -4,17 +4,18 @@ package forecast.v1;
 
 option go_package = "github.com/Fishing-Team-322/ww_zavozik_67/backend/gen/forecast/v1;forecastv1";
 
-// ForecasterService прогнозирует стохастическую часть денежного потока
-// (розничная выручка, нерегулярные платежи). Детерминированные компоненты
-// (регулярные платежи, налоги, плановые события) считает Go.
+// ForecasterService прогнозирует потоки бизнеса без own_transfer/owner_loan,
+// ВКЛЮЧАЯ регулярные зарплаты, налоги, аренду. Это условный сценарий без
+// собственных переводов и финансирования владельцем, не полный прогноз счёта.
+// Нельзя добавлять те же регулярные платежи поверх ответа второй раз.
 // Сервис без состояния: всю историю передаём в запросе.
 service ForecasterService {
   rpc Forecast(ForecastRequest) returns (ForecastResponse);
   rpc ListModels(ListModelsRequest) returns (ListModelsResponse);
 }
 
-// DailyFlow — потоки стохастической части за один календарный день.
-// Go присылает каждый календарный день подряд, включая выходные (нули).
+// DailyFlow — потоки бизнеса за один календарный день. Все дни подряд.
+// Значения конечные, >=0. Пропущенные данные обозначаются missing, не NaN.
 message DailyFlow {
   string date = 1; // YYYY-MM-DD
   double inflow = 2; // >= 0
@@ -38,6 +39,9 @@ message ForecastRequest {
   int32 n_paths = 6;
   // Для воспроизводимости путей. 0 — случайный.
   int64 seed = 7;
+  // Пусто (совместимость) либо business_without_internal_transfers.
+  // residual_only не поддерживается обученными сейчас артефактами.
+  string flow_scope = 8;
 }
 
 // Path — одна траектория на horizon_days дней вперёд, начиная с дня после
@@ -60,6 +64,10 @@ message ForecastResponse {
   repeated Path paths = 3; // длина n_paths
   repeated NetQuantiles net_quantiles = 4; // квантили чистого потока по дням
   bool low_confidence = 5; // мало истории
+  string model_version = 6; // fingerprint артефакта/версии алгоритма
+  string flow_scope = 7;
+  repeated string warnings = 8; // машинные коды, без финансовых данных
+  bool fallback_used = 9;
 }
 
 message ListModelsRequest {}

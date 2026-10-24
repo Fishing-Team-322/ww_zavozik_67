@@ -44,7 +44,7 @@ class ETS(Forecaster):
         for series in (history.inflow[tail], history.outflow[tail]):
             y = _fill_missing(series, missing, weekdays)
             out.append(self._simulate(y, horizon, n_paths, rng))
-        work = cal.is_workday(np.datetime64(history.dates[-1], "D") + np.arange(1, horizon + 1))
+        work = cal.forecast_day_mask(history, np.datetime64(history.dates[-1], "D") + np.arange(1, horizon + 1))
         return Paths(out[0] * work, out[1] * work, low_confidence=history.valid_days < MIN_CONFIDENT_DAYS)
 
     @staticmethod
