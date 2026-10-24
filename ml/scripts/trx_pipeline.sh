@@ -15,14 +15,16 @@
 #   2. тесты трансформера
 #   3. обучение на малых данных: кейс, 300 шагов — потеря должна падать
 #   4. подбор гиперпараметров предобучения (Optuna): размер модели, шаг, регуляризация
-#   5. полное предобучение на MBD с лучшими параметрами
+#   5. предобучение на MBD с лучшими параметрами (ограничено временем), затем выбор
+#      лучшего из нового и старого предобучения (runs/pretrain) на одних и тех же окнах
 #   6. подбор гиперпараметров дообучения (Optuna) на компаниях разработки:
 #      80% компаний — обучение, 20% — проверка. Аудит не трогаем.
 #   7. итоговое дообучение на всех компаниях разработки с лучшими параметрами
 #   8. проверка прогноза на компаниях аудита против naive (единственный раз, когда видим аудит)
 #
-# Сколько ждать (RTX 4060 Ti): этап 4 ~6 ч, этап 5 ~4–8 ч, этап 6 ~3 ч, остальное — минуты.
-# Всё меняется переменными ниже, например:  PRE_TOKENS=1e9 bash trx_pipeline.sh 5
+# Сколько ждать (RTX 4060 Ti), всё ограничено временем: этап 4 ~1 ч 15 мин, этап 5 ~2 ч,
+# этап 6 ~1 ч, этапы 7–8 ~30 мин, итого ~5 ч. Меняется переменными ниже, например:
+#   PRE_MIN=90 TUNE_FT_HOURS=0.75 bash trx_pipeline.sh
 set -euo pipefail
 set -f  # без подстановки имён файлов: в путях источников есть [0-80]
 
@@ -31,13 +33,14 @@ SHARDS=/mnt/d/mbd/shards
 PY="$ROOT/.venv-train/bin/python"
 FROM=${1:-1}
 
-TUNE_PRE_TRIALS=${TUNE_PRE_TRIALS:-24}     # испытаний подбора предобучения
-TUNE_PRE_HOURS=${TUNE_PRE_HOURS:-6}        # ...но не дольше
-TUNE_PRE_TOKENS=${TUNE_PRE_TOKENS:-1.5e8}  # операций на испытание
-PRE_TOKENS=${PRE_TOKENS:-2e9}              # полное предобучение: ~2 эпохи MBD
-TUNE_FT_TRIALS=${TUNE_FT_TRIALS:-40}
-TUNE_FT_HOURS=${TUNE_FT_HOURS:-3}
-TUNE_FT_STEPS=${TUNE_FT_STEPS:-3000}
+TUNE_PRE_TRIALS=${TUNE_PRE_TRIALS:-10}     # испытаний подбора предобучения (максимум)
+TUNE_PRE_HOURS=${TUNE_PRE_HOURS:-1.25}     # ...но не дольше
+TUNE_PRE_MIN=${TUNE_PRE_MIN:-6}            # минут на одно испытание
+PRE_MIN=${PRE_MIN:-120}                    # минут на полное предобучение
+TUNE_FT_TRIALS=${TUNE_FT_TRIALS:-16}
+TUNE_FT_HOURS=${TUNE_FT_HOURS:-1}
+TUNE_FT_STEPS=${TUNE_FT_STEPS:-2000}
+EVAL_PATHS=${EVAL_PATHS:-100}              # путей генерации на точку старта при проверке
 CUTOFF=2026-06-30                          # кейс: данные до начала аудита
 
 cd "$ROOT"
@@ -99,9 +102,9 @@ fi
 
 if run_stage 4; then
   stage 4 "подбор гиперпараметров предобучения (Optuna)"
-  echo "$TUNE_PRE_TRIALS испытаний по $TUNE_PRE_TOKENS операций, не дольше $TUNE_PRE_HOURS ч; слабые обрываются рано."
+  echo "до $TUNE_PRE_TRIALS испытаний по $TUNE_PRE_MIN мин, не дольше $TUNE_PRE_HOURS ч; слабые и застывшие обрываются рано."
   "$PY" -m zavozik_ml.trx.tune pretrain --out runs/tune-pretrain --trials "$TUNE_PRE_TRIALS" \
-    --hours "$TUNE_PRE_HOURS" --trial-tokens "$TUNE_PRE_TOKENS" -- \
+    --hours "$TUNE_PRE_HOURS" --trial-minutes "$TUNE_PRE_MIN" --evals 6 --stall 5 -- \
     $TRAIN_PARTS $VAL_PART --seq-len 512 --val-windows 512 --workers 6
   need runs/tune-pretrain/best_args.txt
 fi
@@ -117,20 +120,25 @@ if run_stage 5; then
       BEST=$(cat runs/tune-pretrain/best_args.txt)
       echo "лучшие параметры подбора: $BEST"
       "$PY" -m zavozik_ml.trx.train $TRAIN_PARTS $VAL_PART --out runs/pretrain-v2 $BEST \
-        --seq-len 512 --token-budget "$PRE_TOKENS" --eval-every 2000 --val-windows 1024 \
-        --patience 8 --ckpt-minutes 15 --workers 6 $1
+        --seq-len 512 --max-steps 10000000 --time-budget-min "$PRE_MIN" --n-evals 30 --val-windows 1024 \
+        --patience 6 --min-delta 0.002 --ckpt-minutes 15 --workers 6 $1
     fi
   }
   pretrain "$COMPILE" || { [ -n "$COMPILE" ] && echo "с torch.compile упало — продолжаю без него" && pretrain ""; }
   need runs/pretrain-v2/best.pt
+  echo "сравнение нового и старого предобучения на одних и тех же окнах клиентов part_5:"
+  "$PY" -m zavozik_ml.trx.score runs/pretrain-v2/best.pt runs/pretrain/best.pt $VAL_PART --val-windows 1024 \
+    | tee /dev/stderr | tail -1 > runs/pretrain_best.txt
+  echo "для дообучения берётся: $(cat runs/pretrain_best.txt)"
 fi
+PRE=$( [ -f runs/pretrain_best.txt ] && cat runs/pretrain_best.txt || echo runs/pretrain-v2/best.pt )
 
 if run_stage 6; then
   stage 6 "подбор гиперпараметров дообучения (Optuna)"
-  need runs/pretrain-v2/best.pt
+  need "$PRE"
   "$PY" -m zavozik_ml.trx.tune finetune --out runs/tune-finetune --trials "$TUNE_FT_TRIALS" \
-    --hours "$TUNE_FT_HOURS" --trial-steps "$TUNE_FT_STEPS" --evals 10 --replay "$SHARDS/part_0" -- \
-    --init runs/pretrain-v2/best.pt $FT_TRAIN $FT_VAL --seq-len 512 --batch 32 --val-windows 256 --workers 4
+    --hours "$TUNE_FT_HOURS" --trial-steps "$TUNE_FT_STEPS" --evals 8 --stall 6 --replay "$SHARDS/part_0" -- \
+    --init "$PRE" $FT_TRAIN $FT_VAL --seq-len 512 --batch 32 --val-windows 256 --workers 4
   need runs/tune-finetune/best_args.txt
 fi
 
@@ -143,7 +151,7 @@ if run_stage 7; then
   echo "лучшие параметры: $BEST | шагов: $STEPS"
   rm -rf runs/finetune-v2
   # Валидация здесь — на тех же компаниях, что в обучении: только для глаз, не для выбора.
-  "$PY" -m zavozik_ml.trx.train --init runs/pretrain-v2/best.pt --data "$CASE:development:$CUTOFF" $FT_VAL \
+  "$PY" -m zavozik_ml.trx.train --init "$PRE" --data "$CASE:development:$CUTOFF" $FT_VAL \
     --out runs/finetune-v2 $BEST --seq-len 512 --batch 32 --max-steps "$STEPS" --eval-every 250 \
     --val-windows 256 --workers 4
   need runs/finetune-v2/final.pt
@@ -153,7 +161,7 @@ if run_stage 8; then
   stage 8 "проверка прогноза на компаниях аудита"
   need runs/finetune-v2/final.pt
   "$PY" -m zavozik_ml.trx.evaluate --model runs/finetune-v2/final.pt --roles audit --min-origin 2026-07-01 \
-    --paths 200 --out runs/finetune-v2/eval.csv
+    --paths "$EVAL_PATHS" --out runs/finetune-v2/eval.csv
   echo
   echo "Планка прод-ансамбля (LightGBM + naive): WAPE остатка ~48% на 30 днях на новых компаниях."
 fi

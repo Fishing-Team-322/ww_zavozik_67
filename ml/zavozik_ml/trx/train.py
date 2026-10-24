@@ -132,6 +132,12 @@ class Ema:
                 torch._foreach_copy_(self.live, backup)
 
 
+def _eval_reserve(args, per_step: float) -> float:
+    """Секунды на проверки до конца запуска (оценка: проверка ≈ шаг на каждые batch окон)."""
+    n = args.n_evals or 8
+    return n * (args.val_windows / max(args.batch, 1)) * per_step * 0.5
+
+
 @contextmanager
 def _nothing():
     yield
@@ -189,6 +195,12 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--eval-every", type=int, default=1000)
     p.add_argument("--patience", type=int, default=0,
                    help="ранняя остановка: стоп, если вал. потеря не улучшалась N проверок подряд (0 — выключено)")
+    p.add_argument("--min-delta", type=float, default=0.0,
+                   help="улучшение вал. потери меньше этого считается «не сдвинулась» (для --patience)")
+    p.add_argument("--time-budget-min", type=float, default=0,
+                   help="уложиться в N минут: после замера скорости --max-steps подгоняется так, "
+                        "чтобы расписание шага обучения закончилось к сроку")
+    p.add_argument("--n-evals", type=int, default=0, help="сколько проверок за запуск (вместо --eval-every)")
     p.add_argument("--val-windows", type=int, default=512)
     p.add_argument("--ckpt-minutes", type=float, default=20)
     p.add_argument("--min-len", type=int, default=16)
@@ -226,6 +238,8 @@ def run(args, trial=None) -> float:
         args.max_steps = max(1, int(args.token_budget // (args.batch * args.accum * args.seq_len)))
     if args.warmup_frac:
         args.warmup = max(1, int(args.warmup_frac * args.max_steps))
+    if args.n_evals:
+        args.eval_every = max(1, args.max_steps // args.n_evals)
 
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
@@ -306,6 +320,7 @@ def run(args, trial=None) -> float:
                       "val_type", "val_amount", "tokens_per_s", "elapsed_min"])
 
     n_evals = 0
+    budget_from = step  # бюджет времени подгоняется только в новом запуске, не при продолжении
     t_start = time.time()
     t_ckpt = time.time()
     t_window = time.time()
@@ -334,6 +349,18 @@ def run(args, trial=None) -> float:
             if ema is not None:
                 ema.update()
             step += 1
+            if step == 20:
+                t_20 = time.time()  # к 20-му шагу процессы загрузки и компиляция уже прогреты
+            if args.time_budget_min and budget_from == 0 and step == 220:
+                # Замер скорости на шагах 20–220 → столько шагов, сколько успеем к сроку.
+                per_step = (time.time() - t_20) / 200
+                left = args.time_budget_min * 60 - (time.time() - t_start) - _eval_reserve(args, per_step)
+                args.max_steps = max(step + 1, step + int(left / per_step))
+                if args.warmup_frac:
+                    args.warmup = max(1, int(args.warmup_frac * args.max_steps))
+                if args.n_evals:
+                    args.eval_every = max(1, args.max_steps // args.n_evals)
+                print(f"бюджет {args.time_budget_min:g} мин: {per_step * 1000:.0f} мс/шаг → {args.max_steps:,} шагов", flush=True)
 
             last_eval = step % args.eval_every == 0 or step == args.max_steps
             if step % 50 == 0 or last_eval:
@@ -345,11 +372,14 @@ def run(args, trial=None) -> float:
                 if last_eval:
                     with ema.applied(model) if ema is not None else _nothing():
                         v = evaluate(model, val, device, amp_dtype, args.batch)
-                        if v["loss"] < best:
+                        if v["loss"] < best - args.min_delta:
                             best, stale = v["loss"], 0
                             save_checkpoint(args.out / "best.pt", model, None, step, best, vocab, args)
                         else:
                             stale += 1
+                            if v["loss"] < best:  # чуть лучше, но меньше порога: точку сохраняем, счётчик идёт
+                                best = v["loss"]
+                                save_checkpoint(args.out / "best.pt", model, None, step, best, vocab, args)
                     vrow = [f"{v[k]:.4f}" for k in ("loss", "delta", "dir", "type", "amount")]
                 log.writerow(row + vrow + [f"{tps:.0f}", f"{(time.time() - t_start) / 60:.1f}"])
                 log_f.flush()

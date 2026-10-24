@@ -155,6 +155,9 @@ class WindowDataset(IterableDataset):
         if not len(self._flat):
             raise ValueError("нет последовательностей, подходящих под фильтры и min_len")
         self._p = p / p.sum()
+        # rng.choice(p=...) пересчитывает распределение на каждый вызов: на 1,1 млн
+        # последовательностей MBD это ~10 мс на окно — потолок скорости всего обучения.
+        self._cdf = np.cumsum(self._p)
 
     def n_tokens(self) -> int:
         return int(sum(lens.sum() for _, lens in self._index))
@@ -166,7 +169,7 @@ class WindowDataset(IterableDataset):
         worker = (info.id * 9973 + info.seed % 2**31) if info else 0
         rng = np.random.default_rng(self.seed + worker)
         while True:
-            k = rng.choice(len(self._flat), p=self._p)
+            k = min(int(np.searchsorted(self._cdf, rng.random() * self._cdf[-1], side="right")), len(self._flat) - 1)
             si, j = self._flat[k]
             seq, n = self._index[si][0][j], self._index[si][1][j]
             length = min(self.seq_len, n - 1)

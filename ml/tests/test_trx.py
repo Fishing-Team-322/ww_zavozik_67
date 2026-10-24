@@ -195,3 +195,27 @@ def test_resume_keeps_schedule_and_ema(tmp_path, shard):
     run(build_parser().parse_args(["--resume", str(out)]))
     ck = torch.load(out / "last.pt", weights_only=False)
     assert ck["step"] == 60 and ck["args"]["patience"] == 7 and ck["args"]["eval_every"] == 20
+
+
+def test_window_sampling_follows_length_weights(shard):
+    src = Source(shard, roles={"development"})
+    build_vocab([src])
+    ds = WindowDataset([src], seq_len=16)
+    rng = np.random.default_rng(0)
+    picks = [min(int(np.searchsorted(ds._cdf, rng.random() * ds._cdf[-1], side="right")), len(ds._flat) - 1)
+             for _ in range(20000)]
+    freq = np.bincount(picks, minlength=len(ds._flat)) / len(picks)
+    assert np.abs(freq - ds._p).max() < 0.02
+
+
+def test_time_budget_sets_steps(tmp_path, shard):
+    from zavozik_ml.trx.train import build_parser, run
+
+    args = build_parser().parse_args([
+        "--data", f"{shard.directory}:development", "--val", f"{shard.directory}:audit", "--out", str(tmp_path / "r"),
+        "--d-model", "32", "--layers", "1", "--heads", "2", "--d-ff", "64", "--seq-len", "32", "--batch", "4",
+        "--val-windows", "4", "--workers", "0", "--device", "cpu", "--max-steps", "10000000",
+        "--time-budget-min", "0.15", "--n-evals", "3"])
+    run(args)
+    ck = torch.load(tmp_path / "r" / "last.pt", weights_only=False)
+    assert 220 < ck["args"]["max_steps"] < 10000000 and ck["step"] == ck["args"]["max_steps"]

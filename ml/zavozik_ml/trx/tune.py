@@ -88,6 +88,11 @@ def main() -> None:
     p.add_argument("--trials", type=int, default=24, help="сколько испытаний всего (с учётом прошлых запусков)")
     p.add_argument("--hours", type=float, default=0, help="остановиться через N часов (0 — без лимита)")
     p.add_argument("--trial-tokens", type=float, default=1.5e8, help="pretrain: операций на испытание")
+    p.add_argument("--trial-minutes", type=float, default=0,
+                   help="pretrain: вместо --trial-tokens — равное время на испытание (честно, если и итоговое "
+                        "предобучение ограничено временем: крупная модель получает меньше данных)")
+    p.add_argument("--stall", type=int, default=8,
+                   help="закончить подбор, если лучший результат не улучшался N испытаний подряд (0 — нет)")
     p.add_argument("--trial-steps", type=int, default=3000, help="finetune: шагов на испытание")
     p.add_argument("--evals", type=int, default=8, help="проверок на испытание (точки обрезки)")
     p.add_argument("--replay", default=None, help="finetune: шард MBD для подмешивания")
@@ -124,14 +129,20 @@ def main() -> None:
         t = copy.deepcopy(base)
         if a.stage == "pretrain":
             suggest_pretrain(trial, t)
-            t.token_budget = a.trial_tokens
-            t.max_steps = max(1, int(a.trial_tokens // (t.batch * t.accum * t.seq_len)))
+            if a.trial_minutes:
+                t.token_budget, t.time_budget_min, t.max_steps = 0, a.trial_minutes, 10**7
+            else:
+                t.token_budget = a.trial_tokens
+                t.max_steps = max(1, int(a.trial_tokens // (t.batch * t.accum * t.seq_len)))
+            t.patience = max(t.patience, 3)  # плато внутри испытания — стоп
         else:
             suggest_finetune(trial, t, a.replay)
             t.token_budget = 0
             t.max_steps = a.trial_steps
             t.patience = max(t.patience, 3)
+        t.n_evals = a.evals  # пересчитывается и после подгонки шагов под время
         t.eval_every = max(1, t.max_steps // a.evals)
+        t.min_delta = max(t.min_delta, 0.002)
         t.out = a.out / f"trial_{trial.number:03d}"
         if t.out.exists():
             shutil.rmtree(t.out)  # повтор оборванного испытания — с нуля
@@ -168,8 +179,19 @@ def main() -> None:
         (a.out / "best_args.txt").write_text(best.user_attrs["flags"] + "\n")
         print(f"лучшее пока: испытание {best.number}, вал. {best.value:.4f} | {best.user_attrs['flags']}", flush=True)
 
+    def stall(study: optuna.Study, trial: optuna.trial.FrozenTrial) -> None:
+        if not a.stall:
+            return
+        finished = [t for t in study.trials if t.state == optuna.trial.TrialState.COMPLETE and t.value is not None]
+        if len(finished) <= a.stall:
+            return
+        best_at = min(range(len(finished)), key=lambda i: finished[i].value)
+        if len(finished) - 1 - best_at >= a.stall:
+            print(f"лучший результат не улучшался {a.stall} испытаний подряд — подбор закончен", flush=True)
+            study.stop()
+
     if left > 0:
-        study.optimize(objective, n_trials=left, timeout=a.hours * 3600 or None, callbacks=[keep_best],
+        study.optimize(objective, n_trials=left, timeout=a.hours * 3600 or None, callbacks=[keep_best, stall],
                        gc_after_trial=True, catch=(Exception,))  # сбой одного испытания не рушит ночной подбор
     keep_best(study, None)
     states = {}
