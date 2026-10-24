@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { CircleHelp, Folder, LogOut, Menu, Moon, Settings2, Shield, Sun } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
@@ -11,6 +11,7 @@ import { SearchInput } from "@/src/shared/ui/search-input";
 import { Select, type SelectOption } from "@/src/shared/ui/select";
 import { useCompany } from "@/src/features/company-context/CompanyProvider";
 import { useAuth } from "@/src/features/auth/model/AuthProvider";
+import { searchNavigation } from "@/src/entities/navigation";
 import { SidebarBrand, SidebarNav, SidebarUtilityNav, type SidebarNavItem, defaultCabinetNav, sidebarSectionIcons } from "./SidebarNav";
 
 export type SidebarShellProps = {
@@ -25,18 +26,44 @@ export type SidebarShellProps = {
   topRight?: ReactNode;
 };
 
-const demoSearchResults = [
-  { label: "Обзор", href: "/overview" },
-  { label: "Прогноз", href: "/forecast" },
-  { label: "Нехватка денег", href: "/risks" },
-  { label: "Операции", href: "/transactions" },
-];
-
-function HeaderSearch() {
+function HeaderSearch({ navItems }: { navItems: SidebarNavItem[] }) {
   const router = useRouter();
   const rootRef = useRef<HTMLDivElement>(null);
+  const resultsId = useId();
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
+  const results = searchNavigation(navItems, query);
+  const popupOpen = open && Boolean(query.trim());
+
+  function navigate(href: string) {
+    setOpen(false);
+    setQuery("");
+    router.push(href);
+  }
+
+  function handleSearchKeyDown(event: ReactKeyboardEvent<HTMLDivElement>) {
+    if (event.nativeEvent.isComposing || event.altKey || event.ctrlKey || event.metaKey) return;
+    const inputFocused = event.target instanceof HTMLInputElement;
+    if (event.key === "Enter" && inputFocused) {
+      event.preventDefault();
+      if (results[0]) navigate(results[0].href);
+      return;
+    }
+    const arrow = event.key === "ArrowDown" || event.key === "ArrowUp";
+    const boundary = !inputFocused && (event.key === "Home" || event.key === "End");
+    if (!results.length || (!arrow && !boundary)) return;
+    event.preventDefault();
+    setOpen(true);
+    requestAnimationFrame(() => {
+      const buttons = Array.from(rootRef.current?.querySelectorAll<HTMLButtonElement>("[data-search-result]") ?? []);
+      if (!buttons.length) return;
+      const current = buttons.findIndex(button => button === document.activeElement);
+      const index = event.key === "Home" ? 0 : event.key === "End" ? buttons.length - 1 :
+        current < 0 ? (event.key === "ArrowUp" ? buttons.length - 1 : 0) :
+          (current + (event.key === "ArrowDown" ? 1 : -1) + buttons.length) % buttons.length;
+      buttons[index]?.focus();
+    });
+  }
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -59,10 +86,10 @@ function HeaderSearch() {
     return () => { document.removeEventListener("keydown", onKeyDown); document.removeEventListener("pointerdown", onPointerDown); };
   }, []);
 
-  return <div ref={rootRef} className="relative hidden w-[150px] md:block xl:w-[170px]" onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false); }}>
-    <SearchInput aria-label="Поиск по разделам" placeholder="Поиск…" inputSize="md" value={query} onChange={event => { setQuery(event.target.value); setOpen(Boolean(event.target.value.trim())); }} onFocus={() => setOpen(Boolean(query.trim()))} className="!h-6 !pr-14 !text-xs !font-medium !leading-4 [&::-webkit-search-cancel-button]:hidden" />
+  return <div ref={rootRef} className="relative hidden w-[150px] md:block xl:w-[170px]" onKeyDown={handleSearchKeyDown} onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false); }}>
+    <SearchInput aria-label="Поиск по разделам" role="combobox" aria-expanded={popupOpen} aria-controls={popupOpen ? resultsId : undefined} aria-haspopup="dialog" placeholder="Поиск…" inputSize="md" value={query} onChange={event => { setQuery(event.target.value); setOpen(Boolean(event.target.value.trim())); }} onFocus={() => setOpen(Boolean(query.trim()))} className="!h-6 !pr-14 !text-xs !font-medium !leading-4 [&::-webkit-search-cancel-button]:hidden" />
     <kbd aria-hidden="true" title="Alt + K или Alt + Л" className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 rounded border border-[color:var(--border)] bg-[color:var(--surface-subtle)] px-1 py-0.5 text-[10px] leading-none text-[color:var(--text-secondary)]">Alt K</kbd>
-    {open && query.trim() && <div className="absolute right-0 top-full z-50 mt-2 w-[260px] max-w-[calc(100vw-24px)] overflow-hidden rounded-[6px] border border-[color:var(--border)] bg-[color:var(--surface-elevated)] p-2 shadow-[var(--shadow-md)]"><p className="px-2 pb-1 text-[11px] text-[color:var(--text-secondary)]">Демо-результаты</p>{demoSearchResults.map(result => <button key={result.href} type="button" className="flex w-full items-center rounded-[5px] px-2 py-2 text-left text-xs text-[color:var(--text-primary)] transition-colors hover:bg-[color:var(--surface-subtle)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--focus-ring-strong)]" onClick={() => { setOpen(false); setQuery(""); router.push(result.href); }}>{result.label}</button>)}</div>}
+    {popupOpen && <div id={resultsId} role="dialog" aria-label="Результаты поиска" className="absolute right-0 top-full z-50 mt-2 w-[260px] max-w-[calc(100vw-24px)] overflow-hidden rounded-[6px] border border-[color:var(--border)] bg-[color:var(--surface-elevated)] p-2 shadow-[var(--shadow-md)]"><p aria-live="polite" className="px-2 pb-1 text-[11px] text-[color:var(--text-secondary)]">{results.length ? "Результаты поиска" : "Ничего не найдено"}</p>{results.map(result => <button key={result.href} type="button" data-search-result className="flex w-full items-center rounded-[5px] px-2 py-2 text-left text-xs text-[color:var(--text-primary)] transition-colors hover:bg-[color:var(--surface-subtle)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--focus-ring-strong)]" onClick={() => navigate(result.href)}>{result.label}</button>)}</div>}
   </div>;
 }
 
@@ -196,7 +223,7 @@ export function SidebarShell({children, navItems = defaultCabinetNav, appTitle =
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          <HeaderSearch />
+          <HeaderSearch key={`${companyId ?? "no-company"}:${pathname}`} navItems={navItems} />
           <NotificationBell key={companyId} />
           <div className="hidden items-center gap-4 sm:flex">
             <span className="whitespace-nowrap text-[12px] font-medium leading-4 tracking-normal tabular-nums text-[color:var(--nav-item-text)]">{selectedCompany?.data_as_of ? `Данные на ${new Date(selectedCompany.data_as_of).toLocaleDateString("ru-RU")}` : "Данные ещё не загружены"}</span>
