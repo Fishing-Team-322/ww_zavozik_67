@@ -36,7 +36,11 @@ export interface TablePaginationOptions {
   onPageChange: (page: number) => void;
 }
 
+type TableElementProps<T> = T & { unstyled?: boolean };
+
 interface TableProps extends TableHTMLAttributes<HTMLTableElement> {
+  /** Keep a composed table’s existing layout while reusing the shared overflow container. */
+  unstyled?: boolean;
   pagination?: TablePaginationOptions;
 }
 
@@ -47,6 +51,7 @@ interface TableProps extends TableHTMLAttributes<HTMLTableElement> {
 export function Table({
   className,
   pagination,
+  unstyled = false,
   ...props
 }: TableProps) {
   const totalPages = Math.max(1, pagination?.totalPages ?? 1);
@@ -71,7 +76,7 @@ export function Table({
         )}
       >
         <table
-          className={cn("w-full border-collapse text-sm", className)}
+          className={cn(!unstyled && "w-full border-collapse text-sm", className)}
           {...props}
         />
       </div>
@@ -95,12 +100,13 @@ export function Table({
  */
 export function TableHeader({
   className,
+  unstyled = false,
   ...props
-}: HTMLAttributes<HTMLTableSectionElement>) {
+}: TableElementProps<HTMLAttributes<HTMLTableSectionElement>>) {
   return (
     <thead
       className={cn(
-        "sticky top-0 z-[1] border-b border-[color:var(--divider)] bg-transparent [&_tr:hover]:bg-transparent",
+        !unstyled && "sticky top-0 z-[1] border-b border-[color:var(--divider)] bg-transparent [&_tr:hover]:bg-transparent",
         className
       )}
       {...props}
@@ -125,12 +131,13 @@ export function TableBody({
  */
 export function TableRow({
   className,
+  unstyled = false,
   ...props
-}: HTMLAttributes<HTMLTableRowElement>) {
+}: TableElementProps<HTMLAttributes<HTMLTableRowElement>>) {
   return (
     <tr
       className={cn(
-        "border-b border-[color:var(--divider)] transition-colors hover:bg-[color:var(--table-row-hover)]",
+        !unstyled && "border-b border-[color:var(--divider)] transition-colors hover:bg-[color:var(--table-row-hover)]",
         className
       )}
       {...props}
@@ -139,6 +146,7 @@ export function TableRow({
 }
 
 interface TableHeadProps extends ThHTMLAttributes<HTMLTableCellElement> {
+  unstyled?: boolean;
   sortable?: boolean;
   sortDirection?: SortDirection;
   active?: boolean;
@@ -152,6 +160,7 @@ interface TableHeadProps extends ThHTMLAttributes<HTMLTableCellElement> {
 export function TableHead({
   className,
   children,
+  unstyled = false,
   sortable = false,
   sortDirection = "none",
   active = false,
@@ -170,7 +179,7 @@ export function TableHead({
   return (
     <th
       className={cn(
-        "px-4 py-2 text-left align-middle text-[16px] text-[#626262]",
+        !unstyled && "px-4 py-2 text-left align-middle text-[16px] font-medium leading-6 text-[color:var(--text-secondary)]",
         className
       )}
       aria-sort={isInteractive ? ariaSort : undefined}
@@ -189,7 +198,7 @@ export function TableHead({
             mass: 0.35,
           }}
           className={cn(
-            "group inline-flex items-center gap-2 whitespace-nowrap text-left text-[16px] font-medium leading-6 text-[#626262] transition-colors duration-200",
+            "group inline-flex items-center gap-2 whitespace-nowrap text-left text-inherit font-[inherit] leading-[inherit] transition-colors duration-200",
             "cursor-pointer hover:text-[color:var(--text-primary)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring-strong)]"
           )}
         >
@@ -210,8 +219,8 @@ export function TableHead({
             </motion.span>
           </span>
         </motion.button>
-      ) : (
-        <span className="whitespace-nowrap text-[16px] font-medium leading-6 text-[#626262]">
+      ) : unstyled ? children : (
+        <span className="whitespace-nowrap">
           {children}
         </span>
       )}
@@ -225,12 +234,13 @@ export function TableHead({
  */
 export function TableCell({
   className,
+  unstyled = false,
   ...props
-}: TdHTMLAttributes<HTMLTableCellElement>) {
+}: TableElementProps<TdHTMLAttributes<HTMLTableCellElement>>) {
   return (
     <td
       className={cn(
-        "px-4 py-3 align-middle text-[16px] leading-6 text-[color:var(--text-primary)]",
+        !unstyled && "px-4 py-3 align-middle text-[16px] leading-6 text-[color:var(--text-primary)]",
         className
       )}
       {...props}
@@ -448,7 +458,7 @@ export function MinimalSortableTable<T extends Record<string, unknown>>({
                   fill="none"
                   xmlns="http://www.w3.org/2000/svg"
                   aria-hidden="true"
-                  className="ml-auto text-[#626262] transition-colors duration-200 group-hover:text-[color:var(--text-primary)]"
+                  className="ml-auto text-[color:var(--text-secondary)] transition-colors duration-200 group-hover:text-[color:var(--text-primary)]"
                 >
                   <path
                     d="M2.5 8H12.5M8.5 4L12.5 8L8.5 12"
