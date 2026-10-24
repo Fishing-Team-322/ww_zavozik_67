@@ -142,3 +142,53 @@ func TestScenarioDelaySkipsHistoricalUnconfirmedReceipts(t *testing.T) {
 		t.Fatalf("an old unmatched receipt blocked the future scenario: %v", e)
 	}
 }
+
+func TestScenarioCounterpartyIDTakesPrecedenceOverDisplayName(t *testing.T) {
+	base, events := scenarioFixture(t, "in", true, "revenue_b2b")
+	events[0]["counterparty_inn"] = "7707083893"
+	events = append(events, Doc{"id": "other", "event_date": "2026-10-24", "title": "Other client", "direction": "in", "amount": float64(2000), "probability": float64(1), "status": "expected", "additional": true, "counterparty_name": "Client", "counterparty_inn": "7736207543"})
+	base.Deterministic = append(base.Deterministic, forecast.ComponentFlow{Date: base.Dates[0], Key: "event:other", Amount: 2000})
+	if err := base.Recompute(); err != nil {
+		t.Fatal(err)
+	}
+	selected := cpRef("tenant", events[0])["id"]
+	got, err := (&Service{}).applySteps(context.Background(), "", "tenant", base, events, []Doc{{"kind": "delay_counterparty", "counterparty_id": selected, "counterparty_name": "Client", "delay_days": float64(2)}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Balances[0][0] != 12000 || got.Balances[0][2] != 13000 {
+		t.Fatal("a selected client's display name delayed another legal entity", got.Balances[0])
+	}
+}
+
+func TestMovingAnAdditionalPlanIntoHorizonPreservesItsProbability(t *testing.T) {
+	for _, prob := range []float64{0, 0.5, 1} {
+		base, events := scenarioFixture(t, "in", true, "revenue_b2b")
+		events[0]["event_date"], events[0]["probability"] = "2026-12-01", prob
+		base.Deterministic = nil // Original plan is outside the visible horizon.
+		// Multiple paths expose the distinction between an uncertain and certain receipt.
+		base.Stochastic.Inflow, base.Stochastic.Outflow = nil, nil
+		for i := 0; i < 600; i++ {
+			base.Stochastic.Inflow = append(base.Stochastic.Inflow, make([]float64, 10))
+			base.Stochastic.Outflow = append(base.Stochastic.Outflow, make([]float64, 10))
+		}
+		if err := base.Recompute(); err != nil {
+			t.Fatal(err)
+		}
+		got, err := (&Service{}).applySteps(context.Background(), "", "tenant", base, events, []Doc{{"kind": "move_event", "event_id": "fixture", "date": "2026-10-26"}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		received := 0
+		for _, path := range got.Balances {
+			if path[2] == 11000 {
+				received++
+			} else if path[2] != 10000 {
+				t.Fatal("receipt is neither absent nor fully paid", path[2])
+			}
+		}
+		if (prob == 0 && received != 0) || (prob == 1 && received != 600) || (prob == 0.5 && (received < 200 || received > 400)) {
+			t.Errorf("moving a plan changed probability %v into %d/600 certain receipts", prob, received)
+		}
+	}
+}

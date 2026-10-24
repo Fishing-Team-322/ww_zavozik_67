@@ -207,3 +207,21 @@ changing financial facts, operation IDs or bank settlement references.
 Regression coverage: source_deletion_regressions_test.go and the import identity
 suite, including interrupted sync, legacy bank references, multiple payment
 sources, cancelled taxes, rejected rows and legacy Excel normalization.
+
+Scenario probability and counterparty calculations
+--------------------------------------------------
+Moving an additional plan from outside the visible forecast horizon introduces
+its expected flow and per-path uncertainty together. A 0% plan stays impossible;
+a 50% receipt or expense stays uncertain. The event/path draw is shared with
+ordinary forecasts and is stable across date moves.
+
+A scenario's selected counterparty_id takes precedence over its display name,
+so another legal entity with the same name is not delayed by that step.
+Counterparty monthly business totals exclude internal and duplicate operations,
+matching the turnover summary. Issued/received invoices establish client/supplier
+roles even before the first bank payment, so unpaid relationships appear under
+the corresponding filters.
+
+Regression coverage: scenario composition unit tests (no database required),
+counterparty_calculation_regressions_test.go, scenario_probability_regressions_test.go
+(API quantiles for incoming/outgoing plans at probabilities 0%, 50% and 100%).

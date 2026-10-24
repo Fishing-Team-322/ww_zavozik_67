@@ -84,6 +84,27 @@ func eventForecastDate(event Doc, asOf time.Time) (time.Time, bool) {
 	return dt, text(event, "status") == "expected"
 }
 
+// Use the same event/path draw when a scenario moves a plan into the visible
+// horizon. Changing its date must not change the probability of actual payment.
+func planPathDeviations(event Doc, asOf time.Time, paths int) []float64 {
+	prob := number(event, "probability")
+	amount := number(event, "amount")
+	if text(event, "direction") == "out" {
+		amount = -amount
+	}
+	values := make([]float64, paths)
+	for p := range values {
+		hash := sha256.Sum256([]byte(fmt.Sprintf("%s:%s:%d", text(event, "id"), asOf.Format(domain.DateLayout), p)))
+		u := float64(binary.LittleEndian.Uint64(hash[:8])) / float64(^uint64(0))
+		happens := float64(0)
+		if u < prob {
+			happens = 1
+		}
+		values[p] = amount * (happens - prob)
+	}
+	return values
+}
+
 func (s *Service) build(ctx context.Context, uid, cid string, h int, model string, steps, preview []Doc, persist bool) (Doc, forecast.Result, error) {
 	var empty forecast.Result
 	company, e := s.DB.GetCompany(ctx, uid, cid)
@@ -208,21 +229,7 @@ func (s *Service) build(ctx context.Context, uid, cid string, h int, model strin
 		if !include || res.DayIndex(dt) < 0 {
 			continue
 		}
-		amount := number(event, "amount")
-		if text(event, "direction") == "out" {
-			amount = -amount
-		}
-		values := make([]float64, len(res.Balances))
-		for p := range values {
-			hash := sha256.Sum256([]byte(fmt.Sprintf("%s:%s:%d", text(event, "id"), asOf.Format(domain.DateLayout), p)))
-			u := float64(binary.LittleEndian.Uint64(hash[:8])) / float64(^uint64(0))
-			happens := float64(0)
-			if u < prob {
-				happens = 1
-			}
-			values[p] = amount * (happens - prob)
-		}
-		res.Uncertain = append(res.Uncertain, forecast.PathComponent{Date: dt, Key: "event:" + text(event, "id"), Values: values})
+		res.Uncertain = append(res.Uncertain, forecast.PathComponent{Date: dt, Key: "event:" + text(event, "id"), Values: planPathDeviations(event, asOf, len(res.Balances))})
 	}
 	if e = res.Recompute(); e != nil {
 		return nil, empty, e

@@ -114,7 +114,15 @@ func (s *Service) applyStepsAndEvents(ctx context.Context, uid, cid string, base
 				found = true
 			}
 		}
-		if !found {
+		if !found && flag(event, "additional") {
+			// Plans originally outside this horizon have no assembled component
+			// yet. Introduce their expected flow and per-path uncertainty together.
+			prob := number(event, "probability")
+			out.Deterministic = append(out.Deterministic, forecast.ComponentFlow{Date: target, Key: key, Title: text(event, "title"), Amount: domain.Money(amount * prob), Source: domain.SourceKind(text(event, "source_kind"))})
+			if prob > 0 && prob < 1 {
+				out.Uncertain = append(out.Uncertain, forecast.PathComponent{Date: target, Key: key, Values: planPathDeviations(event, out.AsOf, len(out.Balances))})
+			}
+		} else if !found {
 			out.Deterministic = append(out.Deterministic, forecast.ComponentFlow{Date: old, Key: "delta:old:" + key, Title: text(event, "title"), Amount: domain.Money(-amount)}, forecast.ComponentFlow{Date: target, Key: "delta:new:" + key, Title: text(event, "title"), Amount: domain.Money(amount)})
 			// A positive reversal of an expense is not revenue. Both legs of
 			// a moved receipt, including its negative offset, scale together.
@@ -179,7 +187,12 @@ func (s *Service) applyStepsAndEvents(ctx context.Context, uid, cid string, base
 			found := false
 			for _, event := range events {
 				ref := cpRef(cid, event)
-				if text(step, "counterparty_id") != "" && ref["id"] == text(step, "counterparty_id") || text(step, "counterparty_name") != "" && strings.EqualFold(text(event, "counterparty_name"), text(step, "counterparty_name")) {
+				selectedID := text(step, "counterparty_id")
+				matches := selectedID != "" && ref["id"] == selectedID
+				if selectedID == "" {
+					matches = strings.EqualFold(text(event, "counterparty_name"), text(step, "counterparty_name"))
+				}
+				if matches {
 					if text(event, "direction") != "in" || text(event, "status") != "expected" {
 						continue
 					}
