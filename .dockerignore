@@ -1,0 +1,10 @@
+.git
+**/.venv
+**/node_modules
+**/__pycache__
+**/.pytest_cache
+cashflow_dataset_participants
+cashflow_dataset_participants.zip
+.env
+integrations/.env
+**/*.log

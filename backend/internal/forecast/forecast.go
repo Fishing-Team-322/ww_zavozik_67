@@ -81,6 +81,8 @@ type Result struct {
 	Dates          []time.Time
 	Deterministic  []ComponentFlow
 	Stochastic     StochasticForecast
+	// Per-path deviations from expected additional plans; separate from ML gross flows.
+	Uncertain []PathComponent
 	// Balances[path][day] — остаток на конец дня.
 	Balances [][]float64
 }
@@ -90,6 +92,12 @@ type Assembler struct {
 	Fallback StochasticForecaster
 	Timeout  time.Duration
 	Log      *slog.Logger
+}
+
+type PathComponent struct {
+	Date   time.Time
+	Key    string
+	Values []float64
 }
 
 func (a Assembler) Build(ctx context.Context, in Input) (Result, error) {
@@ -180,6 +188,27 @@ func (r *Result) Recompute() error {
 		return fmt.Errorf("forecast: bad stochastic paths: %d in, %d out", len(sf.Inflow), len(sf.Outflow))
 	}
 	det := r.DeterministicByDay()
+	var uncertain [][]float64
+	if len(r.Uncertain) > 0 {
+		uncertain = make([][]float64, len(sf.Inflow))
+		for p := range uncertain {
+			uncertain[p] = make([]float64, h)
+		}
+		for _, component := range r.Uncertain {
+			if len(component.Values) != len(sf.Inflow) {
+				return errors.New("forecast: uncertain component path count mismatch")
+			}
+			d := r.DayIndex(component.Date)
+			for p, v := range component.Values {
+				if math.IsNaN(v) || math.IsInf(v, 0) {
+					return errors.New("forecast: non-finite uncertain component")
+				}
+				if d >= 0 {
+					uncertain[p][d] += v
+				}
+			}
+		}
+	}
 	if math.IsNaN(r.OpeningBalance.Float()) || math.IsInf(r.OpeningBalance.Float(), 0) {
 		return errors.New("forecast: opening balance must be finite")
 	}
@@ -201,6 +230,9 @@ func (r *Result) Recompute() error {
 				return fmt.Errorf("forecast: invalid stochastic flow at path %d day %d", p, d)
 			}
 			bal += det[d] + sf.Inflow[p][d] - sf.Outflow[p][d]
+			if len(uncertain) > 0 {
+				bal += uncertain[p][d]
+			}
 			if math.IsNaN(bal) || math.IsInf(bal, 0) {
 				return errors.New("forecast: accumulated balance is not finite")
 			}

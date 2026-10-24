@@ -4,12 +4,87 @@ package httpapi
 
 import "context"
 
-// Unimplemented отвечает 501 на все операции. Server встраивает его и
-// переопределяет то, что уже реализовано, поэтому новые эндпоинты из
-// контракта сразу компилируются и отдают 501, пока их не сделают.
+// Unimplemented is available for test doubles and partial adapters.
+// Production Server implements the full interface without embedding this type.
 type Unimplemented struct{}
 
 func (Unimplemented) GetHealth(ctx context.Context, request GetHealthRequestObject) (GetHealthResponseObject, error) {
+	return nil, ErrNotImplemented
+}
+
+func (Unimplemented) ApplyAction(ctx context.Context, request ApplyActionRequestObject) (ApplyActionResponseObject, error) {
+	return nil, ErrNotImplemented
+}
+
+func (Unimplemented) ListSignals(ctx context.Context, request ListSignalsRequestObject) (ListSignalsResponseObject, error) {
+	return nil, ErrNotImplemented
+}
+
+func (Unimplemented) GetSignal(ctx context.Context, request GetSignalRequestObject) (GetSignalResponseObject, error) {
+	return nil, ErrNotImplemented
+}
+
+func (Unimplemented) UpdateSignal(ctx context.Context, request UpdateSignalRequestObject) (UpdateSignalResponseObject, error) {
+	return nil, ErrNotImplemented
+}
+
+func (Unimplemented) GetSignalStats(ctx context.Context, request GetSignalStatsRequestObject) (GetSignalStatsResponseObject, error) {
+	return nil, ErrNotImplemented
+}
+
+func (Unimplemented) ListAudit(ctx context.Context, request ListAuditRequestObject) (ListAuditResponseObject, error) {
+	return nil, ErrNotImplemented
+}
+
+func (Unimplemented) GetClassifierQuality(ctx context.Context, request GetClassifierQualityRequestObject) (GetClassifierQualityResponseObject, error) {
+	return nil, ErrNotImplemented
+}
+
+func (Unimplemented) ListAdminCompanies(ctx context.Context, request ListAdminCompaniesRequestObject) (ListAdminCompaniesResponseObject, error) {
+	return nil, ErrNotImplemented
+}
+
+func (Unimplemented) GetAdminCompany(ctx context.Context, request GetAdminCompanyRequestObject) (GetAdminCompanyResponseObject, error) {
+	return nil, ErrNotImplemented
+}
+
+func (Unimplemented) ListAdminIntegrations(ctx context.Context, request ListAdminIntegrationsRequestObject) (ListAdminIntegrationsResponseObject, error) {
+	return nil, ErrNotImplemented
+}
+
+func (Unimplemented) GetAdminIntegrationStats(ctx context.Context, request GetAdminIntegrationStatsRequestObject) (GetAdminIntegrationStatsResponseObject, error) {
+	return nil, ErrNotImplemented
+}
+
+func (Unimplemented) RetryAdminIntegration(ctx context.Context, request RetryAdminIntegrationRequestObject) (RetryAdminIntegrationResponseObject, error) {
+	return nil, ErrNotImplemented
+}
+
+func (Unimplemented) ListAdminModels(ctx context.Context, request ListAdminModelsRequestObject) (ListAdminModelsResponseObject, error) {
+	return nil, ErrNotImplemented
+}
+
+func (Unimplemented) GetModelDrift(ctx context.Context, request GetModelDriftRequestObject) (GetModelDriftResponseObject, error) {
+	return nil, ErrNotImplemented
+}
+
+func (Unimplemented) RetrainModel(ctx context.Context, request RetrainModelRequestObject) (RetrainModelResponseObject, error) {
+	return nil, ErrNotImplemented
+}
+
+func (Unimplemented) GetAdminOverview(ctx context.Context, request GetAdminOverviewRequestObject) (GetAdminOverviewResponseObject, error) {
+	return nil, ErrNotImplemented
+}
+
+func (Unimplemented) ListAdminUsers(ctx context.Context, request ListAdminUsersRequestObject) (ListAdminUsersResponseObject, error) {
+	return nil, ErrNotImplemented
+}
+
+func (Unimplemented) UpdateAdminUser(ctx context.Context, request UpdateAdminUserRequestObject) (UpdateAdminUserResponseObject, error) {
+	return nil, ErrNotImplemented
+}
+
+func (Unimplemented) UpdateAlert(ctx context.Context, request UpdateAlertRequestObject) (UpdateAlertResponseObject, error) {
 	return nil, ErrNotImplemented
 }
 
@@ -49,6 +124,10 @@ func (Unimplemented) Register(ctx context.Context, request RegisterRequestObject
 	return nil, ErrNotImplemented
 }
 
+func (Unimplemented) ListCategories(ctx context.Context, request ListCategoriesRequestObject) (ListCategoriesResponseObject, error) {
+	return nil, ErrNotImplemented
+}
+
 func (Unimplemented) ListCompanies(ctx context.Context, request ListCompaniesRequestObject) (ListCompaniesResponseObject, error) {
 	return nil, ErrNotImplemented
 }
@@ -73,7 +152,35 @@ func (Unimplemented) ListAlerts(ctx context.Context, request ListAlertsRequestOb
 	return nil, ErrNotImplemented
 }
 
+func (Unimplemented) ReadAllAlerts(ctx context.Context, request ReadAllAlertsRequestObject) (ReadAllAlertsResponseObject, error) {
+	return nil, ErrNotImplemented
+}
+
+func (Unimplemented) GetCalendar(ctx context.Context, request GetCalendarRequestObject) (GetCalendarResponseObject, error) {
+	return nil, ErrNotImplemented
+}
+
+func (Unimplemented) ListContracts(ctx context.Context, request ListContractsRequestObject) (ListContractsResponseObject, error) {
+	return nil, ErrNotImplemented
+}
+
+func (Unimplemented) CreateContract(ctx context.Context, request CreateContractRequestObject) (CreateContractResponseObject, error) {
+	return nil, ErrNotImplemented
+}
+
 func (Unimplemented) ListCounterparties(ctx context.Context, request ListCounterpartiesRequestObject) (ListCounterpartiesResponseObject, error) {
+	return nil, ErrNotImplemented
+}
+
+func (Unimplemented) GetConcentration(ctx context.Context, request GetConcentrationRequestObject) (GetConcentrationResponseObject, error) {
+	return nil, ErrNotImplemented
+}
+
+func (Unimplemented) GetCounterparty(ctx context.Context, request GetCounterpartyRequestObject) (GetCounterpartyResponseObject, error) {
+	return nil, ErrNotImplemented
+}
+
+func (Unimplemented) GetDashboard(ctx context.Context, request GetDashboardRequestObject) (GetDashboardResponseObject, error) {
 	return nil, ErrNotImplemented
 }
 
@@ -89,7 +196,23 @@ func (Unimplemented) ParseEvent(ctx context.Context, request ParseEventRequestOb
 	return nil, ErrNotImplemented
 }
 
+func (Unimplemented) ExportCompany(ctx context.Context, request ExportCompanyRequestObject) (ExportCompanyResponseObject, error) {
+	return nil, ErrNotImplemented
+}
+
 func (Unimplemented) GetForecast(ctx context.Context, request GetForecastRequestObject) (GetForecastResponseObject, error) {
+	return nil, ErrNotImplemented
+}
+
+func (Unimplemented) GetForecastAccuracy(ctx context.Context, request GetForecastAccuracyRequestObject) (GetForecastAccuracyResponseObject, error) {
+	return nil, ErrNotImplemented
+}
+
+func (Unimplemented) GetForecastDay(ctx context.Context, request GetForecastDayRequestObject) (GetForecastDayResponseObject, error) {
+	return nil, ErrNotImplemented
+}
+
+func (Unimplemented) PreviewForecast(ctx context.Context, request PreviewForecastRequestObject) (PreviewForecastResponseObject, error) {
 	return nil, ErrNotImplemented
 }
 
@@ -97,7 +220,35 @@ func (Unimplemented) GetGap(ctx context.Context, request GetGapRequestObject) (G
 	return nil, ErrNotImplemented
 }
 
+func (Unimplemented) SimulateGap(ctx context.Context, request SimulateGapRequestObject) (SimulateGapResponseObject, error) {
+	return nil, ErrNotImplemented
+}
+
+func (Unimplemented) ListImports(ctx context.Context, request ListImportsRequestObject) (ListImportsResponseObject, error) {
+	return nil, ErrNotImplemented
+}
+
+func (Unimplemented) ListInvoices(ctx context.Context, request ListInvoicesRequestObject) (ListInvoicesResponseObject, error) {
+	return nil, ErrNotImplemented
+}
+
+func (Unimplemented) CreateInvoice(ctx context.Context, request CreateInvoiceRequestObject) (CreateInvoiceResponseObject, error) {
+	return nil, ErrNotImplemented
+}
+
 func (Unimplemented) ListOperations(ctx context.Context, request ListOperationsRequestObject) (ListOperationsResponseObject, error) {
+	return nil, ErrNotImplemented
+}
+
+func (Unimplemented) ExportOperations(ctx context.Context, request ExportOperationsRequestObject) (ExportOperationsResponseObject, error) {
+	return nil, ErrNotImplemented
+}
+
+func (Unimplemented) RecategorizeOperations(ctx context.Context, request RecategorizeOperationsRequestObject) (RecategorizeOperationsResponseObject, error) {
+	return nil, ErrNotImplemented
+}
+
+func (Unimplemented) SummarizeOperations(ctx context.Context, request SummarizeOperationsRequestObject) (SummarizeOperationsResponseObject, error) {
 	return nil, ErrNotImplemented
 }
 
@@ -105,7 +256,15 @@ func (Unimplemented) GetPlanFact(ctx context.Context, request GetPlanFactRequest
 	return nil, ErrNotImplemented
 }
 
+func (Unimplemented) GetMissedPlanFact(ctx context.Context, request GetMissedPlanFactRequestObject) (GetMissedPlanFactResponseObject, error) {
+	return nil, ErrNotImplemented
+}
+
 func (Unimplemented) ListRecurring(ctx context.Context, request ListRecurringRequestObject) (ListRecurringResponseObject, error) {
+	return nil, ErrNotImplemented
+}
+
+func (Unimplemented) CreateRecurring(ctx context.Context, request CreateRecurringRequestObject) (CreateRecurringResponseObject, error) {
 	return nil, ErrNotImplemented
 }
 
@@ -118,6 +277,10 @@ func (Unimplemented) ListScenarios(ctx context.Context, request ListScenariosReq
 }
 
 func (Unimplemented) CreateScenario(ctx context.Context, request CreateScenarioRequestObject) (CreateScenarioResponseObject, error) {
+	return nil, ErrNotImplemented
+}
+
+func (Unimplemented) PreviewScenario(ctx context.Context, request PreviewScenarioRequestObject) (PreviewScenarioResponseObject, error) {
 	return nil, ErrNotImplemented
 }
 
@@ -141,7 +304,19 @@ func (Unimplemented) PutCompanyState(ctx context.Context, request PutCompanyStat
 	return nil, ErrNotImplemented
 }
 
+func (Unimplemented) GetTaxes(ctx context.Context, request GetTaxesRequestObject) (GetTaxesResponseObject, error) {
+	return nil, ErrNotImplemented
+}
+
 func (Unimplemented) UploadStatement(ctx context.Context, request UploadStatementRequestObject) (UploadStatementResponseObject, error) {
+	return nil, ErrNotImplemented
+}
+
+func (Unimplemented) DeleteContract(ctx context.Context, request DeleteContractRequestObject) (DeleteContractResponseObject, error) {
+	return nil, ErrNotImplemented
+}
+
+func (Unimplemented) UpdateContract(ctx context.Context, request UpdateContractRequestObject) (UpdateContractResponseObject, error) {
 	return nil, ErrNotImplemented
 }
 
@@ -153,7 +328,27 @@ func (Unimplemented) UpdateEvent(ctx context.Context, request UpdateEventRequest
 	return nil, ErrNotImplemented
 }
 
+func (Unimplemented) LookupFNS(ctx context.Context, request LookupFNSRequestObject) (LookupFNSResponseObject, error) {
+	return nil, ErrNotImplemented
+}
+
+func (Unimplemented) GetImport(ctx context.Context, request GetImportRequestObject) (GetImportResponseObject, error) {
+	return nil, ErrNotImplemented
+}
+
+func (Unimplemented) DeleteInvoice(ctx context.Context, request DeleteInvoiceRequestObject) (DeleteInvoiceResponseObject, error) {
+	return nil, ErrNotImplemented
+}
+
+func (Unimplemented) UpdateInvoice(ctx context.Context, request UpdateInvoiceRequestObject) (UpdateInvoiceResponseObject, error) {
+	return nil, ErrNotImplemented
+}
+
 func (Unimplemented) GetJob(ctx context.Context, request GetJobRequestObject) (GetJobResponseObject, error) {
+	return nil, ErrNotImplemented
+}
+
+func (Unimplemented) DownloadJob(ctx context.Context, request DownloadJobRequestObject) (DownloadJobResponseObject, error) {
 	return nil, ErrNotImplemented
 }
 
@@ -185,10 +380,54 @@ func (Unimplemented) UpdateOperation(ctx context.Context, request UpdateOperatio
 	return nil, ErrNotImplemented
 }
 
+func (Unimplemented) DeleteRecurring(ctx context.Context, request DeleteRecurringRequestObject) (DeleteRecurringResponseObject, error) {
+	return nil, ErrNotImplemented
+}
+
 func (Unimplemented) UpdateRecurring(ctx context.Context, request UpdateRecurringRequestObject) (UpdateRecurringResponseObject, error) {
 	return nil, ErrNotImplemented
 }
 
+func (Unimplemented) ListScenarioPresets(ctx context.Context, request ListScenarioPresetsRequestObject) (ListScenarioPresetsResponseObject, error) {
+	return nil, ErrNotImplemented
+}
+
+func (Unimplemented) DeleteScenario(ctx context.Context, request DeleteScenarioRequestObject) (DeleteScenarioResponseObject, error) {
+	return nil, ErrNotImplemented
+}
+
+func (Unimplemented) UpdateScenario(ctx context.Context, request UpdateScenarioRequestObject) (UpdateScenarioResponseObject, error) {
+	return nil, ErrNotImplemented
+}
+
+func (Unimplemented) CompareSavedScenario(ctx context.Context, request CompareSavedScenarioRequestObject) (CompareSavedScenarioResponseObject, error) {
+	return nil, ErrNotImplemented
+}
+
+func (Unimplemented) DeleteSource(ctx context.Context, request DeleteSourceRequestObject) (DeleteSourceResponseObject, error) {
+	return nil, ErrNotImplemented
+}
+
+func (Unimplemented) GetSource(ctx context.Context, request GetSourceRequestObject) (GetSourceResponseObject, error) {
+	return nil, ErrNotImplemented
+}
+
+func (Unimplemented) UpdateSource(ctx context.Context, request UpdateSourceRequestObject) (UpdateSourceResponseObject, error) {
+	return nil, ErrNotImplemented
+}
+
 func (Unimplemented) SyncSource(ctx context.Context, request SyncSourceRequestObject) (SyncSourceResponseObject, error) {
+	return nil, ErrNotImplemented
+}
+
+func (Unimplemented) TestSource(ctx context.Context, request TestSourceRequestObject) (TestSourceResponseObject, error) {
+	return nil, ErrNotImplemented
+}
+
+func (Unimplemented) MapUpload(ctx context.Context, request MapUploadRequestObject) (MapUploadResponseObject, error) {
+	return nil, ErrNotImplemented
+}
+
+func (Unimplemented) PreviewUpload(ctx context.Context, request PreviewUploadRequestObject) (PreviewUploadResponseObject, error) {
 	return nil, ErrNotImplemented
 }

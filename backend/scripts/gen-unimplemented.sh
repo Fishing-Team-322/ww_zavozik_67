@@ -11,9 +11,8 @@ package httpapi
 
 import "context"
 
-// Unimplemented отвечает 501 на все операции. Server встраивает его и
-// переопределяет то, что уже реализовано, поэтому новые эндпоинты из
-// контракта сразу компилируются и отдают 501, пока их не сделают.
+// Unimplemented is available for test doubles and partial adapters.
+// Production Server implements the full interface without embedding this type.
 type Unimplemented struct{}
 HDR
 awk '/^type StrictServerInterface interface/{f=1;next} f&&/^}/{f=0} f&&/^\t[A-Z]/{sub(/^\t/,""); print "\nfunc (Unimplemented) " $0 " {\n\treturn nil, ErrNotImplemented\n}"}' api.gen.go
