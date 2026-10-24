@@ -23,6 +23,14 @@ const (
 	BearerAuthScopes = "bearerAuth.Scopes"
 )
 
+// Defines values for CalendarDaysRisk.
+const (
+	CalendarDaysRiskDanger  CalendarDaysRisk = "danger"
+	CalendarDaysRiskOk      CalendarDaysRisk = "ok"
+	CalendarDaysRiskUnknown CalendarDaysRisk = "unknown"
+	CalendarDaysRiskWarning CalendarDaysRisk = "warning"
+)
+
 // Defines values for Category.
 const (
 	BankFee            Category = "bank_fee"
@@ -133,6 +141,14 @@ const (
 	OnecBankFile CreateSourceInputKind = "onec_bank_file"
 	OnecOdata    CreateSourceInputKind = "onec_odata"
 	Upload       CreateSourceInputKind = "upload"
+)
+
+// Defines values for DashboardStatus.
+const (
+	DashboardStatusDanger  DashboardStatus = "danger"
+	DashboardStatusEmpty   DashboardStatus = "empty"
+	DashboardStatusOk      DashboardStatus = "ok"
+	DashboardStatusWarning DashboardStatus = "warning"
 )
 
 // Defines values for Direction.
@@ -375,6 +391,21 @@ type AlertPage struct {
 // AuthProviders defines model for AuthProviders.
 type AuthProviders = []OAuthProvider
 
+// Calendar defines model for Calendar.
+type Calendar struct {
+	CalendarSource string `json:"calendar_source"`
+	Days           []struct {
+		BalanceP50 *float64           `json:"balance_p50"`
+		Date       openapi_types.Date `json:"date"`
+		Events     []PlannedEvent     `json:"events"`
+		IsWorkday  bool               `json:"is_workday"`
+		Risk       CalendarDaysRisk   `json:"risk"`
+	} `json:"days"`
+}
+
+// CalendarDaysRisk defines model for Calendar.Days.Risk.
+type CalendarDaysRisk string
+
 // Category Категория операции
 type Category string
 
@@ -608,6 +639,67 @@ type Credentials struct {
 	Password string              `json:"password"`
 }
 
+// Dashboard defines model for Dashboard.
+type Dashboard struct {
+	Alerts     []Alert             `json:"alerts"`
+	BalanceNow *float64            `json:"balance_now"`
+	DataAsOf   *openapi_types.Date `json:"data_as_of"`
+	Forecast   *struct {
+		AsOf         openapi_types.Date `json:"as_of"`
+		FallbackUsed bool               `json:"fallback_used"`
+		FlowScope    string             `json:"flow_scope"`
+		Gaps         []Gap              `json:"gaps"`
+		Headline     string             `json:"headline"`
+		History      []struct {
+			Balance *float64           `json:"balance"`
+			Date    openapi_types.Date `json:"date"`
+		} `json:"history"`
+		Horizon       int  `json:"horizon"`
+		LowConfidence bool `json:"low_confidence"`
+		Markers       []struct {
+			Amount float64            `json:"amount"`
+			Date   openapi_types.Date `json:"date"`
+			Kind   string             `json:"kind"`
+			Title  string             `json:"title"`
+		} `json:"markers"`
+		ModelUsed      string  `json:"model_used"`
+		ModelVersion   string  `json:"model_version"`
+		OpeningBalance float64 `json:"opening_balance"`
+		Points         []struct {
+			Date      openapi_types.Date `json:"date"`
+			IsWorkday bool               `json:"is_workday"`
+			P10       float64            `json:"p10"`
+			P50       float64            `json:"p50"`
+			P90       float64            `json:"p90"`
+		} `json:"points"`
+		SafeToSpend float64  `json:"safe_to_spend"`
+		Status      string   `json:"status"`
+		Warnings    []string `json:"warnings"`
+	} `json:"forecast"`
+	Headline      string `json:"headline"`
+	LowConfidence bool   `json:"low_confidence"`
+	MinBalance    *struct {
+		Date openapi_types.Date `json:"date"`
+		P50  float64            `json:"p50"`
+	} `json:"min_balance"`
+	SafeToSpend *float64        `json:"safe_to_spend"`
+	Status      DashboardStatus `json:"status"`
+	TopGap      *struct {
+		Date         openapi_types.Date `json:"date"`
+		DaysLeft     int                `json:"days_left"`
+		Headline     string             `json:"headline"`
+		Id           string             `json:"id"`
+		Probability  float64            `json:"probability"`
+		Shortfall    float64            `json:"shortfall"`
+		ShortfallP90 float64            `json:"shortfall_p90"`
+	} `json:"top_gap"`
+	UpcomingIn  []PlannedEvent `json:"upcoming_in"`
+	UpcomingOut []PlannedEvent `json:"upcoming_out"`
+}
+
+// DashboardStatus defines model for Dashboard.Status.
+type DashboardStatus string
+
 // DeleteSourceInput defines model for DeleteSourceInput.
 type DeleteSourceInput struct {
 	KeepData bool `json:"keep_data"`
@@ -687,6 +779,15 @@ type ForecastDay struct {
 	P90             float64            `json:"p90"`
 }
 
+// ForecastPoint defines model for ForecastPoint.
+type ForecastPoint struct {
+	Date      openapi_types.Date `json:"date"`
+	IsWorkday bool               `json:"is_workday"`
+	P10       float64            `json:"p10"`
+	P50       float64            `json:"p50"`
+	P90       float64            `json:"p90"`
+}
+
 // ForgotPasswordRequest defines model for ForgotPasswordRequest.
 type ForgotPasswordRequest struct {
 	Email openapi_types.Email `json:"email"`
@@ -719,6 +820,12 @@ type GapDetail struct {
 	Probability  float64            `json:"probability"`
 	Shortfall    float64            `json:"shortfall"`
 	ShortfallP90 float64            `json:"shortfall_p90"`
+}
+
+// GapSimulation defines model for GapSimulation.
+type GapSimulation struct {
+	Gaps   []Gap           `json:"gaps"`
+	Points []ForecastPoint `json:"points"`
 }
 
 // Health defines model for Health.
@@ -827,6 +934,21 @@ type Operation struct {
 type OperationPage struct {
 	Items      []Operation `json:"items"`
 	NextCursor *string     `json:"next_cursor"`
+}
+
+// OperationsSummary defines model for OperationsSummary.
+type OperationsSummary struct {
+	ByCategory []struct {
+		// Category Категория операции
+		Category Category `json:"category"`
+		Count    int      `json:"count"`
+		In       float64  `json:"in"`
+		Out      float64  `json:"out"`
+	} `json:"by_category"`
+	InternalTotal float64 `json:"internal_total"`
+	Net           float64 `json:"net"`
+	TotalIn       float64 `json:"total_in"`
+	TotalOut      float64 `json:"total_out"`
 }
 
 // Page defines model for Page.
@@ -1194,6 +1316,20 @@ type UpdateSourceInput struct {
 	Config  *map[string]interface{} `json:"config,omitempty"`
 	Enabled *bool                   `json:"enabled,omitempty"`
 	Title   *string                 `json:"title,omitempty"`
+}
+
+// UploadMappingResult defines model for UploadMappingResult.
+type UploadMappingResult struct {
+	DetectedFormat string             `json:"detected_format"`
+	NeedsMapping   bool               `json:"needs_mapping"`
+	UploadId       openapi_types.UUID `json:"upload_id"`
+}
+
+// UploadPreview defines model for UploadPreview.
+type UploadPreview struct {
+	Columns         []string          `json:"columns"`
+	ProposedMapping map[string]string `json:"proposed_mapping"`
+	Rows            [][]string        `json:"rows"`
 }
 
 // CompanyId defines model for CompanyId.
@@ -6769,7 +6905,7 @@ type GetCalendarResponseObject interface {
 	VisitGetCalendarResponse(w http.ResponseWriter) error
 }
 
-type GetCalendar200JSONResponse Object
+type GetCalendar200JSONResponse Calendar
 
 func (response GetCalendar200JSONResponse) VisitGetCalendarResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
@@ -6946,7 +7082,7 @@ type GetDashboardResponseObject interface {
 	VisitGetDashboardResponse(w http.ResponseWriter) error
 }
 
-type GetDashboard200JSONResponse Object
+type GetDashboard200JSONResponse Dashboard
 
 func (response GetDashboard200JSONResponse) VisitGetDashboardResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
@@ -7248,7 +7384,7 @@ type SimulateGapResponseObject interface {
 	VisitSimulateGapResponse(w http.ResponseWriter) error
 }
 
-type SimulateGap200JSONResponse Object
+type SimulateGap200JSONResponse GapSimulation
 
 func (response SimulateGap200JSONResponse) VisitSimulateGapResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
@@ -7467,7 +7603,7 @@ type SummarizeOperationsResponseObject interface {
 	VisitSummarizeOperationsResponse(w http.ResponseWriter) error
 }
 
-type SummarizeOperations200JSONResponse Object
+type SummarizeOperations200JSONResponse OperationsSummary
 
 func (response SummarizeOperations200JSONResponse) VisitSummarizeOperationsResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
@@ -7913,7 +8049,7 @@ type UploadStatementResponseObject interface {
 	VisitUploadStatementResponse(w http.ResponseWriter) error
 }
 
-type UploadStatement200JSONResponse Object
+type UploadStatement200JSONResponse UploadMappingResult
 
 func (response UploadStatement200JSONResponse) VisitUploadStatementResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
@@ -8799,7 +8935,7 @@ type PreviewUploadResponseObject interface {
 	VisitPreviewUploadResponse(w http.ResponseWriter) error
 }
 
-type PreviewUpload200JSONResponse Object
+type PreviewUpload200JSONResponse UploadPreview
 
 func (response PreviewUpload200JSONResponse) VisitPreviewUploadResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")

@@ -48,6 +48,21 @@ jobs:
 
   ml:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: zavozik_test
+          POSTGRES_USER: zavozik_test
+          POSTGRES_PASSWORD: test-only-password
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U zavozik_test -d zavozik_test"
+          --health-interval 3s --health-timeout 3s --health-retries 20
+    env:
+      TEST_DATABASE_URL: postgres://zavozik_test:test-only-password@localhost:5432/zavozik_test?sslmode=disable
+      TEST_ML_ADDR: 127.0.0.1:50051
+      OMP_NUM_THREADS: "2"
     defaults:
       run:
         working-directory: ml
@@ -58,6 +73,39 @@ jobs:
           python-version: "3.12"
       - run: pip install -e ".[dev]"
       - run: python -m pytest -q
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - name: Verify Go API against the real Python models
+        run: |
+          PYTHONPATH=gen ML_LISTEN="$TEST_ML_ADDR" python -u -m zavozik_ml.serving.server > /tmp/zavozik-ml.log 2>&1 &
+          ml_pid=$!
+          trap 'kill "$ml_pid"; cat /tmp/zavozik-ml.log' EXIT
+          python -c 'import grpc, os; grpc.channel_ready_future(grpc.insecure_channel(os.environ["TEST_ML_ADDR"])).result(timeout=30)'
+          cd ../backend
+          go test -race ./internal/httpapi -run '^TestLiveMLThroughFinancialAPI$' -count=1 -v
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: underfront
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: underfront/package-lock.json
+      - run: npm ci
+      - run: npm run gen:api && git diff --exit-code -- src/shared/api/schema.gen.ts
+      - run: npm test
+      - run: npm run typecheck
+      - run: npm run lint:api
+      - run: npm run build
 
   docker:
     runs-on: ubuntu-latest

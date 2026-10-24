@@ -63,8 +63,8 @@ export function CashflowForecastChart({days, height = 330, currency = "₽", sho
           <XAxis dataKey="date" minTickGap={18} tickLine={false} axisLine={false} tick={{fontSize:11, fill:"var(--text-secondary)"}}/>
           <YAxis tickLine={false} axisLine={false} width={56} tick={{fontSize:11, fill:"var(--text-secondary)"}} tickFormatter={(v:number)=>Math.abs(v)>=1000000?`${(v/1000000).toFixed(1)}м`:`${Math.round(v/1000)}к`}/>
           <ReferenceLine y={0} stroke="var(--danger)" strokeWidth={1.5} strokeDasharray="5 4" label={{value:"0 ₽", position:"insideTopRight", fill:"var(--danger)", fontSize:11}}/>
-          {deficitPeriods.map((period) => <ReferenceArea key={period.start} x1={period.start} x2={period.end} y1={period.minimum} y2={0} fill="var(--danger)" fillOpacity={0.12} strokeOpacity={0} />)}
-          {deficitPoints.map((point) => <ReferenceDot key={point.date} x={point.date} y={point.value} r={5} fill="var(--danger)" stroke="var(--surface)" strokeWidth={2} />)}
+          {deficitPeriods.map((period) => <ReferenceArea key={`period-${period.start}`} x1={period.start} x2={period.end} y1={period.minimum} y2={0} fill="var(--danger)" fillOpacity={0.12} strokeOpacity={0} />)}
+          {deficitPoints.map((point) => <ReferenceDot key={`point-${point.date}`} x={point.date} y={point.value} r={5} fill="var(--danger)" stroke="var(--surface)" strokeWidth={2} />)}
           <Tooltip content={({active,payload,label})=>active && payload?.length ? (
             <div className="rounded-xl border border-[color:var(--border)] bg-[color:var(--surface-elevated)] p-3 shadow-[var(--shadow-md)]">
               <div className="mb-2 text-xs font-semibold text-[color:var(--text-primary)]">{label}</div>
