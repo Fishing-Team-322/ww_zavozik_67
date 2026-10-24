@@ -63,6 +63,27 @@ func domainOperations(rows []Doc) []domain.Operation {
 	ingest.SortOps(out)
 	return out
 }
+
+// An unpaid additional expense remains a debt after its scheduled date. Carry
+// it to the first forecast day without changing the audited calendar date.
+// Overdue income is not assumed to arrive, and baseline flows are not added twice.
+func eventForecastDate(event Doc, asOf time.Time) (time.Time, bool) {
+	if !in(text(event, "status"), "expected missed") {
+		return time.Time{}, false
+	}
+	dt, err := day(date(event["event_date"]))
+	if err != nil {
+		return time.Time{}, false
+	}
+	if !dt.After(asOf) {
+		if text(event, "direction") == "out" && flag(event, "additional") {
+			return asOf.AddDate(0, 0, 1), true
+		}
+		return time.Time{}, false
+	}
+	return dt, text(event, "status") == "expected"
+}
+
 func (s *Service) build(ctx context.Context, uid, cid string, h int, model string, steps, preview []Doc, persist bool) (Doc, forecast.Result, error) {
 	var empty forecast.Result
 	company, e := s.DB.GetCompany(ctx, uid, cid)
@@ -146,19 +167,25 @@ func (s *Service) build(ctx context.Context, uid, cid string, h int, model strin
 	}
 	components := []forecast.ComponentFlow{}
 	markers := []Doc{}
+	carriedMarkers := map[string]Doc{}
 	for _, event := range events {
-		dt, e := day(date(event["event_date"]))
-		if e != nil {
-			return nil, empty, e
-		}
-		if text(event, "status") != "expected" || !dt.After(asOf) || dt.After(asOf.AddDate(0, 0, h)) {
+		dt, include := eventForecastDate(event, asOf)
+		if !include || dt.After(asOf.AddDate(0, 0, h)) {
 			continue
 		}
 		amount := number(event, "amount")
 		if text(event, "direction") == "out" {
 			amount = -amount
 		}
-		markers = append(markers, Doc{"date": dt.Format(domain.DateLayout), "title": text(event, "title"), "amount": amount, "kind": text(event, "source_kind")})
+		title := text(event, "title")
+		if date(event["event_date"]) <= asOf.Format(domain.DateLayout) {
+			title += " (не оплачен, срок " + date(event["event_date"]) + ")"
+		}
+		marker := Doc{"date": dt.Format(domain.DateLayout), "title": title, "amount": amount, "kind": text(event, "source_kind")}
+		markers = append(markers, marker)
+		if date(event["event_date"]) <= asOf.Format(domain.DateLayout) {
+			carriedMarkers["event:"+text(event, "id")] = marker
+		}
 		// The trained ML already covers recurring business flows. Only explicit
 		// additional plans change its paths; detected recurring is never added twice.
 		if !flag(event, "additional") {
@@ -185,14 +212,11 @@ func (s *Service) build(ctx context.Context, uid, cid string, h int, model strin
 	}
 	for _, event := range events {
 		prob := number(event, "probability")
-		if !flag(event, "additional") || prob <= 0 || prob >= 1 || text(event, "status") != "expected" {
+		if !flag(event, "additional") || prob <= 0 || prob >= 1 {
 			continue
 		}
-		dt, err := day(date(event["event_date"]))
-		if err != nil {
-			return nil, empty, err
-		}
-		if res.DayIndex(dt) < 0 {
+		dt, include := eventForecastDate(event, asOf)
+		if !include || res.DayIndex(dt) < 0 {
 			continue
 		}
 		amount := number(event, "amount")
@@ -218,6 +242,17 @@ func (s *Service) build(ctx context.Context, uid, cid string, h int, model strin
 		res, e = s.applySteps(ctx, uid, cid, res, events, steps)
 		if e != nil {
 			return nil, empty, e
+		}
+	}
+	// A scenario can reschedule a carried debt. Its marker and notice must
+	// describe the resulting forecast, not the original first-day assumption.
+	carriedExpense := false
+	for _, component := range res.Deterministic {
+		if marker := carriedMarkers[component.Key]; marker != nil {
+			marker["date"] = component.Date.Format(domain.DateLayout)
+			if component.Date.Equal(asOf.AddDate(0, 0, 1)) {
+				carriedExpense = true
+			}
 		}
 	}
 	q10, q50, q90 := res.Quantile(.1), res.Quantile(.5), res.Quantile(.9)
@@ -248,6 +283,9 @@ func (s *Service) build(ctx context.Context, uid, cid string, h int, model strin
 		history = append(history, Doc{"date": f.Date.Format(domain.DateLayout), "balance": b})
 	}
 	warnings := append([]string{}, res.Stochastic.Warnings...)
+	if carriedExpense {
+		warnings = append(warnings, "overdue_additional_expenses_carried_forward")
+	}
 	if today().Sub(asOf) > 7*24*time.Hour {
 		warnings = append(warnings, "stale_statement_forecast_starts_after_data_as_of")
 	}

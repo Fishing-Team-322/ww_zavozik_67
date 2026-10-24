@@ -474,7 +474,7 @@ func (s *Service) projectRecurring(ctx context.Context, uid, cid string) error {
 			count++
 			id := idFor(cid, "recurring:"+text(p, "id")+":"+start.Format(domain.DateLayout))
 			if !exists[id] {
-				d := Doc{"id": id, "date": start.Format(domain.DateLayout), "title": p["title"], "amount": p["amount"], "direction": p["direction"], "category": p["category"], "counterparty_name": p["counterparty_name"], "probability": float64(1), "status": "expected", "source": "recurring", "recurring_id": p["id"], "origin": p["origin"], "additional": text(p, "origin") == "manual", "occurrence_key": id}
+				d := Doc{"id": id, "date": start.Format(domain.DateLayout), "title": p["title"], "amount": p["amount"], "direction": p["direction"], "category": p["category"], "counterparty_name": p["counterparty_name"], "counterparty_inn": p["counterparty_inn"], "probability": float64(1), "status": "expected", "source": "recurring", "recurring_id": p["id"], "origin": p["origin"], "additional": text(p, "origin") == "manual", "occurrence_key": id}
 				if _, e = s.DB.ProductSave(ctx, uid, cid, "event", id, d, true); e != nil {
 					return e
 				}

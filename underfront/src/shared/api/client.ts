@@ -211,7 +211,9 @@ export class ApiClient {
           this.assertSession(generation);
           this.token = token.access_token;
         } catch (error) {
-          if (generation === this.generation && (this.token || error instanceof ApiError && error.status === 401)) this.clearSession();
+          // Transport/server failures do not revoke a still-valid refresh cookie.
+          // Keep the session recoverable; only an explicit 401 ends it.
+          if (generation === this.generation && error instanceof ApiError && error.status === 401) this.clearSession();
           throw error;
         }
       }).finally(() => {

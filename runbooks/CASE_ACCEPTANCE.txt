@@ -111,3 +111,26 @@ Live external acceptance remains SKIPPED until the team provides approved test
 access. Demo reports from marketplaces and dated FNS risk signals are not bank
 cash facts. The defense must distinguish synthetic demonstrations from real
 connections. No new claim about independently validated TrxGPT quality is made.
+
+Financial regression fixes
+-------------------------
+Migration 00007 creates operation_settlements and backfills existing bank matches.
+A consumed bank operation remains reserved after editing or deleting a document.
+The migration also restores known counterparty INNs on older calendar projections.
+When both sides have an INN, reconciliation compares it instead of their names;
+name matching remains the compatibility fallback when an INN is missing.
+
+Unpaid additional expenses whose scheduled date is on/before the statement date
+are conservatively carried to the first forecast day. Their original calendar
+date is retained. A visible notice explains this assumption. Received/cancelled
+plans are excluded; overdue income is not invented, and ordinary baseline
+expenses are not added a second time.
+
+Scenarios cannot move paid/cancelled events or move a payment into observed history.
+Resolved gap warnings become read and link to the current forecast. A recurring
+risk on the same date reopens its warning without creating a duplicate.
+Temporary refresh transport/5xx errors preserve the local session for retry;
+an explicit authentication rejection still ends the session.
+
+Regression coverage: financial_regressions_test.go, forecast_events_test.go and
+session-recovery.test.ts. Run the normal backend/frontend suites and full CI.

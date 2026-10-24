@@ -71,8 +71,11 @@ func (s *Service) applySteps(ctx context.Context, uid, cid string, base forecast
 		return forecast.Result{}, e
 	}
 	out := base.Clone()
-	move := func(event Doc, target time.Time) {
-		old, _ := day(date(event["event_date"]))
+	move := func(event Doc, target time.Time) error {
+		old, included := eventForecastDate(event, out.AsOf)
+		if !included || !target.After(out.AsOf) {
+			return bad("Перенос доступен только для неоплаченного планового платежа на будущую дату")
+		}
 		amount := number(event, "amount")
 		if text(event, "direction") == "out" {
 			amount = -amount
@@ -93,6 +96,7 @@ func (s *Service) applySteps(ctx context.Context, uid, cid string, base forecast
 				out.Uncertain[i].Date = target
 			}
 		}
+		return nil
 	}
 	for _, step := range steps {
 		switch text(step, "kind") {
@@ -129,7 +133,9 @@ func (s *Service) applySteps(ctx context.Context, uid, cid string, base forecast
 			for _, event := range events {
 				if text(event, "id") == text(step, "event_id") {
 					dt, _ := day(text(step, "date"))
-					move(event, dt)
+					if e := move(event, dt); e != nil {
+						return forecast.Result{}, e
+					}
 					found = true
 					break
 				}
@@ -146,7 +152,9 @@ func (s *Service) applySteps(ctx context.Context, uid, cid string, base forecast
 						continue
 					}
 					dt, _ := day(date(event["event_date"]))
-					move(event, dt.AddDate(0, 0, int(number(step, "delay_days"))))
+					if e := move(event, dt.AddDate(0, 0, int(number(step, "delay_days")))); e != nil {
+						return forecast.Result{}, e
+					}
 					found = true
 				}
 			}
@@ -204,14 +212,14 @@ func (s *Service) gapResult(ctx context.Context, op, uid, cid string, gap, out D
 	actions := []Doc{}
 	causes := []Doc{}
 	for _, event := range events {
-		if text(event, "direction") != "out" || text(event, "status") != "expected" || date(event["event_date"]) <= text(out, "as_of") || date(event["event_date"]) > text(gap, "date") {
+		dt, included := eventForecastDate(event, res.AsOf)
+		if text(event, "direction") != "out" || !included || dt.Format(domain.DateLayout) > text(gap, "date") {
 			continue
 		}
 		causes = append(causes, Doc{"title": event["title"], "amount": -number(event, "amount"), "component_key": "event:" + text(event, "id"), "items_ref": event["id"]})
-		if len(actions) >= 4 || !in(text(event, "source_kind"), "manual recurring") {
+		if len(actions) >= 4 || text(event, "status") != "expected" || !in(text(event, "source_kind"), "manual recurring") {
 			continue
 		}
-		dt, _ := day(date(event["event_date"]))
 		newDate := dt.AddDate(0, 0, 14)
 		steps := []Doc{{"kind": "move_event", "event_id": event["id"], "date": newDate.Format(domain.DateLayout)}}
 		actions = append(actions, Doc{"id": idFor(cid, text(gap, "id")+":shift:"+text(event, "id")), "kind": "shift_supplier_payment", "title": "Перенести платёж", "description": "Согласовать перенос платежа на 14 дней", "cost": float64(0), "steps": steps, "refs": Doc{"event_id": event["id"]}, "draft_message": nil})

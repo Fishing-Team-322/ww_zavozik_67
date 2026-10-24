@@ -105,6 +105,23 @@ func (s *Service) historyAnalysis(ctx context.Context, op, uid, cid string, r *h
 	case "getMissedPlanFact":
 		missed := []Doc{}
 		matched := map[string]bool{}
+		settlements, e := s.DB.Pool.Query(ctx, "SELECT operation_id FROM operation_settlements WHERE company_id=$1", cid)
+		if e != nil {
+			return Result{}, e
+		}
+		for settlements.Next() {
+			var id string
+			if e = settlements.Scan(&id); e != nil {
+				settlements.Close()
+				return Result{}, e
+			}
+			matched[id] = true
+		}
+		e = settlements.Err()
+		settlements.Close()
+		if e != nil {
+			return Result{}, e
+		}
 		for _, d := range events {
 			if id := text(d, "matched_operation_id"); id != "" {
 				matched[id] = true

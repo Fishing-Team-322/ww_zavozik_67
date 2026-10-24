@@ -576,9 +576,22 @@ func (s *Service) evaluateAlerts(ctx context.Context, uid, cid string, out Doc) 
 	if e != nil {
 		return e
 	}
+	activeGaps := map[string]bool{}
+	for _, gap := range docs(out["gaps"]) {
+		activeGaps[idFor(cid, "alert:"+text(gap, "id"))] = true
+	}
 	for _, alert := range alerts {
 		if text(alert, "kind") == "missed_payment" && !activeMissed[text(alert, "id")] && !flag(alert, "read") {
 			alert["read"] = true
+			if _, e = s.DB.ProductSave(ctx, uid, cid, "alert", text(alert, "id"), alert, false); e != nil {
+				return e
+			}
+		}
+		if text(alert, "kind") == "gap_risk" && !activeGaps[text(alert, "id")] && !flag(alert, "resolved") {
+			alert["read"], alert["resolved"] = true, true
+			// The old gap ID belongs to an obsolete forecast. Keep the warning
+			// as history, but link to the current forecast instead of a 404.
+			alert["ref"] = Doc{"screen": "forecast", "id": nil}
 			if _, e = s.DB.ProductSave(ctx, uid, cid, "alert", text(alert, "id"), alert, false); e != nil {
 				return e
 			}
@@ -587,6 +600,18 @@ func (s *Service) evaluateAlerts(ctx context.Context, uid, cid string, out Doc) 
 	for _, gap := range docs(out["gaps"]) {
 		id := idFor(cid, "alert:"+text(gap, "id"))
 		if _, e := s.DB.ProductGet(ctx, uid, "alert", id); e == nil {
+			// A resolved risk can recur on the same date. Notify again then,
+			// while preserving the user's read state for a continuing risk.
+			for _, alert := range alerts {
+				if text(alert, "id") == id && flag(alert, "resolved") {
+					alert["read"], alert["resolved"] = false, false
+					alert["ref"] = Doc{"screen": "gap", "id": gap["id"]}
+					if _, e = s.DB.ProductSave(ctx, uid, cid, "alert", id, alert, false); e != nil {
+						return e
+					}
+					break
+				}
+			}
 			continue
 		}
 		d := Doc{"id": id, "severity": "warning", "title": "Возможен недостаток денег", "body": "Проверьте прогноз и ближайшие платежи", "kind": "gap_risk", "read": false, "ref": Doc{"screen": "gap", "id": gap["id"]}}

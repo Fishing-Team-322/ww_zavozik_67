@@ -4,6 +4,7 @@ import (
 	"context"
 	"math"
 	"sort"
+	"strings"
 
 	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/domain"
 	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/ingest"
@@ -129,6 +130,23 @@ func (s *Service) reconcileFacts(ctx context.Context, uid, cid string) error {
 		return e
 	}
 	used := map[string]bool{}
+	settlements, e := tx.Query(ctx, "SELECT operation_id FROM operation_settlements WHERE company_id=$1", cid)
+	if e != nil {
+		return e
+	}
+	for settlements.Next() {
+		var id string
+		if e = settlements.Scan(&id); e != nil {
+			settlements.Close()
+			return e
+		}
+		used[id] = true
+	}
+	e = settlements.Err()
+	settlements.Close()
+	if e != nil {
+		return e
+	}
 	for _, d := range events {
 		if id := text(d, "matched_operation_id"); id != "" {
 			used[id] = true
@@ -150,7 +168,7 @@ func (s *Service) reconcileFacts(ctx context.Context, uid, cid string) error {
 				continue
 			}
 			taxMatch := text(event, "source_kind") == "tax_calendar" && text(op, "category") == "tax"
-			if !taxMatch && (text(event, "counterparty_name") == "" || text(event, "counterparty_name") != text(op, "counterparty_name")) {
+			if !taxMatch && !samePaymentCounterparty(event, op) {
 				continue
 			}
 			actual, _ := day(date(op["op_date"]))
@@ -177,6 +195,13 @@ func (s *Service) reconcileFacts(ctx context.Context, uid, cid string) error {
 		matches := candidates[text(event, "id")]
 		if len(matches) == 1 && possibleUses[text(matches[0], "id")] == 1 {
 			match := matches[0]
+			tag, err := tx.Exec(ctx, `INSERT INTO operation_settlements(company_id,operation_id,event_id,source_kind,document_id) VALUES($1,$2,$3,$4,$5) ON CONFLICT(company_id,operation_id) DO NOTHING`, cid, match["id"], event["id"], text(event, "source_kind"), text(event, "document_id"))
+			if err != nil {
+				return err
+			}
+			if tag.RowsAffected() == 0 {
+				continue
+			}
 			used[text(match, "id")] = true
 			_, e = tx.Exec(ctx, "UPDATE planned_events SET status='received',matched_operation_id=$2,extra=extra||jsonb_build_object('_revision',COALESCE((extra->>'_revision')::int,0)+1) WHERE id=$1 AND company_id=$3 AND status IN ('expected','missed')", event["id"], match["id"], cid)
 			if e != nil {
@@ -203,6 +228,15 @@ func (s *Service) reconcileFacts(ctx context.Context, uid, cid string) error {
 		}
 	}
 	return tx.Commit(ctx)
+}
+func samePaymentCounterparty(event, operation Doc) bool {
+	expectedINN := strings.TrimSpace(text(event, "counterparty_inn"))
+	actualINN := strings.TrimSpace(text(operation, "counterparty_inn"))
+	if expectedINN != "" && actualINN != "" {
+		return expectedINN == actualINN
+	}
+	name := text(event, "counterparty_name")
+	return name != "" && name == text(operation, "counterparty_name")
 }
 func (s *Service) evaluateSignals(ctx context.Context, uid, cid string) error {
 	rows, e := s.DB.ProductList(ctx, uid, cid, "operation")
