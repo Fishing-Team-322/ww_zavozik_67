@@ -26,4 +26,4 @@
 - Автоматического банковского API и локального агента 1С здесь нет. Проверенные пути — файлы и опубликованный OData.
 - Известный счёт из справочника 1С подтверждает связь в этой базе, но не юридическое владение. Совпадение ИНН с PDF не выдаёт права на чужое пространство.
 
-Сценарии и доказательства: [отчёт](FULL_PLATFORM_COMPLETION_REPORT.md), [инструкция подключения](INTEGRATIONS_USER_GUIDE.md), `underfront/tests/e2e`, `backend/internal/httpapi/*_test.go`, тесты `integrations/`.
+Сценарии проверки: `underfront/tests/e2e`, `backend/internal/httpapi/*_test.go`, тесты `integrations/`. Скриншоты и результаты конкретных прогонов — локальные артефакты `underfront/test-results/`, в Git не хранятся. Пользовательские действия описаны в [инструкции подключения](INTEGRATIONS_USER_GUIDE.md).

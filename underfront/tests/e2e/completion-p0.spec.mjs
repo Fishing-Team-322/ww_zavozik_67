@@ -4,7 +4,7 @@ import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 
 const api = process.env.E2E_API_URL || 'http://localhost:8080';
-const screenshots = process.env.E2E_SCREENSHOTS_DIR || path.resolve('../docs/e2e-v2-screenshots');
+const screenshots = process.env.E2E_SCREENSHOTS_DIR || path.resolve('test-results/screenshots');
 const password = 'E2e!A1b2C3d4';
 
 test('self-service, legacy query links, checksum, isolated same-INN workspaces and balance provenance', async ({ page, request }) => {

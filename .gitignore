@@ -14,3 +14,12 @@ backend/backtest.csv
 
 # env
 .env
+
+# Local browser audit output; keep source fixtures and application assets tracked.
+/docs/e2e-screenshots/
+/docs/e2e-main-screenshots/
+/docs/e2e-v2-screenshots/
+/docs/e2e-v2-results.json
+/docs/FULL_PLATFORM_COMPLETION_REPORT.md
+/docs/FULL_PLATFORM_E2E_REPORT.md
+/docs/MAIN_FRONTEND_VALIDATION.md

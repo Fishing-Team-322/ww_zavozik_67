@@ -65,7 +65,7 @@ test('invoice partial payment, recurring schedule, settings, export and theme pe
   await page.getByRole('button', { name: 'Тёмная тема', exact: true }).click();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark'); await page.reload();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
-  const shots=process.env.E2E_SCREENSHOTS_DIR || path.resolve('../docs/e2e-v2-screenshots'); mkdirSync(shots,{recursive:true});
+  const shots=process.env.E2E_SCREENSHOTS_DIR || path.resolve('test-results/screenshots'); mkdirSync(shots,{recursive:true});
   await page.screenshot({path:path.join(shots,'settings-dark-synthetic.png')});
   await page.getByRole('button', { name: 'Светлая тема', exact: true }).click();
   expect(errors).toEqual([]);

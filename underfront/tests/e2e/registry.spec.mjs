@@ -49,7 +49,7 @@ test('official registry PDF previews, links explicitly, survives reload and neve
   expect((await operations.json()).items).toHaveLength(0);
   const dashboard = await request.get(`${api}/v1/companies/${cid}/dashboard`, { headers });
   expect((await dashboard.json()).balance_now).toBe(null);
-  const shots = process.env.E2E_SCREENSHOTS_DIR || path.resolve('../docs/e2e-v2-screenshots');
+  const shots = process.env.E2E_SCREENSHOTS_DIR || path.resolve('test-results/screenshots');
   mkdirSync(shots, { recursive: true });
   await registry.screenshot({ path: path.join(shots, 'fns-registry-saved-redacted.png'), mask: [registry.getByRole('article')] });
   await page.goto('/counterparties');

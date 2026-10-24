@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 const apiOrigin = process.env.E2E_API_URL || 'http://localhost:8080';
 const password = 'E2e!A1b2C3d4'; // Synthetic account in the isolated E2E database only.
-const screenshots = process.env.E2E_SCREENSHOTS_DIR || path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../docs/e2e-screenshots');
+const screenshots = process.env.E2E_SCREENSHOTS_DIR || path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../test-results/screenshots');
 
 async function register(request) {
   const email = `e2e-${randomUUID()}@example.invalid`;

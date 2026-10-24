@@ -55,7 +55,7 @@ test('isolated sandbox: WB/Ozon financial reports, duplicate sync and secret mas
   await expect(wbSource).toContainText('Ожидает проверки');
   await wbSource.getByRole('button',{name:'Проверить',exact:true}).click();
   await expect(wbSource).toContainText('Готово');
-  const shots = process.env.E2E_SCREENSHOTS_DIR || path.resolve('../docs/e2e-v2-screenshots'); mkdirSync(shots, { recursive: true });
+  const shots = process.env.E2E_SCREENSHOTS_DIR || path.resolve('test-results/screenshots'); mkdirSync(shots, { recursive: true });
   await workspace.screenshot({ path: path.join(shots, 'marketplace-sandbox-reports.png') });
   const sheet = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Google Sheets · предпросмотр и импорт', exact: true }) });
   await sheet.getByLabel('ID таблицы Google Sheets', { exact: true }).fill('synthetic-sheet');
