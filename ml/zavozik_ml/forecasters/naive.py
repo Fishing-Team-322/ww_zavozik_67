@@ -14,7 +14,7 @@ import numpy as np
 
 from zavozik_ml import calendar as cal
 
-from .base import Forecaster, History, Paths, register
+from .base import Forecaster, History, InsufficientHistoryError, Paths, register
 
 MIN_CONFIDENT_DAYS = 28
 
@@ -29,7 +29,7 @@ class SeasonalNaive(Forecaster):
         inflow = np.zeros((n_paths, horizon))
         outflow = np.zeros((n_paths, horizon))
         if not history.dates:
-            return Paths(inflow, outflow, low_confidence=True)
+            raise InsufficientHistoryError("history contains no observed days")
 
         start = max(0, len(history.dates) - self.weeks * 7)
         # Пулы по дню недели только из рабочих дней (по производственному
@@ -43,6 +43,8 @@ class SeasonalNaive(Forecaster):
                 pools[history.dates[i].weekday()].append(i)
         any_work = [i for wd in range(7) for i in pools[wd]]
         valid = sum(len(p) for p in pools.values())
+        if not any_work:
+            raise InsufficientHistoryError("no observed eligible days in the seasonal sampling window")
 
         last = history.dates[-1]
         targets = [last + timedelta(days=d + 1) for d in range(horizon)]

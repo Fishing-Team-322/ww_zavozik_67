@@ -80,6 +80,21 @@ func TestAssemblerDoesNotHideInputErrors(t *testing.T) {
 		t.Fatalf("got %v", err)
 	}
 }
+
+type unmetPrecondition struct{ failing }
+
+func (unmetPrecondition) Forecast(context.Context, StochasticRequest) (StochasticForecast, error) {
+	return StochasticForecast{}, status.Error(codes.FailedPrecondition, "no eligible sampling observations")
+}
+func TestAssemblerDoesNotOverrideModelPrecondition(t *testing.T) {
+	// The fallback could succeed on this history; the primary's rejection must
+	// still be preserved rather than turning it into a plausible prediction.
+	a := Assembler{Primary: unmetPrecondition{}, Fallback: SeasonalNaive{}}
+	_, err := a.Build(context.Background(), Input{AsOf: history(10)[9].Date, Stochastic: StochasticRequest{History: history(10), Horizon: 7, NPaths: 3}})
+	if status.Code(err) != codes.FailedPrecondition {
+		t.Fatalf("got %v", err)
+	}
+}
 func TestFallbackMetadataAndCloneAreIndependent(t *testing.T) {
 	a := Assembler{Primary: failing{}, Fallback: SeasonalNaive{}}
 	r, err := a.Build(context.Background(), Input{AsOf: history(10)[9].Date, Stochastic: StochasticRequest{History: history(10), Horizon: 7, NPaths: 3}})
