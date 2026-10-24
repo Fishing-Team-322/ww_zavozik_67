@@ -40,3 +40,63 @@ def test_review_rejects_ambiguous_ids_and_impossible_sample():
         module.prepare([{'operation_id': '1'}], 1, 0, 42)
     forms, cohorts = module.prepare(rows(), 20, 50, 42)
     assert len(forms) == 20 and set(cohorts.values()) == {'random_operation'}
+
+
+@pytest.fixture
+def validator(monkeypatch):
+    monkeypatch.syspath_prepend(str(Path(__file__).parents[1]/'experiments'))
+    import validate_category_review
+    return validate_category_review
+
+
+def completed_forms():
+    from copy import deepcopy
+    forms, cohorts = module.prepare(rows(), 5, 0, 42)
+    first, second = deepcopy(forms), deepcopy(forms)
+    for forms, reviewer in [(first, 'Reviewer A'), (second, 'Reviewer B')]:
+        for row in forms:
+            row.update(status='labeled', category='supplier', reviewer=reviewer,
+                       rationale='Payment for goods, supported by document')
+    return first, second, {row['operation_id']: row for row in rows()}, cohorts
+
+
+def test_empty_forms_cannot_create_human_labels(validator):
+    forms, cohorts = module.prepare(rows(), 5, 3, 42)
+    candidates, queue, counts = validator.reconcile(forms, forms,
+        {row['operation_id']: row for row in rows()}, cohorts)
+    assert not candidates and len(queue) == 8
+    assert all(row['outcome'] == 'pending' for row in queue)
+    assert counts['random_operation']['agreement_among_both_labeled'] is None
+
+
+def test_agreement_disagreement_and_insufficient_context_are_separate(validator):
+    first, second, originals, cohorts = completed_forms()
+    second[0]['category'] = 'services'
+    second[1].update(status='unresolved', category='', rationale='Need invoice')
+    candidates, queue, counts = validator.reconcile(first, second, originals, cohorts)
+    assert len(candidates) == 3
+    assert {row['outcome'] for row in queue} == {'unresolved', 'disagreement'}
+    assert counts['random_operation']['both_labeled'] == 4
+    assert counts['random_operation']['agreement_among_both_labeled'] == .75
+
+
+@pytest.mark.parametrize('change,match', [
+    ({'amount': '999'}, 'source fields'),
+    ({'category': 'not_a_category'}, 'invalid category'),
+    ({'reviewer': ' reviewer a '}, 'independent reviewer'),
+    ({'status': 'unresolved'}, 'cannot carry a category'),
+    ({'rationale': ''}, 'rationale'),
+])
+def test_review_rejects_invalid_or_biased_forms(validator, change, match):
+    first, second, originals, cohorts = completed_forms()
+    second[0].update(change)
+    with pytest.raises(ValueError, match=match):
+        validator.reconcile(first, second, originals, cohorts)
+
+
+def test_review_rejects_missing_and_duplicate_responses(validator):
+    first, second, originals, cohorts = completed_forms()
+    with pytest.raises(ValueError, match='every selected'):
+        validator.reconcile(first, second[:-1], originals, cohorts)
+    with pytest.raises(ValueError, match='duplicate'):
+        validator.reconcile(first, second+[second[0]], originals, cohorts)
