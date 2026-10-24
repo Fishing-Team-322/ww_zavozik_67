@@ -516,3 +516,74 @@
   новые разнообразные данные; проверенного внешнего корпуса в этом проходе
   не найдено/не скачано. Self-labels/LLM/paraphrases не human gold. Старый final
   исторический и не становится новым независимым test после переименования.
+
+## Экономическая итерация v2 — 24.10, ~18:45 MSK
+
+- Пользователь разрешил реализацию плана; в ответ на вопросы: human reviewer
+  и новых выписок нет, продолжать research и искать публичные данные. Не
+  останавливать полезную работу ради human gold, но не называть self-labels gold.
+- Новые normalization.py/preparation.py отделены от старого sealed v1контракта.
+  Суммы/НДС/реквизиты убраны; стадии отдельно; отрицания/роли/объект сохранены;
+  пустой окончательный расчёт unusable. Старые v1/20class queues не запускались.
+- Immutable corpus_economic_v4: label_free_company_template_token_closure_v2,
+  purpose_evidence_query_v2. Source222420→372direction×text/369usable;
+  train70590rows/223unique/222usable/102families;cal20141/81/81/22;
+  devtest1966/22/20/20. Старые90/30/30companies, NEW label-free hash owners.
+  Connected aliases/near/actualtoken closure ДОsplit; все пересечения0 у
+  E5small/E5base/Qwen с их реальными prefixes/128/128/256 truncation. Эти
+  families leakage guards, НЕ density point/semantic category. v3diagnostic
+  отвергнут доfit, перемещён diagnostic_rejected_numeric_leakage_v3/REJECTED.txt.
+- Frozen train/calibration cache_v2 готов для3models, finaltest не кодировали
+  и не оценивали. Модели скачаны/провереныLFSsha: E5base d128750... MIT,
+  Qwen3-Embedding0.6B97b0c614...Apache2. E5smallстарыйpinned. Размерности384/
+  768/1024, корректные mean/last pooling и prompts. Runtime/Go не мигрировали.
+  DownloadCDN resets56/18починил resumable retry; все downloadjobs завершены.
+- Open authored economic_regressions.py14triplets: E5small8/14,E5base8/14,
+  Qwen13/14(провал rent_purchase). Это agent-authored DEVELOPMENT DIAGNOSTICS,
+  не accuracy/independentvalidation/selection. Не ретюнить frozenfinal по ним.
+- semantic_pairs.py:1000train815cal105devtestblindpairs, coarse/fine/rationale/
+  reviewer_kind; source/hashbound,2humanconsensus по умолчанию,agent votes
+  исключаются, транзитивные конфликты не экспортируются вtrain. UI offline,
+  sourceescaping, no network; actual IAB render/navigation PASS без ответов.
+  Не считать пустые формы gold. evidence_graph.py — research forest complete
+  verified cross-pair compatibility, noforcedroot/coarse-only/unknown/ambiguity;
+  реального calibratedverifier ещё НЕТ, runtime не активирован.
+- External source НАЙДЕН/СКАЧАН: официальный Spending.gov.ua CC-BY4.0,
+  https://spending.gov.ua/new/en/about-portal . 2021-10-04raw50393rows55.47MB,
+  sha e9480a0b...; qualified_v1 39497organization↔organization,4422payers,
+  33984exactpurposes. ДанныеUKRAINIAN/MIXED PUBLIC BUDGET, auxiliaryresearch,
+  не Russiancommercialgold. CompanyIDs hashed, names/accounts/amounts/KEKV
+  omitted features, purpose может содержатьФИО, не обещать anonymization.
+  ml/data/category_discovery/external/spending_2021-10-04_qualified_v1.
+  rawdownload `.partial` завершён (имя не значит активный); weekend2021-10-02
+  пустой. ДляAPI нужен --http1.1 --tlsv1.2 --tls-max1.2, сертификаты не отключали.
+  Public portal curl403, licenseevidence сохранено как JSONexcerpt viaweb,
+  не forgedHTML. public_transactions.py после qualify ужесточил проверку
+  licenseevidence; v1artifact sourcehash соответствует прежней реализации;
+  в новом проходе сохранить текущий source snapshot/новую qualifiedversion.
+- nZiben/PaymentIntentClassifier имеет TSV/weakGPTlabels, repo licenseNone;
+  вfit не включён. eovsianik/biv-hack-1MIT имеет маленький data/sample.tsv,
+  ещё не загружен/не квалифицирован. Не исполнять чужие model.pkl/ноутбуки.
+- Checks: prod342PASS6SKIP до последнего publicsource файла; focused42PASS.
+  Full optional/финальные повторить после новых правок. НиGo/forecast/trx
+  не менялись. Все новые sourcefiles покаuntracked; коммитить ТОЛЬКО свои.
+- Сейчас начата установка mlx-lm0.32.2 в isolatedignored
+  ml/data/category_discovery/teacher_venv (session84290), log install_teacher.log.
+  План локального teacher mlx-community/Qwen3-4B-Instruct-2507-4bit,
+  revision50d427756c6b1b2fe0c0a10f67fbda1fc8e82c1b,Apache2,baseQwen3-4B-
+  Instruct-2507. Ещё НЕ скачан/не запущен. Не дублироватьустановку, сначалаlog.
+  Любые его labels будут WEAK, не human. Сырые данные внешнимAPI не посылать.
+- Собственный UI preview: http.server8874PID47835,session53185,bind127.0.0.1,
+  IAB tab1(browserid2) временный; остановить наш сервер послеUIпроверки.
+  Colima OFFне запускалась. Heartbeat не создан, activefitнет, дедлайна нет.
+  Продолжить stagepublicdataprep/split+localweakteacher, не возобновлятьold20fit.
+  Progressreport ml/reports/category_discovery_economic_v2_progress.md,
+  metrics/category_discovery_economic_v2_progress.json. Дообучения ещё не было.
+
+- ~18:50MSK: production344PASS6SKIP; optional350PASS(старыйHDBSCANwarning).
+  UIserverPID47835остановлен, IABtesttabзакрыт. MPSjobs закончены. MLXteacher
+  env установлен:mlx-lm0.32.2/mlx0.32.4, piploginstall_teacher.log. Единственный
+  teacherweights download session2061,fetch_teacher.log,base teacher_base/
+  50d427756c6b1b2fe0c0a10f67fbda1fc8e82c1b. Не дублировать, model.partial
+  ~132MiBна18:48. Ещё НЕ generation/fit. Новая qualified_v2 сохраняет текущие
+  preparation_source snapshots; в дальнейшем использовать её вместоv1.
