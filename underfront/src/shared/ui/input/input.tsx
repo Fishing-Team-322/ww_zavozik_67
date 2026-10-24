@@ -80,42 +80,42 @@ export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
 }
 
 const sizeClasses: Record<NonNullable<InputProps["inputSize"]>, string> = {
-  sm: "h-5 px-1 text-xs font-medium leading-4 tabular-nums",
-  md: "h-6 px-1.5 text-xs font-medium leading-4 tabular-nums",
-  lg: "h-8 px-3 text-xs font-medium leading-4 tabular-nums",
+  sm: "h-8 px-2 text-sm font-medium leading-5 tabular-nums",
+  md: "h-10 px-3 text-sm font-medium leading-5 tabular-nums",
+  lg: "h-11 px-4 text-base font-medium leading-6 tabular-nums",
 };
 
 const sizeClassesWithStartAdornment: Record<
   NonNullable<InputProps["inputSize"]>,
   string
 > = {
-  sm: "pl-5",
-  md: "pl-[22px]",
-  lg: "pl-7",
+  sm: "pl-7",
+  md: "pl-9",
+  lg: "pl-10",
 };
 
 const sizeClassesWithEndControl: Record<
   NonNullable<InputProps["inputSize"]>,
   string
 > = {
-  sm: "pr-6",
-  md: "pr-7",
-  lg: "pr-9",
+  sm: "pr-9",
+  md: "pr-10",
+  lg: "pr-11",
 };
 
 const adornmentPositionClasses: Record<
   NonNullable<InputProps["inputSize"]>,
   string
 > = {
-  sm: "left-1 top-1/2 -translate-y-1/2",
-  md: "left-1.5 top-1/2 -translate-y-1/2",
-  lg: "left-3 top-1/2 -translate-y-1/2",
+  sm: "left-2 top-1/2 -translate-y-1/2",
+  md: "left-3 top-1/2 -translate-y-1/2",
+  lg: "left-4 top-1/2 -translate-y-1/2",
 };
 
 const secretTogglePositionClasses: Record<NonNullable<InputProps["inputSize"]>, string> = {
-  sm: "right-1 h-4 w-4",
-  md: "right-1.5 h-4 w-4",
-  lg: "right-2.5 h-5 w-5",
+  sm: "right-1.5 h-6 w-6",
+  md: "right-2 h-6 w-6",
+  lg: "right-2.5 h-7 w-7",
 };
 
 /**
@@ -248,7 +248,7 @@ function Input(
         <label
           htmlFor={inputId}
           className={cn(
-            "mb-1.5 block text-xs font-medium leading-none",
+            "mb-1.5 block text-sm font-medium leading-5",
             hasError
               ? "text-[var(--status-danger-fg)]"
               : "text-[color:var(--input-label)]"
@@ -262,7 +262,7 @@ function Input(
         {hasStartAdornment ? (
           <div
             className={cn(
-              "pointer-events-none absolute z-10 text-[color:var(--text-muted)] [&>svg]:h-3 [&>svg]:w-3",
+              "pointer-events-none absolute z-10 text-[color:var(--text-muted)] [&>svg]:h-4 [&>svg]:w-4",
               adornmentPositionClasses[inputSize],
               startAdornmentClassName
             )}
@@ -339,7 +339,7 @@ function Input(
               "disabled:cursor-not-allowed disabled:opacity-50"
             )}
           >
-            <SecretEyeIcon revealed={isSecretVisible} className="h-3 w-3" />
+            <SecretEyeIcon revealed={isSecretVisible} className="h-4 w-4" />
           </button>
         ) : null}
       </div>

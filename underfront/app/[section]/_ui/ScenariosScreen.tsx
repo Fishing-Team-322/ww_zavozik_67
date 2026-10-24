@@ -92,7 +92,7 @@ export function ScenariosScreen() {
   return (
     <>
       <FinanceState
-        loading={forecast.loading || comparison.loading || scenarios.loading || presets.loading}
+        loading={forecast.loading || scenarios.loading || presets.loading}
         error={forecast.error || comparison.error || scenarios.error || presets.error || events.error || error}
         retry={() => {
           forecast.refresh();
@@ -101,8 +101,10 @@ export function ScenariosScreen() {
       />
       <div className="grid min-w-0 grid-cols-1 items-start gap-4 xl:grid-cols-[330px_minmax(0,1fr)]">
         <div className="space-y-4">
-          <Select label="Сохранённый сценарий" value={selectedId} options={[{ value: "", label: "Новый сценарий" }, ...(scenarios.data ?? []).map(s => ({ value: s.id, label: s.title }))]} onChange={e => { const scenario = scenarios.data?.find(s => s.id === e.target.value); setSelectedId(scenario?.id ?? ""); setCustomSteps(scenario?.steps ?? null); setTitle(scenario?.title ?? "Мой сценарий"); setDirty(false); setSaved(null); }} />
-          <Select label="Добавить условие из пресета" value="" options={[{ value: "", label: "Выберите условие" }, ...(presets.data ?? []).map(p => ({ value: p.kind, label: p.title }))]} onChange={e => { const kind = e.target.value as Schemas["ScenarioStep"]["kind"]; if (!kind) return; setCustomSteps([...steps, kind === "scale_revenue" ? { kind, factor: 0.8 } : kind === "scale_fixed_costs" ? { kind, factor: 1.1 } : kind === "delay_counterparty" ? { kind, delay_days: 7, counterparty_id: clients[0]?.value } : { kind, amount: 0, date: forecast.data?.points[0]?.date ?? "" }]); setDirty(true); }} />
+          <div className="grid grid-cols-2 items-end gap-3">
+            <Select size="lg" label="Сохранённый сценарий" value={selectedId} options={[{ value: "", label: "Новый сценарий" }, ...(scenarios.data ?? []).map(s => ({ value: s.id, label: s.title }))]} onChange={e => { const scenario = scenarios.data?.find(s => s.id === e.target.value); setSelectedId(scenario?.id ?? ""); setCustomSteps(scenario?.steps ?? null); setTitle(scenario?.title ?? "Мой сценарий"); setDirty(false); setSaved(null); }} />
+            <Select size="lg" label="Добавить из пресета" value="" options={[{ value: "", label: "Выберите условие" }, ...(presets.data ?? []).map(p => ({ value: p.kind, label: p.title }))]} onChange={e => { const kind = e.target.value as Schemas["ScenarioStep"]["kind"]; if (!kind) return; setCustomSteps([...steps, kind === "scale_revenue" ? { kind, factor: 0.8 } : kind === "scale_fixed_costs" ? { kind, factor: 1.1 } : kind === "delay_counterparty" ? { kind, delay_days: 7, counterparty_id: clients[0]?.value } : { kind, amount: 0, date: forecast.data?.points[0]?.date ?? "" }]); setDirty(true); }} />
+          </div>
           {customSteps ? <div className="space-y-3">{customSteps.map((step, index) => <StepEditor key={index} step={step} clients={clients} events={events.data ?? []} onChange={value => { setCustomSteps(customSteps.map((s, i) => i === index ? value : s)); setDirty(true); setSaved(null); }} onRemove={() => { setCustomSteps(customSteps.filter((_, i) => i !== index)); setDirty(true); }} />)}<Button variant="outline" onClick={() => { setCustomSteps([...customSteps, { kind: "move_event", event_id: events.data?.find(e => e.editable)?.id, date: forecast.data?.points[0]?.date ?? "" }]); setDirty(true); }}>Добавить перенос события</Button><Button variant="ghost" onClick={() => { setSelectedId(""); setCustomSteps(null); setDirty(true); }}>Новый сценарий с ползунками</Button></div> : <><ScenarioControls
             value={params}
             onChange={(value) => {
@@ -110,9 +112,9 @@ export function ScenariosScreen() {
               setSaved(null);
             }}
           />
-          <Input label="Рост постоянных расходов, %" type="number" min="0" max="900" value={fixedIncrease} onChange={e => { setFixedIncrease(Number(e.target.value)); setDirty(true); }} />
           {params.paymentDelayDays > 0 && (
             <Select
+              size="lg"
               label="Клиент с плановым поступлением"
               placeholder="Выберите клиента"
               value={counterparty}
@@ -137,12 +139,15 @@ export function ScenariosScreen() {
             />
           )}
           </>}
-          <Input
-            label="Название сценария"
-            value={title}
-            onChange={(event) => setTitle(event.target.value)}
-            maxLength={200}
-          />
+          <div className={customSteps ? "space-y-3" : "grid grid-cols-2 gap-3"}>
+            {!customSteps && <Input label="Фикс. расходы +%" type="number" min="0" max="900" value={fixedIncrease} className="[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" onChange={e => { setFixedIncrease(Number(e.target.value)); setDirty(true); }} />}
+            <Input
+              label="Название сценария"
+              value={title}
+              onChange={(event) => setTitle(event.target.value)}
+              maxLength={200}
+            />
+          </div>
           <Button
             disabled={!title.trim() || !steps.length || missingClient || !comparison.data || comparison.loading}
             loading={saving}
@@ -191,9 +196,11 @@ export function ScenariosScreen() {
               Измените параметры, чтобы рассчитать сценарий.
             </p>
           )}
-          {comparison.data && <div className="mt-4 grid gap-3 sm:grid-cols-2">{[{ label: "Было", forecast: comparison.data.base }, { label: "Стало", forecast: comparison.data.scenario }].map(({ label, forecast: f }) => { const minimum = f.points.reduce<(typeof f.points)[number] | null>((min, p) => !min || p.p50 < min.p50 ? p : min, null); return <div key={label} className="rounded-md border border-[color:var(--border)] p-3"><h3 className="font-semibold">{label}</h3><p>Минимум: {money(minimum?.p50)} · {minimum?.date ?? "Нет даты"}</p><p>Разрыв: {f.gaps[0] ? `${f.gaps[0].date} · ${money(f.gaps[0].shortfall)}` : "Не найден"}</p><p>Вероятность: {percent(f.gaps[0]?.probability)}</p></div>; })}</div>}
-          <div className="mt-5">
+          <div className={`mt-4 grid gap-3 ${comparison.data ? "sm:grid-cols-2 lg:grid-cols-3" : ""}`}>
+            {comparison.data && [{ label: "Было", forecast: comparison.data.base }, { label: "Стало", forecast: comparison.data.scenario }].map(({ label, forecast: f }) => { const minimum = f.points.reduce<(typeof f.points)[number] | null>((min, p) => !min || p.p50 < min.p50 ? p : min, null); return <div key={label} className="min-w-0 space-y-1 rounded-md border border-[color:var(--border)] p-3 text-sm leading-5"><h3 className="font-semibold">{label}</h3><p>Минимум: {money(minimum?.p50)} · {minimum?.date ?? "Нет даты"}</p><p>Разрыв: {f.gaps[0] ? `${f.gaps[0].date} · ${money(f.gaps[0].shortfall)}` : "Не найден"}</p><p>Вероятность: {percent(f.gaps[0]?.probability)}</p></div>; })}
+            <div className="min-w-0 [&>section]:h-full">
             <RiskCard
+              compact
               risk={
                 riskForecast?.gaps[0] ? riskView(riskForecast.gaps[0]) : null
               }
@@ -201,6 +208,7 @@ export function ScenariosScreen() {
                 riskForecast && !riskForecast.gaps.length ? "clear" : "unknown"
               }
             />
+            </div>
           </div>
         </SectionCard>
       </div>

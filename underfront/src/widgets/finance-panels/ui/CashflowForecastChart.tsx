@@ -23,13 +23,14 @@ export type CashflowForecastChartProps = {
   currency?: string;
   showScenario?: boolean;
   showBounds?: boolean;
+  onDayClick?: (date: string) => void;
 };
 
 function amount(value: number, currency: string) {
   return `${Math.round(value).toLocaleString("ru-RU")} ${currency}`;
 }
 
-export function CashflowForecastChart({days, height = 330, currency = "₽", showScenario = true, showBounds = false}: CashflowForecastChartProps) {
+export function CashflowForecastChart({days, height = 330, currency = "₽", showScenario = true, showBounds = false, onDayClick}: CashflowForecastChartProps) {
   const uid = useId().replace(/:/g, "");
   const deficitPeriods: Array<{start: string; end: string; minimum: number}> = [];
   const deficitPoints: Array<{date: string; value: number}> = [];
@@ -50,9 +51,12 @@ export function CashflowForecastChart({days, height = 330, currency = "₽", sho
     return <div style={{height}} className="flex items-center justify-center rounded-xl bg-[color:var(--surface-subtle)] text-sm text-[color:var(--text-secondary)]">Прогноз пока недоступен. Загрузите данные.</div>;
   }
   return (
-    <div className="min-w-0 w-full" style={{height}} role="img" aria-label="График ежедневного остатка средств с нулевой линией и сравнением сценариев">
+    <div className="min-w-0 w-full" style={{height, cursor: onDayClick ? "pointer" : undefined}} role="img" aria-label="График ежедневного остатка средств с нулевой линией и сравнением сценариев">
       <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-        <ComposedChart data={days} margin={{top:20, right:16, bottom:8, left:2}}>
+        <ComposedChart data={days} margin={{top:20, right:16, bottom:8, left:2}} onClick={state => {
+          const date = state?.activePayload?.map(item => item.payload).find(point => point && days.some(day => day.date === point.date))?.date ?? state?.activeLabel;
+          if (typeof date === "string" && days.some(day => day.date === date)) onDayClick?.(date);
+        }}>
           <defs>
             <linearGradient id={`pulsCashflow-${uid}`} x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="var(--accent)" stopOpacity={0.18}/>

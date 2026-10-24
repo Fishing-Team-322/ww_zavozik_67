@@ -59,7 +59,7 @@ const DROPDOWN_FALLBACK_HEIGHT = 320;
 const triggerSizeClasses = {
   sm: "h-5 rounded-[6px] pl-1 pr-5",
   md: "h-6 rounded-[6px] pl-1.5 pr-6",
-  lg: "h-8 rounded-[6px] pl-3 pr-7",
+  lg: "h-10 rounded-[6px] pl-3 pr-7",
 } as const;
 const chevronPositionClasses = {
   sm: "right-1",
@@ -69,7 +69,7 @@ const chevronPositionClasses = {
 const optionSizeClasses = {
   sm: "h-5 rounded-[5px] px-1 text-xs font-medium leading-4 tabular-nums",
   md: "h-6 rounded-[6px] px-1.5 text-xs font-medium leading-4 tabular-nums",
-  lg: "h-8 rounded-[6px] px-3 text-xs font-medium leading-4 tabular-nums",
+  lg: "h-8 rounded-[6px] px-3 text-sm font-medium leading-5 tabular-nums",
 } as const;
 
 /**
@@ -831,7 +831,7 @@ function Select(
             className={cn(
               "block min-w-0 truncate",
               fitContent ? "w-auto whitespace-nowrap" : "w-full",
-              size ? "text-xs font-medium leading-4 tabular-nums" : "text-base font-normal leading-[1.15]",
+              size === "lg" ? "text-sm font-medium leading-5 tabular-nums" : size ? "text-xs font-medium leading-4 tabular-nums" : "text-base font-normal leading-[1.15]",
               hasValue
                 ? (size ? "text-[color:var(--nav-item-active-text)]" : "text-[color:var(--input-text)]")
                 : "text-[color:var(--input-placeholder)]"
