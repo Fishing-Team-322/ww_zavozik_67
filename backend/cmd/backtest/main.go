@@ -13,7 +13,6 @@ package main
 
 import (
 	"context"
-	"encoding/csv"
 	"flag"
 	"fmt"
 	"log/slog"
@@ -25,6 +24,7 @@ import (
 	"time"
 
 	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/categorize"
+	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/csvout"
 	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/dataset"
 	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/domain"
 	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/forecast"
@@ -70,10 +70,8 @@ func main() {
 	if err != nil {
 		fatal(log, err)
 	}
-	defer out.Close()
-	w := csv.NewWriter(out)
-	defer w.Flush()
-	_ = w.Write([]string{"company_id", "as_of", "h", "model", "low_confidence", "actual", "p10", "p50", "p90"})
+	w := csvout.New(out)
+	w.Write([]string{"company_id", "as_of", "h", "model", "low_confidence", "actual", "p10", "p50", "p90"})
 
 	stats := map[int]*acc{7: {}, 14: {}, 30: {}}
 	cat := categorize.Chain{Steps: []categorize.Categorizer{categorize.DefaultRules}, Threshold: 0.5}
@@ -112,7 +110,7 @@ func main() {
 			p10, p50, p90 := res.Quantile(0.1), res.Quantile(0.5), res.Quantile(0.9)
 			for h := 1; h <= *horizon; h++ {
 				actual := flows[o+h].Balance.Float()
-				_ = w.Write([]string{c.ID, flows[o].Date.Format(domain.DateLayout), strconv.Itoa(h),
+				w.Write([]string{c.ID, flows[o].Date.Format(domain.DateLayout), strconv.Itoa(h),
 					res.Stochastic.ModelUsed, strconv.FormatBool(res.Stochastic.LowConfidence),
 					num(actual), num(p10[h-1]), num(p50[h-1]), num(p90[h-1])})
 				if a, ok := stats[h]; ok {
@@ -122,6 +120,9 @@ func main() {
 		}
 	}
 
+	if err := w.Close(); err != nil {
+		fatal(log, fmt.Errorf("write output %s: %w", *outPath, err))
+	}
 	fmt.Printf("companies: %d, forecast runs: %d, results: %s\n", len(files), runs, *outPath)
 	for _, h := range []int{7, 14, 30} {
 		if h <= *horizon {
