@@ -1,578 +1,911 @@
 openapi: 3.0.3
 info:
   title: Zavozik Cashflow API
-  version: 0.1.0
-  description: |
-    Контракт фронт ↔ Go-бэкенд. Источник правды: из него генерируются
+  version: 0.3.0
+  description: 'Контракт фронт ↔ Go-бэкенд. Источник правды: из него генерируются
+
     хендлеры на Go (oapi-codegen) и клиент на фронте.
+
     Суммы — в рублях, number с двумя знаками. Даты — YYYY-MM-DD.
+
+
+    Product routes include durable jobs, per-company authorization, and explicit dependency errors.
+
+    '
 servers:
-  - url: http://localhost:8080
+- url: http://localhost:8080
 security:
-  - bearerAuth: []
-
+- bearerAuth: []
 tags:
-  - name: system
-  - name: auth
-  - name: companies
-  - name: sources
-  - name: operations
-  - name: forecast
-  - name: events
-  - name: scenarios
-  - name: alerts
-
+- name: system
+- name: auth
+- name: companies
+- name: sources
+- name: operations
+- name: forecast
+- name: events
+- name: scenarios
+- name: alerts
 paths:
   /healthz:
     get:
-      tags: [system]
+      tags:
+      - system
       operationId: getHealth
       security: []
       responses:
         default:
-          $ref: "#/components/responses/Error"
-        "200":
+          $ref: '#/components/responses/Error'
+        '200':
           description: OK
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/Health" }
-
+              schema:
+                $ref: '#/components/schemas/Health'
   /v1/models:
     get:
-      tags: [forecast]
+      tags:
+      - forecast
       operationId: listModels
       security: []
       summary: Доступные прогнозные модели (из ML-сервиса + встроенный фолбэк)
       responses:
         default:
-          $ref: "#/components/responses/Error"
-        "200":
+          $ref: '#/components/responses/Error'
+        '200':
           description: OK
           content:
             application/json:
               schema:
                 type: array
-                items: { $ref: "#/components/schemas/ModelInfo" }
-
+                items:
+                  $ref: '#/components/schemas/ModelInfo'
   /v1/models/quality:
     get:
-      tags: [forecast]
+      tags:
+      - product
       operationId: getModelQuality
-      security: []
-      summary: Метрики бэктеста для страницы «Как мы считаем»
+      parameters: []
       responses:
         default:
-          $ref: "#/components/responses/Error"
-        "200":
+          $ref: '#/components/responses/Error'
+        '200':
           description: OK
           content:
             application/json:
               schema:
                 type: array
-                items: { $ref: "#/components/schemas/ModelQuality" }
-
+                items:
+                  $ref: '#/components/schemas/ModelQuality'
+      security: []
   /v1/auth/register:
     post:
-      tags: [auth]
+      tags:
+      - auth
       operationId: register
       security: []
       requestBody:
         required: true
         content:
           application/json:
-            schema: { $ref: "#/components/schemas/RegisterRequest" }
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
       responses:
         default:
-          $ref: "#/components/responses/Error"
-        "201":
+          $ref: '#/components/responses/Error'
+        '201':
           description: Created
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/Token" }
-        "409": { $ref: "#/components/responses/Error" }
-
+              schema:
+                $ref: '#/components/schemas/Token'
+        '409':
+          $ref: '#/components/responses/Error'
   /v1/auth/login:
     post:
-      tags: [auth]
+      tags:
+      - auth
       operationId: login
       security: []
       requestBody:
         required: true
         content:
           application/json:
-            schema: { $ref: "#/components/schemas/Credentials" }
+            schema:
+              $ref: '#/components/schemas/Credentials'
       responses:
         default:
-          $ref: "#/components/responses/Error"
-        "200":
+          $ref: '#/components/responses/Error'
+        '200':
           description: OK
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/Token" }
-        "401": { $ref: "#/components/responses/Error" }
-
+              schema:
+                $ref: '#/components/schemas/Token'
+        '401':
+          $ref: '#/components/responses/Error'
   /v1/companies:
     get:
-      tags: [companies]
+      tags:
+      - companies
       operationId: listCompanies
       responses:
         default:
-          $ref: "#/components/responses/Error"
-        "200":
+          $ref: '#/components/responses/Error'
+        '200':
           description: OK
           content:
             application/json:
               schema:
                 type: array
-                items: { $ref: "#/components/schemas/Company" }
+                items:
+                  $ref: '#/components/schemas/Company'
     post:
-      tags: [companies]
+      tags:
+      - companies
       operationId: createCompany
       requestBody:
         required: true
         content:
           application/json:
-            schema: { $ref: "#/components/schemas/CompanyCreate" }
+            schema:
+              $ref: '#/components/schemas/CompanyCreate'
       responses:
         default:
-          $ref: "#/components/responses/Error"
-        "201":
+          $ref: '#/components/responses/Error'
+        '201':
           description: Created
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/Company" }
-
+              schema:
+                $ref: '#/components/schemas/Company'
   /v1/companies/{companyId}/sources:
-    parameters: [{ $ref: "#/components/parameters/CompanyId" }]
     get:
-      tags: [sources]
+      tags:
+      - product
       operationId: listSources
+      parameters:
+      - name: companyId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
       responses:
         default:
-          $ref: "#/components/responses/Error"
-        "200":
+          $ref: '#/components/responses/Error'
+        '200':
           description: OK
           content:
             application/json:
               schema:
                 type: array
-                items: { $ref: "#/components/schemas/Source" }
+                items:
+                  $ref: '#/components/schemas/Source'
     post:
-      tags: [sources]
+      tags:
+      - product
       operationId: createSource
+      parameters:
+      - name: companyId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        default:
+          $ref: '#/components/responses/Error'
+        '201':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Source'
       requestBody:
         required: true
         content:
           application/json:
-            schema: { $ref: "#/components/schemas/SourceCreate" }
-      responses:
-        default:
-          $ref: "#/components/responses/Error"
-        "201":
-          description: Created
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/Source" }
-
+            schema:
+              $ref: '#/components/schemas/CreateSourceInput'
   /v1/sources/{sourceId}/sync:
-    parameters:
+    post:
+      tags:
+      - product
+      operationId: syncSource
+      parameters:
       - name: sourceId
         in: path
         required: true
-        schema: { type: string, format: uuid }
-    post:
-      tags: [sources]
-      operationId: syncSource
+        schema:
+          type: string
+          format: uuid
       responses:
         default:
-          $ref: "#/components/responses/Error"
-        "202":
-          description: Синхронизация поставлена в очередь
+          $ref: '#/components/responses/Error'
+        '202':
+          description: OK
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/Job" }
-
+              schema:
+                $ref: '#/components/schemas/Job'
   /v1/companies/{companyId}/uploads:
-    parameters: [{ $ref: "#/components/parameters/CompanyId" }]
     post:
-      tags: [sources]
+      tags:
+      - product
       operationId: uploadStatement
-      summary: Загрузка выписки (1CClientBankExchange, Excel, CSV)
+      parameters:
+      - name: companyId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        default:
+          $ref: '#/components/responses/Error'
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Object'
+        '202':
+          description: Import queued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Job'
       requestBody:
         required: true
         content:
           multipart/form-data:
             schema:
               type: object
-              required: [file]
+              required:
+              - file
               properties:
-                file: { type: string, format: binary }
-      responses:
-        default:
-          $ref: "#/components/responses/Error"
-        "202":
-          description: Обработка поставлена в очередь
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/Job" }
-
+                file:
+                  type: string
+                  format: binary
   /v1/jobs/{jobId}:
-    parameters:
+    get:
+      tags:
+      - product
+      operationId: getJob
+      parameters:
       - name: jobId
         in: path
         required: true
-        schema: { type: string }
-    get:
-      tags: [sources]
-      operationId: getJob
+        schema:
+          type: string
+          format: uuid
       responses:
         default:
-          $ref: "#/components/responses/Error"
-        "200":
+          $ref: '#/components/responses/Error'
+        '200':
           description: OK
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/Job" }
-
+              schema:
+                $ref: '#/components/schemas/Job'
   /v1/companies/{companyId}/operations:
-    parameters: [{ $ref: "#/components/parameters/CompanyId" }]
     get:
-      tags: [operations]
+      tags:
+      - product
       operationId: listOperations
       parameters:
-        - { name: category, in: query, schema: { $ref: "#/components/schemas/Category" } }
-        - { name: from, in: query, schema: { type: string, format: date } }
-        - { name: to, in: query, schema: { type: string, format: date } }
-        - { name: limit, in: query, schema: { type: integer, default: 100, maximum: 1000 } }
-        - { name: cursor, in: query, schema: { type: string } }
+      - name: companyId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: from
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date
+      - name: to
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date
+      - name: direction
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: category
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: counterparty_id
+        in: query
+        required: false
+        schema:
+          type: string
+          format: uuid
+      - name: source
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: q
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: cursor
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
       responses:
         default:
-          $ref: "#/components/responses/Error"
-        "200":
+          $ref: '#/components/responses/Error'
+        '200':
           description: OK
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/OperationPage" }
-
+              schema:
+                $ref: '#/components/schemas/OperationPage'
   /v1/operations/{operationId}:
-    parameters:
+    patch:
+      tags:
+      - product
+      operationId: updateOperation
+      parameters:
       - name: operationId
         in: path
         required: true
-        schema: { type: string }
-    patch:
-      tags: [operations]
-      operationId: updateOperation
-      summary: Пользователь меняет категорию
+        schema:
+          type: string
+      responses:
+        default:
+          $ref: '#/components/responses/Error'
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Operation'
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required: [category]
-              properties:
-                category: { $ref: "#/components/schemas/Category" }
-      responses:
-        default:
-          $ref: "#/components/responses/Error"
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/Operation" }
-
+              $ref: '#/components/schemas/UpdateOperationInput'
   /v1/companies/{companyId}/recurring:
-    parameters: [{ $ref: "#/components/parameters/CompanyId" }]
     get:
-      tags: [operations]
+      tags:
+      - product
       operationId: listRecurring
+      parameters:
+      - name: companyId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: direction
+        in: query
+        required: false
+        schema:
+          type: string
       responses:
         default:
-          $ref: "#/components/responses/Error"
-        "200":
+          $ref: '#/components/responses/Error'
+        '200':
           description: OK
           content:
             application/json:
               schema:
                 type: array
-                items: { $ref: "#/components/schemas/RecurringPattern" }
-
+                items:
+                  $ref: '#/components/schemas/RecurringPattern'
+    post:
+      tags:
+      - product
+      operationId: createRecurring
+      parameters:
+      - name: companyId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        default:
+          $ref: '#/components/responses/Error'
+        '201':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecurringPattern'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateRecurringInput'
   /v1/recurring/{patternId}:
-    parameters:
+    patch:
+      tags:
+      - product
+      operationId: updateRecurring
+      parameters:
       - name: patternId
         in: path
         required: true
-        schema: { type: string, format: uuid }
-    patch:
-      tags: [operations]
-      operationId: updateRecurring
+        schema:
+          type: string
+          format: uuid
+      responses:
+        default:
+          $ref: '#/components/responses/Error'
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecurringPattern'
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required: [confirmed]
-              properties:
-                confirmed: { type: boolean }
+              $ref: '#/components/schemas/UpdateRecurringInput'
+    delete:
+      tags:
+      - product
+      operationId: deleteRecurring
+      parameters:
+      - name: patternId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
       responses:
         default:
-          $ref: "#/components/responses/Error"
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/RecurringPattern" }
-
+          $ref: '#/components/responses/Error'
+        '204':
+          description: No content
   /v1/companies/{companyId}/counterparties:
-    parameters: [{ $ref: "#/components/parameters/CompanyId" }]
     get:
-      tags: [operations]
+      tags:
+      - product
       operationId: listCounterparties
-      summary: Контрагенты с рейтингом платёжной дисциплины
+      parameters:
+      - name: companyId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: role
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: q
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: sort
+        in: query
+        required: false
+        schema:
+          type: string
       responses:
         default:
-          $ref: "#/components/responses/Error"
-        "200":
+          $ref: '#/components/responses/Error'
+        '200':
           description: OK
           content:
             application/json:
               schema:
                 type: array
-                items: { $ref: "#/components/schemas/Counterparty" }
-
+                items:
+                  $ref: '#/components/schemas/Counterparty'
   /v1/companies/{companyId}/forecast:
-    parameters: [{ $ref: "#/components/parameters/CompanyId" }]
     get:
-      tags: [forecast]
+      tags:
+      - product
       operationId: getForecast
       parameters:
-        - { name: horizon, in: query, schema: { type: integer, default: 30, minimum: 7, maximum: 90 } }
-        - { name: model, in: query, schema: { type: string, default: auto } }
-        - { name: scenario, in: query, schema: { type: string, format: uuid } }
+      - name: companyId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: horizon
+        in: query
+        required: false
+        schema:
+          type: integer
+      - name: model
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: scenario
+        in: query
+        required: false
+        schema:
+          type: string
+          format: uuid
       responses:
         default:
-          $ref: "#/components/responses/Error"
-        "200":
+          $ref: '#/components/responses/Error'
+        '200':
           description: OK
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/Forecast" }
-
+              schema:
+                $ref: '#/components/schemas/Forecast'
   /v1/companies/{companyId}/gaps/{gapId}:
-    parameters:
-      - { $ref: "#/components/parameters/CompanyId" }
+    get:
+      tags:
+      - product
+      operationId: getGap
+      parameters:
+      - name: companyId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
       - name: gapId
         in: path
         required: true
-        schema: { type: string }
-    get:
-      tags: [forecast]
-      operationId: getGap
-      summary: Разрыв с причинами и рекомендациями
+        schema:
+          type: string
+      - name: horizon
+        in: query
+        required: false
+        schema:
+          type: integer
       responses:
         default:
-          $ref: "#/components/responses/Error"
-        "200":
+          $ref: '#/components/responses/Error'
+        '200':
           description: OK
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/GapDetail" }
-
+              schema:
+                $ref: '#/components/schemas/GapDetail'
   /v1/companies/{companyId}/retro:
-    parameters: [{ $ref: "#/components/parameters/CompanyId" }]
     get:
-      tags: [forecast]
+      tags:
+      - product
       operationId: getRetro
-      summary: «Мы бы вас предупредили» — прошлые разрывы и как рано мы бы их увидели
+      parameters:
+      - name: companyId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
       responses:
         default:
-          $ref: "#/components/responses/Error"
-        "200":
+          $ref: '#/components/responses/Error'
+        '200':
           description: OK
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/Retro" }
-
+              schema:
+                $ref: '#/components/schemas/Retro'
   /v1/companies/{companyId}/plan-fact:
-    parameters: [{ $ref: "#/components/parameters/CompanyId" }]
     get:
-      tags: [forecast]
+      tags:
+      - product
       operationId: getPlanFact
       parameters:
-        - name: granularity
-          in: query
-          schema: { type: string, enum: [day, week], default: day }
+      - name: companyId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: granularity
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: from
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date
+      - name: to
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date
       responses:
         default:
-          $ref: "#/components/responses/Error"
-        "200":
+          $ref: '#/components/responses/Error'
+        '200':
           description: OK
           content:
             application/json:
               schema:
                 type: array
-                items: { $ref: "#/components/schemas/PlanFactPoint" }
-
+                items:
+                  $ref: '#/components/schemas/PlanFactPoint'
   /v1/companies/{companyId}/events:
-    parameters: [{ $ref: "#/components/parameters/CompanyId" }]
     get:
-      tags: [events]
+      tags:
+      - product
       operationId: listEvents
       parameters:
-        - { name: from, in: query, schema: { type: string, format: date } }
-        - { name: to, in: query, schema: { type: string, format: date } }
+      - name: companyId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: from
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date
+      - name: to
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date
       responses:
         default:
-          $ref: "#/components/responses/Error"
-        "200":
+          $ref: '#/components/responses/Error'
+        '200':
           description: OK
           content:
             application/json:
               schema:
                 type: array
-                items: { $ref: "#/components/schemas/PlannedEvent" }
+                items:
+                  $ref: '#/components/schemas/PlannedEvent'
     post:
-      tags: [events]
+      tags:
+      - product
       operationId: createEvent
-      requestBody:
+      parameters:
+      - name: companyId
+        in: path
         required: true
-        content:
-          application/json:
-            schema: { $ref: "#/components/schemas/PlannedEventCreate" }
+        schema:
+          type: string
+          format: uuid
       responses:
         default:
-          $ref: "#/components/responses/Error"
-        "201":
-          description: Created
+          $ref: '#/components/responses/Error'
+        '201':
+          description: OK
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/PlannedEvent" }
-
-  /v1/companies/{companyId}/events/parse:
-    parameters: [{ $ref: "#/components/parameters/CompanyId" }]
-    post:
-      tags: [events]
-      operationId: parseEvent
-      summary: Разбор фразы «клиент обещал 300к 20-го» в черновик события
+              schema:
+                $ref: '#/components/schemas/PlannedEvent'
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required: [text]
-              properties:
-                text: { type: string, maxLength: 500 }
+              $ref: '#/components/schemas/CreateEventInput'
+  /v1/companies/{companyId}/events/parse:
+    post:
+      tags:
+      - product
+      operationId: parseEvent
+      parameters:
+      - name: companyId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
       responses:
         default:
-          $ref: "#/components/responses/Error"
-        "200":
-          description: Черновик, пользователь подтверждает через createEvent
+          $ref: '#/components/responses/Error'
+        '200':
+          description: OK
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/PlannedEventCreate" }
-
+              schema:
+                $ref: '#/components/schemas/Object'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ParseEventInput'
   /v1/events/{eventId}:
-    parameters:
+    patch:
+      tags:
+      - product
+      operationId: updateEvent
+      parameters:
       - name: eventId
         in: path
         required: true
-        schema: { type: string, format: uuid }
-    patch:
-      tags: [events]
-      operationId: updateEvent
-      summary: Изменение события (перенос даты drag&drop, сумма)
+        schema:
+          type: string
+          format: uuid
+      responses:
+        default:
+          $ref: '#/components/responses/Error'
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlannedEvent'
       requestBody:
         required: true
         content:
           application/json:
-            schema: { $ref: "#/components/schemas/PlannedEventUpdate" }
-      responses:
-        default:
-          $ref: "#/components/responses/Error"
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/PlannedEvent" }
+            schema:
+              $ref: '#/components/schemas/UpdateEventInput'
     delete:
-      tags: [events]
+      tags:
+      - product
       operationId: deleteEvent
+      parameters:
+      - name: eventId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
       responses:
         default:
-          $ref: "#/components/responses/Error"
-        "204": { description: Deleted }
-
+          $ref: '#/components/responses/Error'
+        '204':
+          description: No content
   /v1/companies/{companyId}/scenarios:
-    parameters: [{ $ref: "#/components/parameters/CompanyId" }]
     get:
-      tags: [scenarios]
+      tags:
+      - product
       operationId: listScenarios
+      parameters:
+      - name: companyId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
       responses:
         default:
-          $ref: "#/components/responses/Error"
-        "200":
+          $ref: '#/components/responses/Error'
+        '200':
           description: OK
           content:
             application/json:
               schema:
                 type: array
-                items: { $ref: "#/components/schemas/Scenario" }
+                items:
+                  $ref: '#/components/schemas/Scenario'
     post:
-      tags: [scenarios]
+      tags:
+      - product
       operationId: createScenario
+      parameters:
+      - name: companyId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        default:
+          $ref: '#/components/responses/Error'
+        '201':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Scenario'
       requestBody:
         required: true
         content:
           application/json:
-            schema: { $ref: "#/components/schemas/ScenarioCreate" }
-      responses:
-        default:
-          $ref: "#/components/responses/Error"
-        "201":
-          description: Created
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/Scenario" }
-
+            schema:
+              $ref: '#/components/schemas/CreateScenarioInput'
   /v1/companies/{companyId}/scenarios/{scenarioId}/compare:
-    parameters:
-      - { $ref: "#/components/parameters/CompanyId" }
+    get:
+      tags:
+      - product
+      operationId: compareScenario
+      parameters:
+      - name: companyId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
       - name: scenarioId
         in: path
         required: true
-        schema: { type: string, format: uuid }
-    get:
-      tags: [scenarios]
-      operationId: compareScenario
+        schema:
+          type: string
+          format: uuid
+      - name: horizon
+        in: query
+        required: false
+        schema:
+          type: integer
       responses:
         default:
-          $ref: "#/components/responses/Error"
-        "200":
-          description: Базовый и сценарный прогноз на одном графике
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/ScenarioComparison" }
-
-  /v1/companies/{companyId}/alerts:
-    parameters: [{ $ref: "#/components/parameters/CompanyId" }]
-    get:
-      tags: [alerts]
-      operationId: listAlerts
-      responses:
-        default:
-          $ref: "#/components/responses/Error"
-        "200":
+          $ref: '#/components/responses/Error'
+        '200':
           description: OK
           content:
             application/json:
               schema:
-                type: array
-                items: { $ref: "#/components/schemas/Alert" }
-
-
+                $ref: '#/components/schemas/ScenarioComparison'
+  /v1/companies/{companyId}/alerts:
+    get:
+      tags:
+      - product
+      operationId: listAlerts
+      parameters:
+      - name: companyId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: severity
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: kind
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: unread
+        in: query
+        required: false
+        schema:
+          type: boolean
+      - name: cursor
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+      responses:
+        default:
+          $ref: '#/components/responses/Error'
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlertPage'
   /v1/auth/refresh:
     post:
       tags:
@@ -858,43 +1191,1492 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/CompanyStateWrite'
-
+  /v1/fns/lookup:
+    get:
+      tags:
+      - product
+      operationId: lookupFNS
+      parameters:
+      - name: inn
+        in: query
+        required: true
+        schema:
+          type: string
+      responses:
+        default:
+          $ref: '#/components/responses/Error'
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Lookup'
+  /v1/companies/{companyId}/export:
+    post:
+      tags:
+      - product
+      operationId: exportCompany
+      parameters:
+      - name: companyId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        default:
+          $ref: '#/components/responses/Error'
+        '202':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Job'
+  /v1/jobs/{jobId}/download:
+    get:
+      tags:
+      - product
+      operationId: downloadJob
+      parameters:
+      - name: jobId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        default:
+          $ref: '#/components/responses/Error'
+        '200':
+          description: Download
+          content:
+            application/zip:
+              schema:
+                type: string
+                format: binary
+  /v1/companies/{companyId}/dashboard:
+    get:
+      tags:
+      - product
+      operationId: getDashboard
+      parameters:
+      - name: companyId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        default:
+          $ref: '#/components/responses/Error'
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Object'
+  /v1/companies/{companyId}/forecast/days/{date}:
+    get:
+      tags:
+      - product
+      operationId: getForecastDay
+      parameters:
+      - name: companyId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: date
+        in: path
+        required: true
+        schema:
+          type: string
+          format: date
+      - name: horizon
+        in: query
+        required: false
+        schema:
+          type: integer
+      responses:
+        default:
+          $ref: '#/components/responses/Error'
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ForecastDay'
+  /v1/companies/{companyId}/forecast/preview:
+    post:
+      tags:
+      - product
+      operationId: previewForecast
+      parameters:
+      - name: companyId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        default:
+          $ref: '#/components/responses/Error'
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Object'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PreviewForecastInput'
+  /v1/companies/{companyId}/forecast/accuracy:
+    get:
+      tags:
+      - product
+      operationId: getForecastAccuracy
+      parameters:
+      - name: companyId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: from
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date
+      - name: to
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date
+      responses:
+        default:
+          $ref: '#/components/responses/Error'
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ForecastAccuracy'
+  /v1/companies/{companyId}/gaps/{gapId}/simulate:
+    post:
+      tags:
+      - product
+      operationId: simulateGap
+      parameters:
+      - name: companyId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: gapId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        default:
+          $ref: '#/components/responses/Error'
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Object'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SimulateGapInput'
+  /v1/actions/{actionId}/apply:
+    post:
+      tags:
+      - product
+      operationId: applyAction
+      parameters:
+      - name: actionId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        default:
+          $ref: '#/components/responses/Error'
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Object'
+  /v1/companies/{companyId}/operations/summary:
+    get:
+      tags:
+      - product
+      operationId: summarizeOperations
+      parameters:
+      - name: companyId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: from
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date
+      - name: to
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date
+      responses:
+        default:
+          $ref: '#/components/responses/Error'
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Object'
+  /v1/companies/{companyId}/operations/recategorize:
+    post:
+      tags:
+      - product
+      operationId: recategorizeOperations
+      parameters:
+      - name: companyId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        default:
+          $ref: '#/components/responses/Error'
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Object'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecategorizeOperationsInput'
+  /v1/companies/{companyId}/operations/export:
+    get:
+      tags:
+      - product
+      operationId: exportOperations
+      parameters:
+      - name: companyId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: from
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date
+      - name: to
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date
+      - name: format
+        in: query
+        required: false
+        schema:
+          type: string
+      responses:
+        default:
+          $ref: '#/components/responses/Error'
+        '200':
+          description: Download
+          content:
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema:
+                type: string
+                format: binary
+  /v1/categories:
+    get:
+      tags:
+      - product
+      operationId: listCategories
+      parameters: []
+      responses:
+        default:
+          $ref: '#/components/responses/Error'
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Object'
+  /v1/scenarios/{scenarioId}:
+    patch:
+      tags:
+      - product
+      operationId: updateScenario
+      parameters:
+      - name: scenarioId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        default:
+          $ref: '#/components/responses/Error'
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Scenario'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateScenarioInput'
+    delete:
+      tags:
+      - product
+      operationId: deleteScenario
+      parameters:
+      - name: scenarioId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        default:
+          $ref: '#/components/responses/Error'
+        '204':
+          description: No content
+  /v1/companies/{companyId}/invoices:
+    get:
+      tags:
+      - product
+      operationId: listInvoices
+      parameters:
+      - name: companyId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: direction
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: status
+        in: query
+        required: false
+        schema:
+          type: string
+      responses:
+        default:
+          $ref: '#/components/responses/Error'
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Invoice'
+    post:
+      tags:
+      - product
+      operationId: createInvoice
+      parameters:
+      - name: companyId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        default:
+          $ref: '#/components/responses/Error'
+        '201':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Invoice'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateInvoiceInput'
+  /v1/invoices/{invoiceId}:
+    patch:
+      tags:
+      - product
+      operationId: updateInvoice
+      parameters:
+      - name: invoiceId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        default:
+          $ref: '#/components/responses/Error'
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Invoice'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateInvoiceInput'
+    delete:
+      tags:
+      - product
+      operationId: deleteInvoice
+      parameters:
+      - name: invoiceId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        default:
+          $ref: '#/components/responses/Error'
+        '204':
+          description: No content
+  /v1/companies/{companyId}/contracts:
+    get:
+      tags:
+      - product
+      operationId: listContracts
+      parameters:
+      - name: companyId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        default:
+          $ref: '#/components/responses/Error'
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Contract'
+    post:
+      tags:
+      - product
+      operationId: createContract
+      parameters:
+      - name: companyId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        default:
+          $ref: '#/components/responses/Error'
+        '201':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Contract'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateContractInput'
+  /v1/contracts/{contractId}:
+    patch:
+      tags:
+      - product
+      operationId: updateContract
+      parameters:
+      - name: contractId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        default:
+          $ref: '#/components/responses/Error'
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Contract'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateContractInput'
+    delete:
+      tags:
+      - product
+      operationId: deleteContract
+      parameters:
+      - name: contractId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        default:
+          $ref: '#/components/responses/Error'
+        '204':
+          description: No content
+  /v1/sources/{sourceId}:
+    patch:
+      tags:
+      - product
+      operationId: updateSource
+      parameters:
+      - name: sourceId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        default:
+          $ref: '#/components/responses/Error'
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Source'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSourceInput'
+    delete:
+      tags:
+      - product
+      operationId: deleteSource
+      parameters:
+      - name: sourceId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        default:
+          $ref: '#/components/responses/Error'
+        '204':
+          description: No content
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeleteSourceInput'
+    get:
+      tags:
+      - product
+      operationId: getSource
+      parameters:
+      - name: sourceId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        default:
+          $ref: '#/components/responses/Error'
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Object'
+  /v1/sources/{sourceId}/test:
+    post:
+      tags:
+      - product
+      operationId: testSource
+      parameters:
+      - name: sourceId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        default:
+          $ref: '#/components/responses/Error'
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Object'
+  /v1/uploads/{uploadId}/preview:
+    get:
+      tags:
+      - product
+      operationId: previewUpload
+      parameters:
+      - name: uploadId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        default:
+          $ref: '#/components/responses/Error'
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Object'
+  /v1/uploads/{uploadId}/mapping:
+    post:
+      tags:
+      - product
+      operationId: mapUpload
+      parameters:
+      - name: uploadId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        default:
+          $ref: '#/components/responses/Error'
+        '202':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Job'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MapUploadInput'
+  /v1/companies/{companyId}/imports:
+    get:
+      tags:
+      - product
+      operationId: listImports
+      parameters:
+      - name: companyId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        default:
+          $ref: '#/components/responses/Error'
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Object'
+  /v1/imports/{importId}:
+    get:
+      tags:
+      - product
+      operationId: getImport
+      parameters:
+      - name: importId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        default:
+          $ref: '#/components/responses/Error'
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Object'
+  /v1/companies/{companyId}/calendar:
+    get:
+      tags:
+      - product
+      operationId: getCalendar
+      parameters:
+      - name: companyId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: month
+        in: query
+        required: true
+        schema:
+          type: string
+      responses:
+        default:
+          $ref: '#/components/responses/Error'
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Object'
+  /v1/scenario-presets:
+    get:
+      tags:
+      - product
+      operationId: listScenarioPresets
+      parameters: []
+      responses:
+        default:
+          $ref: '#/components/responses/Error'
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Object'
+  /v1/companies/{companyId}/scenarios/preview:
+    post:
+      tags:
+      - product
+      operationId: previewScenario
+      parameters:
+      - name: companyId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        default:
+          $ref: '#/components/responses/Error'
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScenarioComparison'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PreviewScenarioInput'
+  /v1/scenarios/{scenarioId}/compare:
+    get:
+      tags:
+      - product
+      operationId: compareSavedScenario
+      parameters:
+      - name: scenarioId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: horizon
+        in: query
+        required: false
+        schema:
+          type: integer
+      responses:
+        default:
+          $ref: '#/components/responses/Error'
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScenarioComparison'
+  /v1/companies/{companyId}/taxes:
+    get:
+      tags:
+      - product
+      operationId: getTaxes
+      parameters:
+      - name: companyId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: months
+        in: query
+        required: false
+        schema:
+          type: integer
+      responses:
+        default:
+          $ref: '#/components/responses/Error'
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Object'
+  /v1/companies/{companyId}/plan-fact/missed:
+    get:
+      tags:
+      - product
+      operationId: getMissedPlanFact
+      parameters:
+      - name: companyId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        default:
+          $ref: '#/components/responses/Error'
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Object'
+  /v1/companies/{companyId}/counterparties/{cpId}:
+    get:
+      tags:
+      - product
+      operationId: getCounterparty
+      parameters:
+      - name: companyId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: cpId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        default:
+          $ref: '#/components/responses/Error'
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Object'
+  /v1/companies/{companyId}/counterparties/concentration:
+    get:
+      tags:
+      - product
+      operationId: getConcentration
+      parameters:
+      - name: companyId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        default:
+          $ref: '#/components/responses/Error'
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Object'
+  /v1/alerts/{alertId}:
+    patch:
+      tags:
+      - product
+      operationId: updateAlert
+      parameters:
+      - name: alertId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        default:
+          $ref: '#/components/responses/Error'
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Alert'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateAlertInput'
+  /v1/companies/{companyId}/alerts/read-all:
+    post:
+      tags:
+      - product
+      operationId: readAllAlerts
+      parameters:
+      - name: companyId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        default:
+          $ref: '#/components/responses/Error'
+        '204':
+          description: No content
+  /v1/admin/overview:
+    get:
+      tags:
+      - admin
+      operationId: getAdminOverview
+      parameters: []
+      responses:
+        default:
+          $ref: '#/components/responses/Error'
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Object'
+  /v1/admin/users:
+    get:
+      tags:
+      - admin
+      operationId: listAdminUsers
+      parameters:
+      - name: q
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: status
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: cursor
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+      responses:
+        default:
+          $ref: '#/components/responses/Error'
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Page'
+  /v1/admin/users/{userId}:
+    patch:
+      tags:
+      - admin
+      operationId: updateAdminUser
+      parameters:
+      - name: userId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        default:
+          $ref: '#/components/responses/Error'
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Object'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateAdminUserInput'
+  /v1/admin/companies:
+    get:
+      tags:
+      - admin
+      operationId: listAdminCompanies
+      parameters:
+      - name: q
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: industry
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: risk
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: cursor
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+      responses:
+        default:
+          $ref: '#/components/responses/Error'
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Page'
+  /v1/admin/companies/{companyId}:
+    get:
+      tags:
+      - admin
+      operationId: getAdminCompany
+      parameters:
+      - name: companyId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        default:
+          $ref: '#/components/responses/Error'
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminCompanyDetail'
+  /v1/admin/integrations:
+    get:
+      tags:
+      - admin
+      operationId: listAdminIntegrations
+      parameters:
+      - name: kind
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: status
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: cursor
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+      responses:
+        default:
+          $ref: '#/components/responses/Error'
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Page'
+  /v1/admin/integrations/stats:
+    get:
+      tags:
+      - admin
+      operationId: getAdminIntegrationStats
+      parameters: []
+      responses:
+        default:
+          $ref: '#/components/responses/Error'
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Object'
+  /v1/admin/integrations/{sourceId}/retry:
+    post:
+      tags:
+      - admin
+      operationId: retryAdminIntegration
+      parameters:
+      - name: sourceId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        default:
+          $ref: '#/components/responses/Error'
+        '202':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Job'
+  /v1/admin/models:
+    get:
+      tags:
+      - admin
+      operationId: listAdminModels
+      parameters: []
+      responses:
+        default:
+          $ref: '#/components/responses/Error'
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AdminModel'
+  /v1/admin/models/drift:
+    get:
+      tags:
+      - admin
+      operationId: getModelDrift
+      parameters: []
+      responses:
+        default:
+          $ref: '#/components/responses/Error'
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Object'
+  /v1/admin/models/{name}/retrain:
+    post:
+      tags:
+      - admin
+      operationId: retrainModel
+      parameters:
+      - name: name
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        default:
+          $ref: '#/components/responses/Error'
+        '202':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Job'
+  /v1/admin/classifier:
+    get:
+      tags:
+      - admin
+      operationId: getClassifierQuality
+      parameters: []
+      responses:
+        default:
+          $ref: '#/components/responses/Error'
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Object'
+  /v1/admin/antifraud/signals:
+    get:
+      tags:
+      - admin
+      operationId: listSignals
+      parameters:
+      - name: status
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: kind
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: severity
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: company_id
+        in: query
+        required: false
+        schema:
+          type: string
+          format: uuid
+      - name: cursor
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+      responses:
+        default:
+          $ref: '#/components/responses/Error'
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Page'
+  /v1/admin/antifraud/signals/{signalId}:
+    get:
+      tags:
+      - admin
+      operationId: getSignal
+      parameters:
+      - name: signalId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        default:
+          $ref: '#/components/responses/Error'
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SignalDetail'
+    patch:
+      tags:
+      - admin
+      operationId: updateSignal
+      parameters:
+      - name: signalId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        default:
+          $ref: '#/components/responses/Error'
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Signal'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSignalInput'
+  /v1/admin/antifraud/stats:
+    get:
+      tags:
+      - admin
+      operationId: getSignalStats
+      parameters: []
+      responses:
+        default:
+          $ref: '#/components/responses/Error'
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Object'
+  /v1/admin/audit:
+    get:
+      tags:
+      - admin
+      operationId: listAudit
+      parameters:
+      - name: user_id
+        in: query
+        required: false
+        schema:
+          type: string
+          format: uuid
+      - name: company_id
+        in: query
+        required: false
+        schema:
+          type: string
+          format: uuid
+      - name: action
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: from
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date
+      - name: to
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date
+      - name: cursor
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+      responses:
+        default:
+          $ref: '#/components/responses/Error'
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Page'
 components:
   securitySchemes:
     bearerAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
-
   parameters:
     CompanyId:
       name: companyId
       in: path
       required: true
-      schema: { type: string, format: uuid }
-
+      schema:
+        type: string
+        format: uuid
   responses:
     Error:
       description: Ошибка
       content:
         application/json:
-          schema: { $ref: "#/components/schemas/Error" }
-
+          schema:
+            $ref: '#/components/schemas/Error'
   schemas:
     Error:
       type: object
-      required: [code, message]
+      required:
+      - code
+      - message
       properties:
-        code: { type: string }
-        message: { type: string, description: Текст для пользователя }
-
+        code:
+          type: string
+        message:
+          type: string
+          description: Текст для пользователя
     Health:
       type: object
-      required: [status, ml]
+      required:
+      - status
+      - ml
       properties:
-        status: { type: string, enum: [ok] }
-        ml: { type: string, enum: [ok, unavailable], description: Без ML работает встроенный фолбэк }
-
+        status:
+          type: string
+          enum:
+          - ok
+        ml:
+          type: string
+          enum:
+          - ok
+          - unavailable
+          description: Без ML работает встроенный фолбэк
     Credentials:
       type: object
       required:
@@ -1215,354 +2997,2092 @@ components:
         data:
           type: object
           additionalProperties: true
-
     TaxRegime:
       type: string
-      enum: [usn6, usn15, osno, eshn, unknown]
-
+      enum:
+      - usn6
+      - usn15
+      - osno
+      - eshn
+      - unknown
     SourceKind:
       type: string
-      enum: [upload, onec_bank_file, excel, gsheets, onec_odata, fns, manual]
-
+      enum:
+      - upload
+      - onec_bank_file
+      - excel
+      - gsheets
+      - onec_odata
+      - fns
+      - manual
     Source:
       type: object
-      required: [id, kind, status]
+      required:
+      - id
+      - kind
+      - title
+      - status
+      - enabled
+      - last_synced_at
+      - records
+      - error
       properties:
-        id: { type: string, format: uuid }
-        kind: { $ref: "#/components/schemas/SourceKind" }
-        title: { type: string }
-        status: { type: string, enum: [ok, syncing, error, disabled] }
-        last_synced_at: { type: string, format: date-time }
-        error: { type: string }
-
+        id:
+          type: string
+          format: uuid
+        kind:
+          type: string
+        title:
+          type: string
+        status:
+          type: string
+        enabled:
+          type: boolean
+        last_synced_at:
+          type: string
+          format: date-time
+          nullable: true
+        records:
+          type: integer
+        error:
+          type: string
+          nullable: true
     SourceCreate:
       type: object
-      required: [kind]
+      required:
+      - kind
       properties:
-        kind: { $ref: "#/components/schemas/SourceKind" }
-        title: { type: string }
+        kind:
+          $ref: '#/components/schemas/SourceKind'
+        title:
+          type: string
         config:
           type: object
           additionalProperties: true
           description: Например, spreadsheet_id для gsheets. Секреты здесь не возвращаются.
-
     Job:
       type: object
-      required: [id, status]
+      required:
+      - id
+      - kind
+      - status
+      - progress
+      - error
+      - result_ref
+      - result
       properties:
-        id: { type: string }
-        status: { type: string, enum: [queued, running, done, failed] }
-        error: { type: string }
-
+        id:
+          type: string
+          format: uuid
+        kind:
+          type: string
+        status:
+          type: string
+          enum:
+          - queued
+          - running
+          - done
+          - failed
+        progress:
+          type: number
+          format: double
+        error:
+          type: string
+          nullable: true
+        result_ref:
+          type: string
+          nullable: true
+        result:
+          type: object
+          additionalProperties: true
+          nullable: true
     Category:
       type: string
       description: Категория операции
       enum:
-        - revenue_acquiring
-        - revenue_sbp
-        - revenue_cash
-        - revenue_b2b
-        - revenue_marketplace
-        - supplier
-        - salary
-        - tax
-        - rent
-        - utilities
-        - loan_payment
-        - leasing
-        - bank_fee
-        - marketing
-        - services
-        - own_transfer
-        - owner_loan
-        - refund
-        - enforcement
-        - other
-
+      - revenue_acquiring
+      - revenue_sbp
+      - revenue_cash
+      - revenue_b2b
+      - revenue_marketplace
+      - supplier
+      - salary
+      - tax
+      - rent
+      - utilities
+      - loan_payment
+      - leasing
+      - bank_fee
+      - marketing
+      - services
+      - own_transfer
+      - owner_loan
+      - refund
+      - enforcement
+      - other
     Direction:
       type: string
-      enum: [in, out]
-
+      enum:
+      - in
+      - out
     Operation:
       type: object
-      required: [id, date, amount, direction, category, source]
+      required:
+      - id
+      - date
+      - amount
+      - direction
+      - counterparty
+      - purpose
+      - category
+      - category_method
+      - is_internal
+      - source
       properties:
-        id: { type: string }
-        date: { type: string, format: date }
-        amount: { type: number }
-        direction: { $ref: "#/components/schemas/Direction" }
-        counterparty_name: { type: string }
-        counterparty_inn: { type: string }
-        purpose: { type: string }
-        category: { $ref: "#/components/schemas/Category" }
-        category_method: { type: string, enum: [rule, ml, llm, user] }
-        is_internal: { type: boolean, description: Свои переводы и займы учредителя — не выручка }
-        source: { $ref: "#/components/schemas/SourceKind" }
-
+        id:
+          type: string
+        date:
+          type: string
+          format: date
+        amount:
+          type: number
+          format: double
+        direction:
+          $ref: '#/components/schemas/Direction'
+        counterparty:
+          $ref: '#/components/schemas/CounterpartyRef'
+        purpose:
+          type: string
+        category:
+          $ref: '#/components/schemas/Category'
+        category_method:
+          type: string
+        is_internal:
+          type: boolean
+        source:
+          type: string
     OperationPage:
       type: object
-      required: [items]
+      required:
+      - items
+      - next_cursor
       properties:
         items:
           type: array
-          items: { $ref: "#/components/schemas/Operation" }
-        next_cursor: { type: string }
-
+          items:
+            $ref: '#/components/schemas/Operation'
+        next_cursor:
+          type: string
+          nullable: true
     RecurringPattern:
       type: object
-      required: [id, title, category, period, amount, next_date, confirmed]
+      required:
+      - id
+      - title
+      - category
+      - direction
+      - counterparty
+      - period
+      - day_of_month
+      - amount
+      - amount_spread
+      - next_date
+      - confirmed
+      - active
+      - origin
       properties:
-        id: { type: string, format: uuid }
-        title: { type: string, description: "«Зарплата (аванс)», «Аренда — АО Арендодатель»" }
-        category: { $ref: "#/components/schemas/Category" }
-        direction: { $ref: "#/components/schemas/Direction" }
-        counterparty_name: { type: string }
-        period: { type: string, enum: [weekly, biweekly, monthly, quarterly] }
-        day_of_month: { type: integer }
-        amount: { type: number }
-        amount_spread: { type: number, description: Типичное отклонение суммы }
-        next_date: { type: string, format: date }
-        confirmed: { type: boolean }
-
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        category:
+          $ref: '#/components/schemas/Category'
+        direction:
+          $ref: '#/components/schemas/Direction'
+        counterparty:
+          $ref: '#/components/schemas/CounterpartyRef'
+        period:
+          type: string
+        day_of_month:
+          type: integer
+          nullable: true
+        amount:
+          type: number
+          format: double
+        amount_spread:
+          type: number
+          format: double
+        next_date:
+          type: string
+          format: date
+        confirmed:
+          type: boolean
+          nullable: true
+        active:
+          type: boolean
+        origin:
+          type: string
     Counterparty:
       type: object
-      required: [name, total_in, total_out]
+      required:
+      - id
+      - name
+      - inn
+      - roles
+      - turnover_in_12m
+      - turnover_out_12m
+      - revenue_share
+      - operations_count
+      - first_at
+      - last_at
+      - avg_payment_delay_days
+      - delay_stability
+      - discipline_score
+      - overdue_amount
+      - fns_status
       properties:
-        name: { type: string }
-        inn: { type: string }
-        total_in: { type: number }
-        total_out: { type: number }
-        avg_payment_delay_days: { type: number, description: От даты УПД до оплаты }
-        discipline_score: { type: number, minimum: 0, maximum: 100 }
-        overdue_amount: { type: number }
-
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        inn:
+          type: string
+          nullable: true
+        roles:
+          type: array
+          items:
+            type: string
+        turnover_in_12m:
+          type: number
+          format: double
+        turnover_out_12m:
+          type: number
+          format: double
+        revenue_share:
+          type: number
+          format: double
+        operations_count:
+          type: integer
+        first_at:
+          type: string
+          format: date
+        last_at:
+          type: string
+          format: date
+        avg_payment_delay_days:
+          type: number
+          format: double
+          nullable: true
+        delay_stability:
+          type: number
+          format: double
+          nullable: true
+        discipline_score:
+          type: number
+          format: double
+          nullable: true
+        overdue_amount:
+          type: number
+          format: double
+        fns_status:
+          type: string
+          nullable: true
     ModelInfo:
       type: object
-      required: [name, description, is_default]
+      required:
+      - name
+      - description
+      - is_default
       properties:
-        name: { type: string }
-        description: { type: string }
-        is_default: { type: boolean }
-
+        name:
+          type: string
+        description:
+          type: string
+        is_default:
+          type: boolean
     ModelQuality:
       type: object
-      required: [model]
+      required:
+      - name
+      - wape_7
+      - wape_14
+      - wape_30
+      - coverage
+      - gap_recall
+      - gap_lead_days
+      - description
+      - source
+      - limitations
+      - series
       properties:
-        model: { type: string }
-        mae_7: { type: number }
-        mae_14: { type: number }
-        mae_30: { type: number }
-        wape_30: { type: number }
-        gap_precision: { type: number }
-        gap_recall: { type: number }
-        gap_lead_days: { type: number, description: За сколько дней в среднем предупредили }
-
+        name:
+          type: string
+        wape_7:
+          type: number
+          format: double
+          nullable: true
+        wape_14:
+          type: number
+          format: double
+          nullable: true
+        wape_30:
+          type: number
+          format: double
+          nullable: true
+        coverage:
+          type: number
+          format: double
+          nullable: true
+        gap_recall:
+          type: number
+          format: double
+          nullable: true
+        gap_lead_days:
+          type: number
+          format: double
+          nullable: true
+        description:
+          type: string
+        source:
+          type: string
+        limitations:
+          type: array
+          items:
+            type: string
+        series:
+          type: array
+          items:
+            $ref: '#/components/schemas/Object'
     ForecastComponent:
       type: object
-      required: [key, title, amount]
+      required:
+      - key
+      - title
+      - amount
       properties:
-        key: { type: string, description: "Например: salary, tax, rent, event:<id>, stochastic" }
-        title: { type: string }
-        amount: { type: number, description: Со знаком; минус — списание }
-        source: { $ref: "#/components/schemas/SourceKind" }
-
+        key:
+          type: string
+          description: 'Например: salary, tax, rent, event:<id>, stochastic'
+        title:
+          type: string
+        amount:
+          type: number
+          description: Со знаком; минус — списание
+        source:
+          $ref: '#/components/schemas/SourceKind'
     ForecastPoint:
       type: object
-      required: [date, p10, p50, p90]
+      required:
+      - date
+      - p10
+      - p50
+      - p90
       properties:
-        date: { type: string, format: date }
-        p10: { type: number }
-        p50: { type: number }
-        p90: { type: number }
+        date:
+          type: string
+          format: date
+        p10:
+          type: number
+        p50:
+          type: number
+        p90:
+          type: number
         components:
           type: array
-          items: { $ref: "#/components/schemas/ForecastComponent" }
-
+          items:
+            $ref: '#/components/schemas/ForecastComponent'
     Gap:
       type: object
-      required: [id, date, shortfall, probability]
+      required:
+      - id
+      - date
+      - shortfall
+      - shortfall_p90
+      - probability
+      - days_left
+      - headline
       properties:
-        id: { type: string }
-        date: { type: string, format: date, description: "Первый день, когда остаток ниже резерва" }
-        shortfall: { type: number, description: "Сколько не хватит (медиана), руб." }
-        shortfall_p90: { type: number, description: Пессимистичная оценка }
-        probability: { type: number, minimum: 0, maximum: 1 }
-        headline: { type: string, description: «28 ноября не хватит ~340 000 ₽ на ЕНП и зарплату» }
-
+        id:
+          type: string
+        date:
+          type: string
+          format: date
+        shortfall:
+          type: number
+          format: double
+        shortfall_p90:
+          type: number
+          format: double
+        probability:
+          type: number
+          format: double
+        days_left:
+          type: integer
+        headline:
+          type: string
     Forecast:
       type: object
-      required: [as_of, horizon, model_used, opening_balance, safe_to_spend, headline, points, gaps]
+      required:
+      - as_of
+      - horizon
+      - model_used
+      - model_version
+      - flow_scope
+      - fallback_used
+      - warnings
+      - low_confidence
+      - opening_balance
+      - safe_to_spend
+      - status
+      - headline
+      - history
+      - points
+      - markers
+      - gaps
       properties:
-        as_of: { type: string, format: date }
-        horizon: { type: integer }
-        model_used: { type: string }
-        low_confidence: { type: boolean }
-        opening_balance: { type: number }
-        safe_to_spend: { type: number, description: Можно потратить сегодня без риска уйти ниже резерва }
-        headline: { type: string }
-        status: { type: string, enum: [ok, warning, danger] }
+        as_of:
+          type: string
+          format: date
+        horizon:
+          type: integer
+        model_used:
+          type: string
+        model_version:
+          type: string
+        flow_scope:
+          type: string
+        fallback_used:
+          type: boolean
+        warnings:
+          type: array
+          items:
+            type: string
+        low_confidence:
+          type: boolean
+        opening_balance:
+          type: number
+          format: double
+        safe_to_spend:
+          type: number
+          format: double
+        status:
+          type: string
+        headline:
+          type: string
+        history:
+          type: array
+          items:
+            type: object
+            required:
+            - date
+            - balance
+            properties:
+              date:
+                type: string
+                format: date
+              balance:
+                type: number
+                format: double
+                nullable: true
         points:
           type: array
-          items: { $ref: "#/components/schemas/ForecastPoint" }
+          items:
+            type: object
+            required:
+            - date
+            - p10
+            - p50
+            - p90
+            - is_workday
+            properties:
+              date:
+                type: string
+                format: date
+              p10:
+                type: number
+                format: double
+              p50:
+                type: number
+                format: double
+              p90:
+                type: number
+                format: double
+              is_workday:
+                type: boolean
+        markers:
+          type: array
+          items:
+            type: object
+            required:
+            - date
+            - title
+            - amount
+            - kind
+            properties:
+              date:
+                type: string
+                format: date
+              title:
+                type: string
+              amount:
+                type: number
+                format: double
+              kind:
+                type: string
         gaps:
           type: array
-          items: { $ref: "#/components/schemas/Gap" }
-
+          items:
+            $ref: '#/components/schemas/Gap'
     Cause:
       type: object
-      required: [title, amount]
+      required:
+      - title
+      - amount
       properties:
-        title: { type: string }
-        amount: { type: number, description: "Вклад в разрыв, со знаком" }
-        component_key: { type: string }
-
+        title:
+          type: string
+        amount:
+          type: number
+          description: Вклад в разрыв, со знаком
+        component_key:
+          type: string
     Action:
       type: object
-      required: [id, kind, title, effect]
+      required:
+      - id
+      - kind
+      - title
+      - description
+      - cost
+      - effect
+      - draft_message
+      - refs
       properties:
-        id: { type: string }
-        kind: { type: string, enum: [remind_client, shift_supplier_payment, overdraft, split_payment, cut_expense] }
-        title: { type: string }
-        description: { type: string }
-        cost: { type: number, description: "Стоимость действия, например проценты" }
+        id:
+          type: string
+          format: uuid
+        kind:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        cost:
+          type: number
+          format: double
         effect:
           type: object
-          required: [closes_gap, new_probability]
+          required:
+          - closes_gap
+          - new_probability
+          - new_shortfall
           properties:
-            closes_gap: { type: boolean }
-            new_probability: { type: number }
-            new_shortfall: { type: number }
-        draft_message: { type: string, description: Готовый текст напоминания клиенту }
-
+            closes_gap:
+              type: boolean
+            new_probability:
+              type: number
+              format: double
+            new_shortfall:
+              type: number
+              format: double
+        draft_message:
+          type: string
+          nullable: true
+        refs:
+          type: object
+          additionalProperties: true
     GapDetail:
       allOf:
-        - $ref: "#/components/schemas/Gap"
-        - type: object
-          required: [causes, actions]
-          properties:
-            causes:
-              type: array
-              items: { $ref: "#/components/schemas/Cause" }
-            actions:
-              type: array
-              items: { $ref: "#/components/schemas/Action" }
-
+      - $ref: '#/components/schemas/Gap'
+      - type: object
+        required:
+        - causes
+        - actions
+        properties:
+          causes:
+            type: array
+            items:
+              type: object
+              required:
+              - title
+              - amount
+              - component_key
+              - items_ref
+              properties:
+                title:
+                  type: string
+                amount:
+                  type: number
+                  format: double
+                component_key:
+                  type: string
+                items_ref:
+                  type: string
+                  nullable: true
+          actions:
+            type: array
+            items:
+              $ref: '#/components/schemas/Action'
     Retro:
       type: object
-      required: [events, detected, avg_lead_days, owner_injections_total]
+      required:
+      - events
+      - detected
+      - avg_lead_days
+      - owner_injections_total
+      - items
+      - series
       properties:
-        events: { type: integer, description: Сколько прошлых разрывов найдено }
-        detected: { type: integer, description: О скольких мы бы предупредили }
-        avg_lead_days: { type: number }
-        owner_injections_total: { type: number, description: Сколько владелец докладывал своих денег }
+        events:
+          type: integer
+        detected:
+          type: integer
+        avg_lead_days:
+          type: number
+          format: double
+          nullable: true
+        owner_injections_total:
+          type: number
+          format: double
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Object'
+        series:
+          type: array
+          items:
+            $ref: '#/components/schemas/Object'
+    PlanFactPoint:
+      type: object
+      additionalProperties: false
+      properties:
+        period:
+          type: string
+          format: date
+        plan_in:
+          type: number
+        plan_out:
+          type: number
+        fact_in:
+          type: number
+        fact_out:
+          type: number
+        deviation:
+          type: number
+      required:
+      - period
+      - plan_in
+      - plan_out
+      - fact_in
+      - fact_out
+      - deviation
+    PlannedEvent:
+      type: object
+      required:
+      - id
+      - date
+      - amount
+      - direction
+      - title
+      - category
+      - counterparty
+      - probability
+      - source
+      - status
+      - editable
+      properties:
+        id:
+          type: string
+          format: uuid
+        date:
+          type: string
+          format: date
+        amount:
+          type: number
+          format: double
+        direction:
+          $ref: '#/components/schemas/Direction'
+        title:
+          type: string
+        category:
+          type: string
+        counterparty:
+          $ref: '#/components/schemas/CounterpartyRef'
+        probability:
+          type: number
+          format: double
+        source:
+          type: string
+        status:
+          type: string
+        editable:
+          type: boolean
+    PlannedEventCreate:
+      type: object
+      required:
+      - date
+      - amount
+      - direction
+      - title
+      properties:
+        date:
+          type: string
+          format: date
+        amount:
+          type: number
+          minimum: 0
+        direction:
+          $ref: '#/components/schemas/Direction'
+        title:
+          type: string
+        category:
+          $ref: '#/components/schemas/Category'
+        counterparty_name:
+          type: string
+        probability:
+          type: number
+          minimum: 0
+          maximum: 1
+    PlannedEventUpdate:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+        amount:
+          type: number
+          minimum: 0
+        probability:
+          type: number
+          minimum: 0
+          maximum: 1
+        status:
+          type: string
+          enum:
+          - expected
+          - received
+          - missed
+          - cancelled
+    ScenarioStep:
+      type: object
+      required:
+      - kind
+      properties:
+        kind:
+          type: string
+          enum:
+          - delay_counterparty
+          - scale_revenue
+          - add_expense
+          - scale_fixed_costs
+          - move_event
+        counterparty_id:
+          type: string
+          format: uuid
+        counterparty_name:
+          type: string
+        delay_days:
+          type: integer
+        factor:
+          type: number
+          format: double
+        amount:
+          type: number
+          format: double
+        date:
+          type: string
+          format: date
+        event_id:
+          type: string
+          format: uuid
+      additionalProperties: false
+    Scenario:
+      type: object
+      required:
+      - id
+      - title
+      - preset
+      - steps
+      - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        preset:
+          type: boolean
+        steps:
+          type: array
+          items:
+            $ref: '#/components/schemas/ScenarioStep'
+        created_at:
+          type: string
+          format: date-time
+    ScenarioCreate:
+      type: object
+      required:
+      - title
+      - steps
+      properties:
+        title:
+          type: string
+        steps:
+          type: array
+          items:
+            $ref: '#/components/schemas/ScenarioStep'
+    ScenarioComparison:
+      type: object
+      required:
+      - base
+      - scenario
+      - delta
+      properties:
+        base:
+          $ref: '#/components/schemas/Forecast'
+        scenario:
+          $ref: '#/components/schemas/Forecast'
+        delta:
+          $ref: '#/components/schemas/Object'
+    Alert:
+      type: object
+      required:
+      - id
+      - created_at
+      - severity
+      - kind
+      - title
+      - body
+      - ref
+      - read
+      properties:
+        id:
+          type: string
+          format: uuid
+        created_at:
+          type: string
+          format: date-time
+        severity:
+          type: string
+        kind:
+          type: string
+        title:
+          type: string
+        body:
+          type: string
+        ref:
+          type: object
+          required:
+          - screen
+          - id
+          properties:
+            screen:
+              type: string
+            id:
+              type: string
+              nullable: true
+        read:
+          type: boolean
+    CounterpartyRef:
+      type: object
+      required:
+      - id
+      - name
+      properties:
+        id:
+          type: string
+          format: uuid
+          nullable: true
+        name:
+          type: string
+    Invoice:
+      type: object
+      required:
+      - id
+      - number
+      - direction
+      - counterparty
+      - amount
+      - paid_amount
+      - issued_at
+      - due_at
+      - expected_pay_at
+      - status
+      - source
+      properties:
+        id:
+          type: string
+          format: uuid
+        number:
+          type: string
+        direction:
+          type: string
+        counterparty:
+          $ref: '#/components/schemas/CounterpartyRef'
+        amount:
+          type: number
+          format: double
+        paid_amount:
+          type: number
+          format: double
+        issued_at:
+          type: string
+          format: date
+        due_at:
+          type: string
+          format: date
+        expected_pay_at:
+          type: string
+          format: date
+        status:
+          type: string
+        source:
+          type: string
+    Contract:
+      type: object
+      required:
+      - id
+      - number
+      - direction
+      - counterparty
+      - total
+      - prepayment
+      - deferral_days
+      - schedule
+      - source
+      properties:
+        id:
+          type: string
+          format: uuid
+        number:
+          type: string
+        direction:
+          type: string
+        counterparty:
+          $ref: '#/components/schemas/CounterpartyRef'
+        total:
+          type: number
+          format: double
+        prepayment:
+          type: number
+          format: double
+        deferral_days:
+          type: integer
+        schedule:
+          type: array
+          items:
+            type: object
+            required:
+            - date
+            - amount
+            - status
+            properties:
+              date:
+                type: string
+                format: date
+              amount:
+                type: number
+                format: double
+              status:
+                type: string
+        source:
+          type: string
+    Signal:
+      type: object
+      required:
+      - id
+      - created_at
+      - company
+      - kind
+      - severity
+      - amount
+      - status
+      - resolution
+      - explanation
+      properties:
+        id:
+          type: string
+          format: uuid
+        created_at:
+          type: string
+          format: date-time
+        company:
+          type: object
+          required:
+          - id
+          - name
+          properties:
+            id:
+              type: string
+              format: uuid
+            name:
+              type: string
+        kind:
+          type: string
+        severity:
+          type: string
+        amount:
+          type: number
+          format: double
+          nullable: true
+        status:
+          type: string
+        resolution:
+          type: string
+          nullable: true
+        explanation:
+          type: object
+          additionalProperties: true
+    Object:
+      type: object
+      additionalProperties: true
+    Page:
+      type: object
+      required:
+      - items
+      - next_cursor
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Object'
+        next_cursor:
+          type: string
+          nullable: true
+    AlertPage:
+      type: object
+      required:
+      - items
+      - next_cursor
+      - unread_count
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Alert'
+        next_cursor:
+          type: string
+          nullable: true
+        unread_count:
+          type: integer
+    CreateEventInput:
+      type: object
+      additionalProperties: false
+      properties:
+        date:
+          type: string
+          format: date
+        amount:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 10000000000000.0
+          multipleOf: 0.01
+        direction:
+          $ref: '#/components/schemas/Direction'
+        title:
+          type: string
+          minLength: 1
+          maxLength: 1024
+        category:
+          $ref: '#/components/schemas/Category'
+        probability:
+          type: number
+          minimum: 0
+          maximum: 1
+        status:
+          type: string
+          enum:
+          - expected
+          - received
+          - missed
+          - cancelled
+        additional:
+          type: boolean
+        counterparty_name:
+          type: string
+          minLength: 1
+          maxLength: 1024
+        counterparty_inn:
+          type: string
+          pattern: ^[0-9]{10}([0-9]{2})?$
+      required:
+      - date
+      - amount
+      - direction
+      - title
+    UpdateEventInput:
+      type: object
+      additionalProperties: false
+      properties:
+        date:
+          type: string
+          format: date
+        amount:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 10000000000000.0
+          multipleOf: 0.01
+        direction:
+          $ref: '#/components/schemas/Direction'
+        title:
+          type: string
+          minLength: 1
+          maxLength: 1024
+        category:
+          $ref: '#/components/schemas/Category'
+        probability:
+          type: number
+          minimum: 0
+          maximum: 1
+        status:
+          type: string
+          enum:
+          - expected
+          - received
+          - missed
+          - cancelled
+        additional:
+          type: boolean
+        counterparty_name:
+          type: string
+          minLength: 1
+          maxLength: 1024
+        counterparty_inn:
+          type: string
+          pattern: ^[0-9]{10}([0-9]{2})?$
+      required: []
+      minProperties: 1
+    CreateRecurringInput:
+      type: object
+      additionalProperties: false
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 1024
+        direction:
+          $ref: '#/components/schemas/Direction'
+        amount:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 10000000000000.0
+          multipleOf: 0.01
+        period:
+          type: string
+          enum:
+          - weekly
+          - biweekly
+          - monthly
+          - quarterly
+        day_of_month:
+          type: integer
+          minimum: 1
+          maximum: 31
+        category:
+          $ref: '#/components/schemas/Category'
+        confirmed:
+          type: boolean
+        active:
+          type: boolean
+        counterparty_name:
+          type: string
+          minLength: 1
+          maxLength: 1024
+        counterparty_inn:
+          type: string
+          pattern: ^[0-9]{10}([0-9]{2})?$
+      required:
+      - title
+      - direction
+      - amount
+      - period
+    UpdateRecurringInput:
+      type: object
+      additionalProperties: false
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 1024
+        direction:
+          $ref: '#/components/schemas/Direction'
+        amount:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 10000000000000.0
+          multipleOf: 0.01
+        period:
+          type: string
+          enum:
+          - weekly
+          - biweekly
+          - monthly
+          - quarterly
+        day_of_month:
+          type: integer
+          minimum: 1
+          maximum: 31
+        category:
+          $ref: '#/components/schemas/Category'
+        confirmed:
+          type: boolean
+        active:
+          type: boolean
+        counterparty_name:
+          type: string
+          minLength: 1
+          maxLength: 1024
+        counterparty_inn:
+          type: string
+          pattern: ^[0-9]{10}([0-9]{2})?$
+      required: []
+      minProperties: 1
+    CreateInvoiceInput:
+      type: object
+      additionalProperties: false
+      properties:
+        number:
+          type: string
+          minLength: 1
+          maxLength: 1024
+        direction:
+          type: string
+          enum:
+          - issued
+          - received
+        amount:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 10000000000000.0
+          multipleOf: 0.01
+        paid_amount:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 10000000000000.0
+          multipleOf: 0.01
+        issued_at:
+          type: string
+          format: date
+        due_at:
+          type: string
+          format: date
+        expected_pay_at:
+          type: string
+          format: date
+        status:
+          type: string
+          enum:
+          - open
+          - partial
+          - paid
+          - overdue
+        additional:
+          type: boolean
+        counterparty_name:
+          type: string
+          minLength: 1
+          maxLength: 1024
+        counterparty_inn:
+          type: string
+          pattern: ^[0-9]{10}([0-9]{2})?$
+      required:
+      - number
+      - direction
+      - amount
+      - issued_at
+      - due_at
+    UpdateInvoiceInput:
+      type: object
+      additionalProperties: false
+      properties:
+        number:
+          type: string
+          minLength: 1
+          maxLength: 1024
+        direction:
+          type: string
+          enum:
+          - issued
+          - received
+        amount:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 10000000000000.0
+          multipleOf: 0.01
+        paid_amount:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 10000000000000.0
+          multipleOf: 0.01
+        issued_at:
+          type: string
+          format: date
+        due_at:
+          type: string
+          format: date
+        expected_pay_at:
+          type: string
+          format: date
+        status:
+          type: string
+          enum:
+          - open
+          - partial
+          - paid
+          - overdue
+        additional:
+          type: boolean
+        counterparty_name:
+          type: string
+          minLength: 1
+          maxLength: 1024
+        counterparty_inn:
+          type: string
+          pattern: ^[0-9]{10}([0-9]{2})?$
+      required: []
+      minProperties: 1
+    CreateContractInput:
+      type: object
+      additionalProperties: false
+      properties:
+        number:
+          type: string
+          minLength: 1
+          maxLength: 1024
+        direction:
+          $ref: '#/components/schemas/Direction'
+        total:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 10000000000000.0
+          multipleOf: 0.01
+        prepayment:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 10000000000000.0
+          multipleOf: 0.01
+        deferral_days:
+          type: integer
+          minimum: 0
+          maximum: 3650
+        schedule:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            properties:
+              date:
+                type: string
+                format: date
+              amount:
+                type: number
+                format: double
+                minimum: 0
+                maximum: 10000000000000.0
+                multipleOf: 0.01
+              status:
+                type: string
+                enum:
+                - expected
+                - received
+                - missed
+                - cancelled
+            required:
+            - date
+            - amount
+          maxItems: 500
+        additional:
+          type: boolean
+        counterparty_name:
+          type: string
+          minLength: 1
+          maxLength: 1024
+        counterparty_inn:
+          type: string
+          pattern: ^[0-9]{10}([0-9]{2})?$
+      required:
+      - number
+      - direction
+      - total
+      - schedule
+    UpdateContractInput:
+      type: object
+      additionalProperties: false
+      properties:
+        number:
+          type: string
+          minLength: 1
+          maxLength: 1024
+        direction:
+          $ref: '#/components/schemas/Direction'
+        total:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 10000000000000.0
+          multipleOf: 0.01
+        prepayment:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 10000000000000.0
+          multipleOf: 0.01
+        deferral_days:
+          type: integer
+          minimum: 0
+          maximum: 3650
+        schedule:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            properties:
+              date:
+                type: string
+                format: date
+              amount:
+                type: number
+                format: double
+                minimum: 0
+                maximum: 10000000000000.0
+                multipleOf: 0.01
+              status:
+                type: string
+                enum:
+                - expected
+                - received
+                - missed
+                - cancelled
+            required:
+            - date
+            - amount
+          maxItems: 500
+        additional:
+          type: boolean
+        counterparty_name:
+          type: string
+          minLength: 1
+          maxLength: 1024
+        counterparty_inn:
+          type: string
+          pattern: ^[0-9]{10}([0-9]{2})?$
+      required: []
+      minProperties: 1
+    CreateScenarioInput:
+      type: object
+      additionalProperties: false
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 1024
+        steps:
+          type: array
+          items:
+            $ref: '#/components/schemas/ScenarioStep'
+          minItems: 1
+          maxItems: 100
+      required:
+      - title
+      - steps
+    UpdateScenarioInput:
+      type: object
+      additionalProperties: false
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 1024
+        steps:
+          type: array
+          items:
+            $ref: '#/components/schemas/ScenarioStep'
+          minItems: 1
+          maxItems: 100
+      required: []
+      minProperties: 1
+    CreateSourceInput:
+      type: object
+      additionalProperties: false
+      properties:
+        kind:
+          type: string
+          enum:
+          - upload
+          - onec_bank_file
+          - excel
+          - gsheets
+          - onec_odata
+          - fns
+          - manual
+        title:
+          type: string
+          minLength: 1
+          maxLength: 1024
+        config:
+          type: object
+          additionalProperties: true
+        enabled:
+          type: boolean
+      required:
+      - kind
+      - title
+    UpdateSourceInput:
+      type: object
+      additionalProperties: false
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 1024
+        config:
+          type: object
+          additionalProperties: true
+        enabled:
+          type: boolean
+      required: []
+      minProperties: 1
+    UpdateOperationInput:
+      type: object
+      additionalProperties: false
+      properties:
+        category:
+          $ref: '#/components/schemas/Category'
+      required:
+      - category
+    UpdateAlertInput:
+      type: object
+      additionalProperties: false
+      properties:
+        read:
+          type: boolean
+      required:
+      - read
+    DeleteSourceInput:
+      type: object
+      additionalProperties: false
+      properties:
+        keep_data:
+          type: boolean
+      required:
+      - keep_data
+    ParseEventInput:
+      type: object
+      additionalProperties: false
+      properties:
+        text:
+          type: string
+          minLength: 1
+          maxLength: 500
+      required:
+      - text
+    PreviewScenarioInput:
+      type: object
+      additionalProperties: false
+      properties:
+        steps:
+          type: array
+          items:
+            $ref: '#/components/schemas/ScenarioStep'
+          minItems: 1
+          maxItems: 100
+      required:
+      - steps
+    PreviewForecastInput:
+      type: object
+      additionalProperties: false
+      properties:
+        changes:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            properties:
+              id:
+                type: string
+                format: uuid
+              date:
+                type: string
+                format: date
+              amount:
+                type: number
+                format: double
+                minimum: 0
+                maximum: 10000000000000.0
+                multipleOf: 0.01
+              direction:
+                $ref: '#/components/schemas/Direction'
+              title:
+                type: string
+                minLength: 1
+                maxLength: 1024
+              category:
+                $ref: '#/components/schemas/Category'
+              probability:
+                type: number
+                minimum: 0
+                maximum: 1
+              status:
+                type: string
+                enum:
+                - expected
+                - received
+                - missed
+                - cancelled
+              additional:
+                type: boolean
+              counterparty_name:
+                type: string
+                minLength: 1
+                maxLength: 1024
+              counterparty_inn:
+                type: string
+                pattern: ^[0-9]{10}([0-9]{2})?$
+            required: []
+          maxItems: 100
+        events:
+          type: array
+          items:
+            $ref: '#/components/schemas/CreateEventInput'
+          maxItems: 100
+      required: []
+    SimulateGapInput:
+      type: object
+      additionalProperties: false
+      properties:
+        action_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          maxItems: 20
+          minItems: 1
+      required:
+      - action_ids
+    RecategorizeOperationsInput:
+      type: object
+      additionalProperties: false
+      properties:
+        counterparty_id:
+          type: string
+          format: uuid
+        category:
+          $ref: '#/components/schemas/Category'
+        apply_to:
+          type: string
+          enum:
+          - all
+          - future
+      required:
+      - counterparty_id
+      - category
+      - apply_to
+    MapUploadInput:
+      type: object
+      additionalProperties: false
+      properties:
+        mapping:
+          type: object
+          additionalProperties:
+            type: string
+      required:
+      - mapping
+    UpdateAdminUserInput:
+      type: object
+      additionalProperties: false
+      properties:
+        status:
+          type: string
+          enum:
+          - active
+          - blocked
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 1000
+      required:
+      - status
+      - reason
+    UpdateSignalInput:
+      type: object
+      additionalProperties: false
+      properties:
+        status:
+          type: string
+          enum:
+          - new
+          - in_progress
+          - closed
+        resolution:
+          type: string
+          enum:
+          - false_positive
+          - confirmed
+          - escalated
+        comment:
+          type: string
+          minLength: 1
+          maxLength: 2000
+      required:
+      - status
+    Lookup:
+      type: object
+      additionalProperties: false
+      properties:
+        inn:
+          type: string
+          minLength: 1
+          maxLength: 1024
+        name:
+          type: string
+          minLength: 1
+          maxLength: 1024
+        legal_form:
+          type: string
+          nullable: true
+        industry:
+          type: string
+          nullable: true
+        tax_regime:
+          type: string
+          minLength: 1
+          maxLength: 1024
+        status:
+          type: string
+          minLength: 1
+          maxLength: 1024
+        source:
+          type: string
+          minLength: 1
+          maxLength: 1024
+      required:
+      - inn
+      - name
+      - legal_form
+      - industry
+      - tax_regime
+      - status
+      - source
+    ForecastAccuracy:
+      type: object
+      additionalProperties: false
+      properties:
         items:
           type: array
           items:
             type: object
-            required: [date, amount, kind]
+            additionalProperties: false
             properties:
-              date: { type: string, format: date }
-              amount: { type: number }
-              kind: { type: string, enum: [owner_loan, own_transfer, overdraft, below_reserve] }
-              warned_days_before: { type: integer, nullable: true }
-
-    PlanFactPoint:
+              date:
+                type: string
+                format: date
+              as_of:
+                type: string
+                format: date
+              forecast:
+                type: number
+              actual:
+                type: number
+              absolute_error:
+                type: number
+                format: double
+                minimum: 0
+                maximum: 10000000000000.0
+                multipleOf: 0.01
+            required:
+            - date
+            - as_of
+            - forecast
+            - actual
+            - absolute_error
+        mean_absolute_error:
+          type: number
+          nullable: true
+        samples:
+          type: integer
+          minimum: 0
+      required:
+      - items
+      - mean_absolute_error
+      - samples
+    AdminModel:
+      allOf:
+      - $ref: '#/components/schemas/ModelQuality'
+      - type: object
+        required:
+        - is_default
+        - trained_at
+        - companies
+        - metrics
+        properties:
+          is_default:
+            type: boolean
+          trained_at:
+            type: string
+            format: date-time
+            nullable: true
+          companies:
+            type: integer
+            nullable: true
+          metrics:
+            type: object
+            required:
+            - wape_7
+            - wape_14
+            - wape_30
+            - coverage
+            - gap_brier
+            - gap_auc
+            - gap_lead_days
+            properties:
+              wape_7:
+                type: number
+                format: double
+                nullable: true
+              wape_14:
+                type: number
+                format: double
+                nullable: true
+              wape_30:
+                type: number
+                format: double
+                nullable: true
+              coverage:
+                type: number
+                format: double
+                nullable: true
+              gap_brier:
+                type: number
+                format: double
+                nullable: true
+              gap_auc:
+                type: number
+                format: double
+                nullable: true
+              gap_lead_days:
+                type: number
+                format: double
+                nullable: true
+    AdminCompanyDetail:
       type: object
-      required: [period, plan_in, plan_out, fact_in, fact_out]
+      required:
+      - company
+      - sources
+      - operations_stats
+      - forecast
+      - signals
       properties:
-        period: { type: string, format: date }
-        plan_in: { type: number }
-        plan_out: { type: number }
-        fact_in: { type: number }
-        fact_out: { type: number }
-        missed_events:
+        company:
+          $ref: '#/components/schemas/Company'
+        sources:
           type: array
-          items: { $ref: "#/components/schemas/PlannedEvent" }
-
-    PlannedEvent:
+          items:
+            $ref: '#/components/schemas/Source'
+        operations_stats:
+          $ref: '#/components/schemas/Object'
+        forecast:
+          type: object
+          required:
+          - as_of
+          - horizon
+          - model_used
+          - model_version
+          - flow_scope
+          - fallback_used
+          - warnings
+          - low_confidence
+          - opening_balance
+          - safe_to_spend
+          - status
+          - headline
+          - history
+          - points
+          - markers
+          - gaps
+          properties:
+            as_of:
+              type: string
+              format: date
+            horizon:
+              type: integer
+            model_used:
+              type: string
+            model_version:
+              type: string
+            flow_scope:
+              type: string
+            fallback_used:
+              type: boolean
+            warnings:
+              type: array
+              items:
+                type: string
+            low_confidence:
+              type: boolean
+            opening_balance:
+              type: number
+              format: double
+            safe_to_spend:
+              type: number
+              format: double
+            status:
+              type: string
+            headline:
+              type: string
+            history:
+              type: array
+              items:
+                type: object
+                required:
+                - date
+                - balance
+                properties:
+                  date:
+                    type: string
+                    format: date
+                  balance:
+                    type: number
+                    format: double
+                    nullable: true
+            points:
+              type: array
+              items:
+                type: object
+                required:
+                - date
+                - p10
+                - p50
+                - p90
+                - is_workday
+                properties:
+                  date:
+                    type: string
+                    format: date
+                  p10:
+                    type: number
+                    format: double
+                  p50:
+                    type: number
+                    format: double
+                  p90:
+                    type: number
+                    format: double
+                  is_workday:
+                    type: boolean
+            markers:
+              type: array
+              items:
+                type: object
+                required:
+                - date
+                - title
+                - amount
+                - kind
+                properties:
+                  date:
+                    type: string
+                    format: date
+                  title:
+                    type: string
+                  amount:
+                    type: number
+                    format: double
+                  kind:
+                    type: string
+            gaps:
+              type: array
+              items:
+                $ref: '#/components/schemas/Gap'
+          nullable: true
+        signals:
+          type: array
+          items:
+            $ref: '#/components/schemas/Object'
+    SignalDetail:
+      allOf:
+      - $ref: '#/components/schemas/Signal'
+      - type: object
+        required:
+        - operations
+        - counterparty
+        - company_history
+        properties:
+          operations:
+            type: array
+            items:
+              $ref: '#/components/schemas/Operation'
+          counterparty:
+            type: object
+            required:
+            - id
+            - name
+            properties:
+              id:
+                type: string
+                format: uuid
+                nullable: true
+              name:
+                type: string
+            nullable: true
+          company_history:
+            type: array
+            items:
+              $ref: '#/components/schemas/Signal'
+    ForecastDay:
       type: object
-      required: [id, date, amount, direction, title, source, status]
+      required:
+      - date
+      - p10
+      - p50
+      - p90
+      - is_workday
+      - components
+      - components_basis
       properties:
-        id: { type: string, format: uuid }
-        date: { type: string, format: date }
-        amount: { type: number }
-        direction: { $ref: "#/components/schemas/Direction" }
-        title: { type: string }
-        category: { $ref: "#/components/schemas/Category" }
-        counterparty_name: { type: string }
-        probability: { type: number, minimum: 0, maximum: 1, default: 1 }
-        source: { $ref: "#/components/schemas/SourceKind" }
-        status: { type: string, enum: [expected, received, missed, cancelled] }
-
-    PlannedEventCreate:
-      type: object
-      required: [date, amount, direction, title]
-      properties:
-        date: { type: string, format: date }
-        amount: { type: number, minimum: 0 }
-        direction: { $ref: "#/components/schemas/Direction" }
-        title: { type: string }
-        category: { $ref: "#/components/schemas/Category" }
-        counterparty_name: { type: string }
-        probability: { type: number, minimum: 0, maximum: 1 }
-
-    PlannedEventUpdate:
-      type: object
-      properties:
-        date: { type: string, format: date }
-        amount: { type: number, minimum: 0 }
-        probability: { type: number, minimum: 0, maximum: 1 }
-        status: { type: string, enum: [expected, received, missed, cancelled] }
-
-    ScenarioStep:
-      type: object
-      required: [kind]
-      properties:
-        kind:
+        date:
           type: string
-          enum: [delay_counterparty, scale_revenue, add_expense, scale_fixed_costs, move_event]
-        counterparty_name: { type: string }
-        delay_days: { type: integer }
-        factor: { type: number, description: "0.8 = −20%" }
-        amount: { type: number }
-        date: { type: string, format: date }
-        event_id: { type: string, format: uuid }
-
-    Scenario:
-      type: object
-      required: [id, title, steps]
-      properties:
-        id: { type: string, format: uuid }
-        title: { type: string }
-        preset: { type: boolean }
-        steps:
+          format: date
+        p10:
+          type: number
+          format: double
+        p50:
+          type: number
+          format: double
+        p90:
+          type: number
+          format: double
+        is_workday:
+          type: boolean
+        components:
           type: array
-          items: { $ref: "#/components/schemas/ScenarioStep" }
-
-    ScenarioCreate:
-      type: object
-      required: [title, steps]
-      properties:
-        title: { type: string }
-        steps:
-          type: array
-          items: { $ref: "#/components/schemas/ScenarioStep" }
-
-    ScenarioComparison:
-      type: object
-      required: [base, scenario]
-      properties:
-        base: { $ref: "#/components/schemas/Forecast" }
-        scenario: { $ref: "#/components/schemas/Forecast" }
-
-    Alert:
-      type: object
-      required: [id, created_at, severity, title]
-      properties:
-        id: { type: string }
-        created_at: { type: string, format: date-time }
-        severity: { type: string, enum: [info, warning, danger] }
-        title: { type: string }
-        body: { type: string }
-        gap_id: { type: string }
-        read: { type: boolean }
+          items:
+            type: object
+            required:
+            - title
+            - amount
+            - kind
+            - source
+            properties:
+              title:
+                type: string
+              amount:
+                type: number
+                format: double
+              kind:
+                type: string
+              source:
+                type: string
+        components_basis:
+          type: string

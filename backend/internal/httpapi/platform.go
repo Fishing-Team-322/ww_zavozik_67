@@ -5,6 +5,7 @@ import (
 	"crypto/subtle"
 	"encoding/json"
 	"errors"
+	"mime"
 	"net/http"
 	"sort"
 	"time"
@@ -14,13 +15,23 @@ import (
 
 // reply keeps the strict generated interfaces while serializing the shared DTOs once.
 type reply struct {
-	status   int
-	data     any
-	cookies  []*http.Cookie
-	location string
+	dataBytes      []byte
+	filename, mime string
+	status         int
+	data           any
+	cookies        []*http.Cookie
+	location       string
 }
 
 func (a reply) write(w http.ResponseWriter) error {
+	if a.filename != "" {
+		w.Header().Set("Content-Type", a.mime)
+		w.Header().Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": a.filename}))
+		w.Header().Set("Cache-Control", "no-store")
+		w.WriteHeader(a.status)
+		_, e := w.Write(a.dataBytes)
+		return e
+	}
 	w.Header().Set("Cache-Control", "no-store")
 	for _, cookie := range a.cookies {
 		http.SetCookie(w, cookie)
