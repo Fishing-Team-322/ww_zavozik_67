@@ -53,7 +53,7 @@ logs:
 
 ml-venv:
 	python3 -m venv ml/.venv
-	ml/.venv/bin/pip install -e "ml[dev]"
+	ml/.venv/bin/pip install -c ml/requirements.lock -e "ml[dev]"
 
 ml-serve:
 	cd ml && PYTHONPATH=gen .venv/bin/python -m zavozik_ml.serving.server

@@ -1,11 +1,7 @@
-// Package forecast собирает прогноз остатка из компонент. Владелец: Бэк 2.
-//
-//	баланс(t) = остаток сегодня
-//	          + Σ детерминированные компоненты (регулярные, налоги, план)  ← Go
-//	          + стохастическая часть (пути из ML-сервиса)                 ← Python
-//
-// Детерминированная часть объясняет разрыв; стохастическая даёт коридор
-// и вероятность. Если ML недоступен, Assembler берёт Fallback.
+// Package forecast собирает прогноз остатка из путей ML и дополнительных
+// детерминированных изменений. Модель business_without_internal_transfers
+// уже включает регулярные зарплату, налоги и аренду; повторно добавлять их
+// в Deterministic нельзя. При отказе ML Assembler использует явный fallback.
 package forecast
 
 import (
@@ -182,7 +178,15 @@ func (r *Result) Recompute() error {
 		return fmt.Errorf("forecast: bad stochastic paths: %d in, %d out", len(sf.Inflow), len(sf.Outflow))
 	}
 	det := r.DeterministicByDay()
-	r.Balances = make([][]float64, len(sf.Inflow))
+	if math.IsNaN(r.OpeningBalance.Float()) || math.IsInf(r.OpeningBalance.Float(), 0) {
+		return errors.New("forecast: opening balance must be finite")
+	}
+	for _, v := range det {
+		if math.IsNaN(v) || math.IsInf(v, 0) {
+			return errors.New("forecast: deterministic flow must be finite")
+		}
+	}
+	balances := make([][]float64, len(sf.Inflow))
 	for p := range sf.Inflow {
 		if len(sf.Inflow[p]) < h || len(sf.Outflow[p]) < h {
 			return fmt.Errorf("forecast: path %d shorter than horizon %d", p, h)
@@ -190,11 +194,19 @@ func (r *Result) Recompute() error {
 		bal := r.OpeningBalance.Float()
 		row := make([]float64, h)
 		for d := 0; d < h; d++ {
+			in, out := sf.Inflow[p][d], sf.Outflow[p][d]
+			if math.IsNaN(in) || math.IsInf(in, 0) || math.IsNaN(out) || math.IsInf(out, 0) || in < 0 || out < 0 {
+				return fmt.Errorf("forecast: invalid stochastic flow at path %d day %d", p, d)
+			}
 			bal += det[d] + sf.Inflow[p][d] - sf.Outflow[p][d]
+			if math.IsNaN(bal) || math.IsInf(bal, 0) {
+				return errors.New("forecast: accumulated balance is not finite")
+			}
 			row[d] = bal
 		}
-		r.Balances[p] = row
+		balances[p] = row
 	}
+	r.Balances = balances
 	return nil
 }
 

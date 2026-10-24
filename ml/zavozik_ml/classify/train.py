@@ -69,12 +69,28 @@ def dedupe(rows: list[dict]) -> list[dict]:
     return out
 
 
-def build_training(rows_real: list[dict], seed: int, n_perturb: int, n_synth: int) -> list[dict]:
+def counterparty_dropout(rows: list[dict], seed: int, rate: float = .25) -> list[dict]:
+    """Avoid learning that an absent name/INN always implies `other`.
+
+    Keep original examples and add a fixed random fraction of views without
+    counterparty fields. An empty purpose needs the name for its label, so
+    those rows cannot retain their category after removing the counterparty.
+    """
+    if not 0 <= rate <= 1:
+        raise ValueError("counterparty dropout rate must be in [0, 1]")
+    rng = random.Random(seed + 20261024)
+    added = [dict(r, name="", inn="", inn_type="none") for r in rows
+             if normalize(r.get("purpose", "")) and rng.random() < rate]
+    return rows + added
+
+
+def build_training(rows_real: list[dict], seed: int, n_perturb: int, n_synth: int,
+                   name_dropout: float = .25) -> list[dict]:
     rng = random.Random(seed)
     uniq = dedupe(rows_real)
     pert = [dict(augment.perturb(rng.choice(uniq), rng), weight=1.0) for _ in range(n_perturb)]
     syn = [dict(r, weight=1.0) for r in augment.synth(rng, n_synth)]
-    return uniq + pert + syn
+    return counterparty_dropout(uniq + pert + syn, seed, name_dropout)
 
 
 def matrix(rows: list[dict]) -> sparse.csr_matrix:
@@ -141,9 +157,10 @@ def fit_temperature(logits: np.ndarray, y: np.ndarray) -> float:
 
 
 def train_model(rows_real: list[dict], seed: int, n_perturb: int, n_synth: int, l2: float,
-                dev_rows: list[dict] | None = None, log=print, excluded_purposes: set[str] | None = None) -> Classifier:
+                dev_rows: list[dict] | None = None, log=print, excluded_purposes: set[str] | None = None,
+                name_dropout: float = .25) -> Classifier:
     t0 = time.time()
-    rows = build_training(rows_real, seed, n_perturb, n_synth)
+    rows = build_training(rows_real, seed, n_perturb, n_synth, name_dropout=name_dropout)
     if excluded_purposes:
         rows = [r for r in rows if r["direction"] + "|" + normalize(r.get("purpose", "")) not in excluded_purposes]
     X = matrix(rows)
@@ -160,12 +177,13 @@ def train_model(rows_real: list[dict], seed: int, n_perturb: int, n_synth: int, 
     return clf
 
 
-def dev_set(rows_real: list[dict], seed: int, n: int) -> list[dict]:
+def dev_set(rows_real: list[dict], seed: int, n: int, name_dropout: float = .25) -> list[dict]:
     """Зашумлённые операции отложенных компаний + свежая синтетика (другое зерно) —
-    для температуры и порога; novel_test.csv здесь не участвует."""
+    для температуры; порог фиксирован, novel_test.csv здесь не участвует."""
     rng = random.Random(seed + 1000)
     uniq = dedupe(rows_real)
-    return [augment.perturb(rng.choice(uniq), rng) for _ in range(n)] + augment.synth(rng, max(n // 60, 20))
+    rows = [augment.perturb(rng.choice(uniq), rng) for _ in range(n)] + augment.synth(rng, max(n // 60, 20))
+    return counterparty_dropout(rows, seed+1, name_dropout)
 
 
 def main() -> None:
@@ -180,38 +198,41 @@ def main() -> None:
     ap.add_argument("--perturb", type=int, default=60000, help="зашумлённых копий реальных операций")
     ap.add_argument("--synth", type=int, default=1500, help="синтетических перефразировок на категорию")
     ap.add_argument("--l2", type=float, default=3e-6)
+    ap.add_argument("--name-dropout", type=float, default=.25, help="доля дополнительных примеров без контрагента")
     ap.add_argument("--min-confidence", type=float, default=0.3)
     ap.add_argument("--no-final", action="store_true", help="только оценка, без финальной модели")
     ap.add_argument("--ablation", action="store_true", help="ещё обучить без словаря и без аугментации (для отчёта)")
     args = ap.parse_args()
-    if not 0 < args.holdout < .7 or not 0 <= args.min_confidence <= 1:
-        ap.error("holdout must be in (0, .7), min-confidence in [0, 1]")
+    if not 0 < args.holdout < .7 or not 0 <= args.min_confidence <= 1 or not 0 <= args.name_dropout <= 1:
+        ap.error("holdout must be in (0, .7); min-confidence and name-dropout must be in [0, 1]")
 
     print("метки: правила Go + доразметка")
     df = labels.load_dataset(args.data)
     go = labels.go_rule_labels(args.data, REPO, args.rule_labels)
-    df = labels.teacher_labels(df, go)
-
     companies = sorted(df.company_id.unique())
     rng = random.Random(args.seed)
     hold = set(rng.sample(companies, max(1, int(len(companies) * args.holdout))))
     remaining = sorted(set(companies)-hold)
     calibration_ids = set(rng.sample(remaining, max(1, int(len(companies)*.2))))
-    tr_df = df[~df.company_id.isin(hold | calibration_ids)]
-    cal_df, ho_df = df[df.company_id.isin(calibration_ids)], df[df.company_id.isin(hold)]
+    parts = labels.teacher_label_partitions({
+        "train": df[~df.company_id.isin(hold | calibration_ids)],
+        "calibration": df[df.company_id.isin(calibration_ids)],
+        "test": df[df.company_id.isin(hold)],
+    }, go)
+    tr_df, cal_df, ho_df = parts["train"], parts["calibration"], parts["test"]
     print(f"компаний: обучение {tr_df.company_id.nunique()}, калибровка {len(calibration_ids)}, тест {len(hold)} ({len(ho_df)} операций)")
 
     print("модель для оценки (без отложенных компаний)")
     tr_rows, ho_rows = real_rows(tr_df), real_rows(ho_df)
     # Температура не должна подбираться на тех же компаниях, что final holdout.
-    dev = dev_set(real_rows(cal_df), args.seed, 6000)
-    clf = train_model(tr_rows, args.seed, args.perturb, args.synth, args.l2, dev_rows=dev)
+    dev = dev_set(real_rows(cal_df), args.seed, 6000, name_dropout=args.name_dropout)
+    clf = train_model(tr_rows, args.seed, args.perturb, args.synth, args.l2, dev_rows=dev, name_dropout=args.name_dropout)
     clf.min_confidence = args.min_confidence
     # Preserve the evaluation model separately from the all-company artifact.
     eval_dir = ML_DIR / "data" / "classifier_evaluation"
     clf.meta.update(train_companies=sorted(set(companies)-hold-calibration_ids),
                     calibration_companies=sorted(calibration_ids), test_companies=sorted(hold),
-                    evaluation_only=True)
+                    evaluation_only=True, weak_label_scope="partition_only", name_dropout=args.name_dropout)
     clf.save(eval_dir)
     clf = Classifier.load(eval_dir)  # evaluate exactly the quantized artifact used by serving
     results = evaluate.evaluate_all(clf, ho_df, ho_rows, dev, REPO)
@@ -220,23 +241,24 @@ def main() -> None:
         for name, n_p, n_s in (("без словаря перефразировок (только шум реальных)", args.perturb, 0),
                                ("без аугментации (только датасет)", 0, 0)):
             print(f"абляция: {name}")
-            a = train_model(tr_rows, args.seed, n_p, n_s, args.l2, dev_rows=dev)
+            a = train_model(tr_rows, args.seed, n_p, n_s, args.l2, dev_rows=dev, name_dropout=args.name_dropout if n_p or n_s else 0)
             a.min_confidence = args.min_confidence
             results["ablation"][name] = evaluate.novel(a, REPO)
 
     if not args.no_final:
         print("финальная модель (все компании)")
-        all_rows = real_rows(df)
-        final = train_model(all_rows, args.seed, args.perturb, args.synth, args.l2)
+        all_rows = real_rows(labels.teacher_labels(df, go))
+        final = train_model(all_rows, args.seed, args.perturb, args.synth, args.l2, name_dropout=args.name_dropout)
         # Перенос калибровки с отдельной calibration-группы. Качество финального
         # артефакта на исходных компаниях не объявляется тестовым результатом.
         final.temperature = clf.temperature
         final.min_confidence = args.min_confidence
         final.meta = dict(trained_at=time.strftime("%Y-%m-%d"), n_operations=len(df), l2=args.l2,
-                          perturb=args.perturb, synth=args.synth, seed=args.seed,
+                          perturb=args.perturb, synth=args.synth, seed=args.seed, name_dropout=args.name_dropout,
                           holdout_eval={k: results[k]["summary"] for k in ("holdout", "novel")})
         final.meta.update(calibration_companies=sorted(calibration_ids), test_companies=sorted(hold),
                           evaluation_protocol="company_train_calibration_test_60_20_20",
+                          weak_label_scope="partition_only_for_evaluation_all_companies_for_final_fit",
                           source_sha256=hashlib.sha256(args.data.read_bytes()).hexdigest(),
                           novel_usage="regression_set_previously_inspected_not_external_test")
         final.save(args.out)
