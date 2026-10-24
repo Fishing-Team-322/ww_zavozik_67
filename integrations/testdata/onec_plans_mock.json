@@ -1,0 +1,67 @@
+{
+  "base_url": "http://127.0.0.1:8092/odata/standard.odata/",
+  "company_id": "demo-company",
+  "data_mode": "mock",
+  "organization_ids": ["org-demo"],
+  "invoices": [
+    {
+      "entity_set": "Document_CustomerInvoice",
+      "direction": "in",
+      "fields": {
+        "external_id": "Ref_Key",
+        "number": "Number",
+        "document_date": "Date",
+        "due_date": "DueDate",
+        "amount": "Amount",
+        "posted": "Posted",
+        "deleted": "DeletionMark",
+        "organization_key": "Organization_Key",
+        "source_version": "DataVersion"
+      }
+    },
+    {
+      "entity_set": "Document_SupplierInvoice",
+      "direction": "out",
+      "fields": {
+        "external_id": "Ref_Key",
+        "number": "Number",
+        "document_date": "Date",
+        "due_date": "DueDate",
+        "amount": "Amount",
+        "posted": "Posted",
+        "deleted": "DeletionMark",
+        "organization_key": "Organization_Key",
+        "source_version": "DataVersion"
+      }
+    }
+  ],
+  "payments": [
+    {
+      "entity_set": "Document_ReceiptDetail",
+      "invoice_entity_set": "Document_CustomerInvoice",
+      "fields": {
+        "external_id": "Ref_Key",
+        "line_number": "LineNumber",
+        "invoice_key": "Invoice_Key",
+        "amount": "Amount"
+      },
+      "parent": {
+        "entity_set": "Document_ReceiptParent",
+        "external_id": "Ref_Key",
+        "posted": "Posted",
+        "organization_key": "Organization_Key"
+      }
+    },
+    {
+      "entity_set": "Document_PaymentDetail",
+      "invoice_entity_set": "Document_SupplierInvoice",
+      "fields": {
+        "external_id": "Ref_Key",
+        "line_number": "LineNumber",
+        "invoice_key": "Invoice_Key",
+        "amount": "Amount",
+        "posted": "Posted"
+      }
+    }
+  ]
+}

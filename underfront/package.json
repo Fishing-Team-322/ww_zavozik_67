@@ -1,0 +1,36 @@
+{
+  "name": "underfront",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "gen:api": "openapi-typescript ../api/openapi.yaml -o src/shared/api/schema.gen.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test tests/*.test.ts",
+    "lint:api": "eslint src/shared/api/client.ts src/shared/api/use-api-resource.ts src/features/auth \"app/[section]/_ui\" app/auth \"app/(auth)\" src/entities/forecast src/widgets/puls-overview/ui/PulsOverviewHome.tsx src/widgets/cabinet-shell/ui/SidebarShell.tsx src/widgets/cabinet-shell/ui/CabinetShell.tsx src/widgets/finance-panels/ui/RiskCard.tsx src/widgets/finance-panels/ui/CashflowForecastChart.tsx"
+  },
+  "dependencies": {
+    "@fontsource-variable/inter": "^5.3.0",
+    "lucide-react": "^0.469.0",
+    "motion": "^12.43.0",
+    "next": "16.4.3",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "recharts": "^2.15.4"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.3.3",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.4.3",
+    "openapi-typescript": "7.13.0",
+    "tailwindcss": "^4",
+    "tsx": "4.23.15",
+    "typescript": "^5"
+  }
+}

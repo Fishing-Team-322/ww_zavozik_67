@@ -12,18 +12,19 @@ import (
 )
 
 type Config struct {
-	HTTPAddr                                   string        // HTTP_ADDR
-	DatabaseURL                                string        // DATABASE_URL
-	MLAddr                                     string        // ML_ADDR — gRPC Python-сервиса; пусто — только фолбэк
-	MLTimeout                                  time.Duration // ML_TIMEOUT
-	JWTSecret                                  string        // JWT_SECRET
-	LogLevel                                   string        // LOG_LEVEL: debug | info | warn | error
-	PublicURL, FrontendURL                     string
-	CookieSecure                               bool
-	GoogleClientID, GoogleClientSecret         string
-	YandexClientID, YandexClientSecret         string
-	SMTPAddr, SMTPUser, SMTPPassword, SMTPFrom string
-	SMTPLocalPlaintext                         bool
+	HTTPAddr                                                                                                         string        // HTTP_ADDR
+	DatabaseURL                                                                                                      string        // DATABASE_URL
+	MLAddr                                                                                                           string        // ML_ADDR — gRPC Python-сервиса; пусто — только фолбэк
+	MLTimeout                                                                                                        time.Duration // ML_TIMEOUT
+	JWTSecret                                                                                                        string        // JWT_SECRET
+	LogLevel                                                                                                         string        // LOG_LEVEL: debug | info | warn | error
+	PublicURL, FrontendURL                                                                                           string
+	CookieSecure                                                                                                     bool
+	GoogleClientID, GoogleClientSecret                                                                               string
+	YandexClientID, YandexClientSecret                                                                               string
+	SMTPAddr, SMTPUser, SMTPPassword, SMTPFrom                                                                       string
+	SMTPLocalPlaintext                                                                                               bool
+	DataEncryptionKey, SourceAllowedHosts, DaDataToken, ModelReportsDir, TrainingURL, TrainingToken, CategorizerMode string
 }
 
 func Load() Config {
@@ -41,6 +42,7 @@ func Load() Config {
 		YandexClientID: env("YANDEX_CLIENT_ID", ""), YandexClientSecret: env("YANDEX_CLIENT_SECRET", ""),
 		SMTPAddr: env("SMTP_ADDR", ""), SMTPUser: env("SMTP_USER", ""), SMTPPassword: env("SMTP_PASSWORD", ""), SMTPFrom: env("SMTP_FROM", ""),
 		SMTPLocalPlaintext: env("SMTP_LOCAL_PLAINTEXT", "false") == "true",
+		DataEncryptionKey:  env("DATA_ENCRYPTION_KEY", ""), SourceAllowedHosts: env("SOURCE_ALLOWED_HOSTS", ""), DaDataToken: env("DADATA_API_TOKEN", ""), ModelReportsDir: env("MODEL_REPORTS_DIR", "../ml/reports/metrics"), TrainingURL: env("TRAINING_URL", ""), TrainingToken: env("TRAINING_TOKEN", ""), CategorizerMode: env("CATEGORIZER_MODE", "rules"),
 	}
 }
 

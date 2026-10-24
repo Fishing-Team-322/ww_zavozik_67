@@ -9,6 +9,8 @@
 - [Архитектура](docs/ARCHITECTURE.md) — технические решения, роли и порядок работ.
 - [Прогресс](docs/PROGRESS.md) — состояние реализации, доказательства и следующие шаги.
 - [Детали реализации](docs/IMPLEMENTATION_NOTES.md) — ограничения и подводные камни.
+- [Полный API бэкенда](docs/BACKEND_API.md) — маршруты, источники, worker и ограничения расчётов.
+- [Подключение фронта к API](docs/FRONTEND_INTEGRATION.md) — рабочие экраны, запуск и сквозные проверки.
 
 ## Состав
 
@@ -18,8 +20,9 @@
 | `proto/` | контракт бэкенд ↔ ML | gRPC, buf |
 | `backend/` | API, воркер, бот, бэктест, вся бизнес-логика | Go 1.26 |
 | `ml/` | ML-сервис прогноза, обучение, оценка | Python 3.12+ |
-| `web/` | фронтенд | на выбор фронтендера |
-| `infra/` | docker-compose | Postgres 17 |
+| `underfront/` | рабочий фронтенд | Next.js / React / TypeScript |
+| `compose.yaml` | приложение целиком | Postgres, Go API, worker, ML, Next.js |
+| `infra/` | вспомогательная инфраструктура | Docker Compose |
 
 ## Быстрый старт
 
@@ -46,7 +49,13 @@ make backtest ML=localhost:50051
 cd backend && go run ./cmd/api
 ```
 
-Фронту до готовности API — мок по контракту:
+Для загрузок, синхронизации и выгрузок дополнительно запустить `go run ./cmd/worker`
+из `backend/` с теми же `DATABASE_URL` и `DATA_ENCRYPTION_KEY`, что у API.
+Финансовые методы используют постоянные данные компании; все маршруты документа
+экранов включены в OpenAPI. Настройка интеграций — в [инструкции API](docs/BACKEND_API.md).
+
+Фронтенд работает с API; запуск — в [underfront/README.md](underfront/README.md).
+Для отдельной проверки контракта также доступен mock:
 
 ```bash
 npx @stoplight/prism-cli mock api/openapi.yaml
@@ -54,9 +63,10 @@ npx @stoplight/prism-cli mock api/openapi.yaml
 
 ## Как добавлять
 
-- **Эндпоинт:** правим `api/openapi.yaml` → `make gen-api` → реализуем метод на
-  `httpapi.Server` (сигнатура — в `unimplemented.gen.go`). Пока метода нет,
-  эндпоинт отвечает 501.
+- **Эндпоинт:** правим `api/openapi.yaml` → `make gen-api`. Строгие адаптеры
+  финансовых методов генерируются в `product.gen.go`, бизнес-обработчик добавляется
+  в `backend/internal/product`. Аккаунты реализованы в `httpapi/platform.go`.
+  `Server` больше не наследует заглушки 501; контракт и обработчик обновлять вместе.
 - **Прогнозная модель:** класс в `ml/zavozik_ml/forecasters/` с `@register` —
   сразу доступна через gRPC и в `make backtest ML=... ` (`-model <name>`).
 - **Источник данных:** тип в `backend/internal/sources/<name>/` +

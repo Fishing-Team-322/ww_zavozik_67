@@ -1,0 +1,1 @@
+ALTER TABLE risk_signals ADD COLUMN IF NOT EXISTS version bigint NOT NULL DEFAULT 1;

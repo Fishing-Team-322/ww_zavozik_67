@@ -1,0 +1,373 @@
+package product
+
+import (
+	"context"
+	"math"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/domain"
+	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/forecast"
+	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/platform"
+	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/risk"
+	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/store"
+)
+
+func ScenarioPresets() []Doc {
+	return []Doc{
+		{"kind": "delay_counterparty", "title": "Клиент заплатит позже", "description": "Перенести известные плановые поступления клиента", "params_schema": Doc{"counterparty_id": "uuid", "delay_days": "integer"}},
+		{"kind": "scale_revenue", "title": "Выручка изменится", "description": "Изменить прогноз поступлений на выбранную долю", "params_schema": Doc{"factor": "number"}},
+		{"kind": "add_expense", "title": "Новая покупка", "description": "Добавить разовый расход", "params_schema": Doc{"amount": "number", "date": "date"}},
+		{"kind": "scale_fixed_costs", "title": "Постоянные расходы изменятся", "description": "Изменить известные регулярные расходы", "params_schema": Doc{"factor": "number"}},
+	}
+}
+func validateSteps(steps []Doc) error {
+	if len(steps) == 0 || len(steps) > 100 {
+		return bad("Сценарий должен содержать от 1 до 100 шагов")
+	}
+	for _, step := range steps {
+		if e := fields(step, "kind counterparty_id counterparty_name delay_days factor amount date event_id"); e != nil {
+			return e
+		}
+		kind := text(step, "kind")
+		switch kind {
+		case "scale_revenue", "scale_fixed_costs":
+			factor, yes := step["factor"].(float64)
+			if !yes || math.IsNaN(factor) || factor < 0 || factor > 10 {
+				return bad("factor должен быть от 0 до 10")
+			}
+		case "add_expense":
+			amount, yes := step["amount"].(float64)
+			if !yes || amount < 0 || amount > 1e13 {
+				return bad("Некорректная сумма расхода")
+			}
+			if _, e := day(text(step, "date")); e != nil {
+				return e
+			}
+		case "move_event":
+			if text(step, "event_id") == "" {
+				return bad("Нужен event_id")
+			}
+			if _, e := day(text(step, "date")); e != nil {
+				return e
+			}
+		case "delay_counterparty":
+			n, yes := step["delay_days"].(float64)
+			if !yes || n != math.Trunc(n) || n < 0 || n > 365 {
+				return bad("delay_days должен быть от 0 до 365")
+			}
+			if text(step, "counterparty_id") == "" && text(step, "counterparty_name") == "" {
+				return bad("Нужен контрагент")
+			}
+		default:
+			return bad("Неизвестный вид сценария")
+		}
+	}
+	return nil
+}
+func (s *Service) applySteps(ctx context.Context, uid, cid string, base forecast.Result, events, steps []Doc) (forecast.Result, error) {
+	if e := validateSteps(steps); e != nil {
+		return forecast.Result{}, e
+	}
+	out := base.Clone()
+	move := func(event Doc, target time.Time) {
+		old, _ := day(date(event["event_date"]))
+		amount := number(event, "amount")
+		if text(event, "direction") == "out" {
+			amount = -amount
+		}
+		key := "event:" + text(event, "id")
+		found := false
+		for i := range out.Deterministic {
+			if out.Deterministic[i].Key == key {
+				out.Deterministic[i].Date = target
+				found = true
+			}
+		}
+		if !found {
+			out.Deterministic = append(out.Deterministic, forecast.ComponentFlow{Date: old, Key: "delta:old:" + key, Title: text(event, "title"), Amount: domain.Money(-amount)}, forecast.ComponentFlow{Date: target, Key: "delta:new:" + key, Title: text(event, "title"), Amount: domain.Money(amount)})
+		}
+		for i := range out.Uncertain {
+			if out.Uncertain[i].Key == key {
+				out.Uncertain[i].Date = target
+			}
+		}
+	}
+	for _, step := range steps {
+		switch text(step, "kind") {
+		case "scale_revenue":
+			factor := number(step, "factor")
+			incomeKeys := map[string]bool{}
+			for _, c := range out.Deterministic {
+				if c.Amount > 0 {
+					incomeKeys[c.Key] = true
+				}
+			}
+			for i := range out.Uncertain {
+				if incomeKeys[out.Uncertain[i].Key] {
+					for p := range out.Uncertain[i].Values {
+						out.Uncertain[i].Values[p] *= factor
+					}
+				}
+			}
+			for p := range out.Stochastic.Inflow {
+				for d := range out.Stochastic.Inflow[p] {
+					out.Stochastic.Inflow[p][d] *= factor
+				}
+			}
+			for i := range out.Deterministic {
+				if out.Deterministic[i].Amount > 0 {
+					out.Deterministic[i].Amount *= domain.Money(factor)
+				}
+			}
+		case "add_expense":
+			dt, _ := day(text(step, "date"))
+			out.Deterministic = append(out.Deterministic, forecast.ComponentFlow{Date: dt, Key: "scenario:add_expense", Title: "Дополнительный расход", Amount: domain.Money(-number(step, "amount")), Source: domain.SrcManual})
+		case "move_event":
+			found := false
+			for _, event := range events {
+				if text(event, "id") == text(step, "event_id") {
+					dt, _ := day(text(step, "date"))
+					move(event, dt)
+					found = true
+					break
+				}
+			}
+			if !found {
+				return forecast.Result{}, platform.ErrNotFound
+			}
+		case "delay_counterparty":
+			found := false
+			for _, event := range events {
+				ref := cpRef(cid, event)
+				if text(step, "counterparty_id") != "" && ref["id"] == text(step, "counterparty_id") || text(step, "counterparty_name") != "" && strings.EqualFold(text(event, "counterparty_name"), text(step, "counterparty_name")) {
+					if text(event, "direction") != "in" || text(event, "status") != "expected" {
+						continue
+					}
+					dt, _ := day(date(event["event_date"]))
+					move(event, dt.AddDate(0, 0, int(number(step, "delay_days"))))
+					found = true
+				}
+			}
+			if !found {
+				return forecast.Result{}, platform.Fail(422, "planned_receipt_required", "Для переноса нужны плановые поступления выбранного клиента")
+			}
+		case "scale_fixed_costs":
+			for _, event := range events {
+				if text(event, "source_kind") != "recurring" || text(event, "direction") != "out" || text(event, "status") != "expected" {
+					continue
+				}
+				dt, _ := day(date(event["event_date"]))
+				delta := -number(event, "amount") * (number(step, "factor") - 1)
+				out.Deterministic = append(out.Deterministic, forecast.ComponentFlow{Date: dt, Key: "scenario:fixed:" + text(event, "id"), Title: text(event, "title"), Amount: domain.Money(delta)})
+			}
+		}
+	}
+	return out, out.Recompute()
+}
+func (s *Service) compare(ctx context.Context, op, uid, cid string, r *http.Request, b Doc) (Result, error) {
+	steps := docs(b["steps"])
+	if op != "previewScenario" {
+		d, e := s.DB.ProductGet(ctx, uid, "scenario", r.PathValue("scenarioId"))
+		if e != nil {
+			return Result{}, e
+		}
+		if cid != "" && text(d, "company_id") != cid {
+			return Result{}, platform.ErrNotFound
+		}
+		cid = text(d, "company_id")
+		steps = docs(d["steps"])
+	}
+	if e := validateSteps(steps); e != nil {
+		return Result{}, e
+	}
+	h, e := horizon(r)
+	if e != nil {
+		return Result{}, e
+	}
+	base, _, e := s.build(ctx, uid, cid, h, "auto", nil, nil, false)
+	if e != nil {
+		return Result{}, e
+	}
+	other, _, e := s.build(ctx, uid, cid, h, "auto", steps, nil, false)
+	if e != nil {
+		return Result{}, e
+	}
+	return ok(Doc{"base": base, "scenario": other, "delta": forecastDelta(base, other)})
+}
+func (s *Service) gapResult(ctx context.Context, op, uid, cid string, gap, out Doc, res forecast.Result, b Doc) (Result, error) {
+	events, e := s.DB.ProductList(ctx, uid, cid, "event")
+	if e != nil {
+		return Result{}, e
+	}
+	actions := []Doc{}
+	causes := []Doc{}
+	for _, event := range events {
+		if text(event, "direction") != "out" || text(event, "status") != "expected" || date(event["event_date"]) <= text(out, "as_of") || date(event["event_date"]) > text(gap, "date") {
+			continue
+		}
+		causes = append(causes, Doc{"title": event["title"], "amount": -number(event, "amount"), "component_key": "event:" + text(event, "id"), "items_ref": event["id"]})
+		if len(actions) >= 4 || !in(text(event, "source_kind"), "manual recurring") {
+			continue
+		}
+		dt, _ := day(date(event["event_date"]))
+		newDate := dt.AddDate(0, 0, 14)
+		steps := []Doc{{"kind": "move_event", "event_id": event["id"], "date": newDate.Format(domain.DateLayout)}}
+		actions = append(actions, Doc{"id": idFor(cid, text(gap, "id")+":shift:"+text(event, "id")), "kind": "shift_supplier_payment", "title": "Перенести платёж", "description": "Согласовать перенос платежа на 14 дней", "cost": float64(0), "steps": steps, "refs": Doc{"event_id": event["id"]}, "draft_message": nil})
+	}
+	amount := number(gap, "shortfall_p90")
+	if amount <= 0 {
+		amount = number(gap, "shortfall")
+	}
+	actions = append(actions, Doc{"id": idFor(cid, text(gap, "id")+":overdraft"), "kind": "overdraft", "title": "Запланировать привлечение средств", "description": "Добавляет плановое поступление; банк не выдаёт кредит через этот метод", "cost": float64(0), "steps": []Doc{}, "refs": Doc{}, "date": gap["date"], "amount": amount, "draft_message": nil})
+	company, e := s.DB.GetCompany(ctx, uid, cid)
+	if e != nil {
+		return Result{}, e
+	}
+	for _, a := range actions {
+		changed := res.Clone()
+		if text(a, "kind") == "overdraft" {
+			dt, _ := day(text(a, "date"))
+			changed.Deterministic = append(changed.Deterministic, forecast.ComponentFlow{Date: dt, Key: "overdraft", Amount: domain.Money(number(a, "amount"))})
+			e = changed.Recompute()
+		} else {
+			changed, e = s.applySteps(ctx, uid, cid, res, events, docs(a["steps"]))
+		}
+		if e != nil {
+			return Result{}, e
+		}
+		gs := risk.FindGaps(changed, domain.Money(company.Reserve))
+		np, ns := float64(0), float64(0)
+		if len(gs) > 0 {
+			np = gs[0].Probability
+			ns = gs[0].Shortfall.Float()
+		}
+		a["effect"] = Doc{"closes_gap": len(gs) == 0, "new_probability": np, "new_shortfall": ns}
+		if old, e := s.DB.ProductGet(ctx, uid, "action", text(a, "id")); e == nil {
+			a["applied"] = old["applied"]
+		} else if !platform.IsStatus(e, 404) {
+			return Result{}, e
+		}
+		if _, e = s.DB.ProductSave(ctx, uid, cid, "action", text(a, "id"), a, true); e != nil {
+			return Result{}, e
+		}
+	}
+	if op == "simulateGap" {
+		values, yes := b["action_ids"].([]any)
+		if !yes || len(values) == 0 || len(values) > 20 {
+			return Result{}, bad("Укажите от 1 до 20 action_ids")
+		}
+		ids := map[string]bool{}
+		for _, v := range values {
+			id, ok := v.(string)
+			if !ok {
+				return Result{}, bad("action_ids должен содержать строки")
+			}
+			ids[id] = true
+		}
+		changed := res.Clone()
+		for _, a := range actions {
+			if !ids[text(a, "id")] {
+				continue
+			}
+			delete(ids, text(a, "id"))
+			if text(a, "kind") == "overdraft" {
+				dt, _ := day(text(a, "date"))
+				changed.Deterministic = append(changed.Deterministic, forecast.ComponentFlow{Date: dt, Key: "overdraft", Amount: domain.Money(number(a, "amount"))})
+			} else {
+				changed, e = s.applySteps(ctx, uid, cid, changed, events, docs(a["steps"]))
+				if e != nil {
+					return Result{}, e
+				}
+			}
+		}
+		if len(ids) > 0 {
+			return Result{}, platform.ErrNotFound
+		}
+		if e = changed.Recompute(); e != nil {
+			return Result{}, e
+		}
+		points := []Doc{}
+		p10, p50, p90 := changed.Quantile(.1), changed.Quantile(.5), changed.Quantile(.9)
+		for i, dt := range changed.Dates {
+			points = append(points, Doc{"date": dt.Format(domain.DateLayout), "p10": p10[i], "p50": p50[i], "p90": p90[i], "is_workday": isWorkday(dt)})
+		}
+		return ok(Doc{"points": points, "gaps": gapDocuments(changed, company.Reserve)})
+	}
+	public := []Doc{}
+	for _, a := range actions {
+		public = append(public, Doc{"id": a["id"], "kind": a["kind"], "title": a["title"], "description": a["description"], "cost": a["cost"], "effect": a["effect"], "draft_message": a["draft_message"], "refs": a["refs"]})
+	}
+	gap["causes"], gap["actions"] = causes, public
+	return ok(gap)
+}
+func (s *Service) applyAction(ctx context.Context, uid, id string) (Result, error) {
+	d, e := s.DB.ProductGet(ctx, uid, "action", id)
+	if e != nil {
+		return Result{}, e
+	}
+	cid := text(d, "company_id")
+	if flag(d, "applied") {
+		return ok(Doc{"applied": true, "result_ref": d["result_ref"]})
+	}
+	tx, e := s.DB.Pool.Begin(ctx)
+	if e != nil {
+		return Result{}, e
+	}
+	defer tx.Rollback(ctx)
+	var locked string
+	if e = tx.QueryRow(ctx, "SELECT c.id::text FROM companies c JOIN memberships m ON m.company_id=c.id WHERE c.id=$1 AND m.user_id=$2 AND m.role='owner' FOR UPDATE OF c", cid, uid).Scan(&locked); e != nil {
+		return Result{}, platform.ErrNotFound
+	}
+	var data []byte
+	if e = tx.QueryRow(ctx, "SELECT data FROM product_documents WHERE id=$1 AND kind='action' FOR UPDATE", id).Scan(&data); e != nil {
+		return Result{}, e
+	}
+	current := store.Decode(data)
+	if flag(current, "applied") {
+		return ok(Doc{"applied": true, "result_ref": current["result_ref"]})
+	}
+	d = current
+	var ref string
+	switch text(d, "kind") {
+	case "overdraft":
+		ref = idFor(cid, "applied:"+id)
+		_, e = tx.Exec(ctx, `INSERT INTO planned_events(id,company_id,source_kind,event_date,amount,direction,title,category,probability,status,extra) VALUES($1,$2,'manual',$3,$4,'in','Плановое привлечение средств','owner_loan',1,'expected','{"additional":true}') ON CONFLICT(id) DO NOTHING`, ref, cid, text(d, "date"), number(d, "amount"))
+	case "shift_supplier_payment":
+		steps := docs(d["steps"])
+		if len(steps) != 1 {
+			return Result{}, bad("Некорректное действие")
+		}
+		ref = text(steps[0], "event_id")
+		tag, err := tx.Exec(ctx, "UPDATE planned_events SET event_date=$3::text::date,extra=extra||jsonb_build_object('date',$3::text,'user_override',true,'_revision',COALESCE((extra->>'_revision')::int,0)+1) WHERE id=$1 AND company_id=$2 AND status='expected' AND source_kind IN ('manual','recurring')", ref, cid, text(steps[0], "date"))
+		e = err
+		if e == nil && tag.RowsAffected() == 0 {
+			return Result{}, platform.ErrNotFound
+		}
+	default:
+		return Result{}, bad("Действие не поддерживается")
+	}
+	if e != nil {
+		return Result{}, e
+	}
+	resultRef := "/v1/companies/" + cid + "/forecast"
+	_, e = tx.Exec(ctx, "UPDATE product_documents SET data=data||jsonb_build_object('applied',true,'result_ref',$2::text,'event_id',$3::text),updated_at=now() WHERE id=$1", id, resultRef, ref)
+	if e != nil {
+		return Result{}, e
+	}
+	_, e = tx.Exec(ctx, "UPDATE companies SET data_revision=data_revision+1 WHERE id=$1", cid)
+	if e != nil {
+		return Result{}, e
+	}
+	if _, e = tx.Exec(ctx, `INSERT INTO product_jobs(actor_id,company_id,kind) VALUES($1,$2,'recompute') ON CONFLICT(company_id) WHERE kind='recompute' AND status='queued' DO NOTHING`, uid, cid); e != nil {
+		return Result{}, e
+	}
+	if _, e = tx.Exec(ctx, "INSERT INTO audit_log(user_id,company_id,action,detail) VALUES($1,$2,'apply_action',$3)", uid, cid, string(store.JSON(Doc{"action_id": id, "event_id": ref}))); e != nil {
+		return Result{}, e
+	}
+	if e = tx.Commit(ctx); e != nil {
+		return Result{}, e
+	}
+	return ok(Doc{"applied": true, "result_ref": resultRef})
+}

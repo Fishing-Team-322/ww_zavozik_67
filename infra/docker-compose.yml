@@ -1,4 +1,4 @@
-# make up — поднять всё; make down — остановить.
+# Старый backend-only Compose. Весь проект запускается через ../compose.yaml.
 # ML-сервис наружу не публикуется: доступен только api/worker внутри сети.
 name: zavozik
 
@@ -9,7 +9,7 @@ services:
       POSTGRES_DB: zavozik
       POSTGRES_USER: zavozik
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-zavozik}
-    ports: ["127.0.0.1:5432:5432"] # только локально: дефолтный пароль известен из репозитория
+    # Postgres нужен только сервисам внутри сети Compose; порт хоста не требуется.
     volumes: [pgdata:/var/lib/postgresql/data]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U zavozik -d zavozik"]
@@ -24,7 +24,8 @@ services:
 
   api:
     build:
-      context: ../backend
+      context: ..
+      dockerfile: backend/Dockerfile
       args: { CMD: api }
     environment: &backend-env
       HTTP_ADDR: :8080
@@ -43,6 +44,12 @@ services:
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       SMTP_FROM: ${SMTP_FROM:-}
+      DATA_ENCRYPTION_KEY: ${DATA_ENCRYPTION_KEY:-}
+      SOURCE_ALLOWED_HOSTS: ${SOURCE_ALLOWED_HOSTS:-}
+      DADATA_API_TOKEN: ${DADATA_API_TOKEN:-}
+      CATEGORIZER_MODE: ${CATEGORIZER_MODE:-rules}
+      TRAINING_URL: ${TRAINING_URL:-}
+      TRAINING_TOKEN: ${TRAINING_TOKEN:-}
     ports: ["8080:8080"]
     depends_on:
       postgres: { condition: service_healthy }
@@ -51,7 +58,8 @@ services:
 
   migrate:
     build:
-      context: ../backend
+      context: ..
+      dockerfile: backend/Dockerfile
       args: { CMD: migrate }
     environment:
       DATABASE_URL: postgres://zavozik:${POSTGRES_PASSWORD:-zavozik}@postgres:5432/zavozik?sslmode=disable
@@ -60,17 +68,20 @@ services:
 
   worker:
     build:
-      context: ../backend
+      context: ..
+      dockerfile: backend/Dockerfile
       args: { CMD: worker }
     environment: *backend-env
     depends_on:
       postgres: { condition: service_healthy }
       ml: { condition: service_started }
+      migrate: { condition: service_completed_successfully }
 
   bot:
     profiles: [bot] # make up-bot, когда будет TELEGRAM_BOT_TOKEN
     build:
-      context: ../backend
+      context: ..
+      dockerfile: backend/Dockerfile
       args: { CMD: bot }
     environment:
       <<: *backend-env

@@ -1,4 +1,4 @@
-COMPOSE := docker compose -f infra/docker-compose.yml
+COMPOSE := docker compose
 DATA    ?= cashflow_dataset_participants/statements
 PY      := ml/.venv/bin/python
 
@@ -8,7 +8,7 @@ help:
 	@echo "gen        — код из proto/ и api/openapi.yaml"
 	@echo "test       — go test + pytest"
 	@echo "lint       — buf lint, go vet, gofmt"
-	@echo "up / down  — docker compose (postgres, ml, api, worker)"
+	@echo "up / down  — docker compose (postgres, ml, api, worker, frontend)"
 	@echo "ml-venv    — локальное окружение для ml/"
 	@echo "ml-serve   — ML-сервис локально на :50051"
 	@echo "backtest   — бэктест на датасете кейса (ML=localhost:50051 — через ML-сервис)"

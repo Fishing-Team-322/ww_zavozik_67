@@ -7,6 +7,10 @@ func (r Result) Clone() Result {
 	out := r
 	out.Dates = slices.Clone(r.Dates)
 	out.Deterministic = slices.Clone(r.Deterministic)
+	out.Uncertain = slices.Clone(r.Uncertain)
+	for i := range out.Uncertain {
+		out.Uncertain[i].Values = slices.Clone(r.Uncertain[i].Values)
+	}
 	out.Stochastic.Dates = slices.Clone(r.Stochastic.Dates)
 	out.Stochastic.Inflow = clone2(r.Stochastic.Inflow)
 	out.Stochastic.Outflow = clone2(r.Stochastic.Outflow)

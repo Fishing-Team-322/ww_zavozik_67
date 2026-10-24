@@ -1,2 +1,4 @@
 # TSV fixtures deliberately retain trailing separators for empty text fields.
 ml/zavozik_ml/classify_v2/*.tsv whitespace=-blank-at-eol
+# LightGBM text models contain byte offsets; CRLF conversion corrupts tree_sizes.
+ml/artifacts/**/*.txt text eol=lf
