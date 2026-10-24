@@ -57,3 +57,14 @@ Heartbeat `ml-07-00`, каждые 30 минут до 04:00 UTC. Продолж�
 - Наш Docker container `zavozik-ml-night-check`, порт127.0.0.1:50072, образ `zavozik-ml:night-20261024`.
 - Colima до работы был выключен; запущен default (cpu2/memory4; прежняя конфигурация cpu4/memory6). В конце остановить созданные сервисы; вернуть прежнюю конфигурацию Colima и выключенное состояние, если больше никому не нужны.
 - Heartbeat `ml-07-00` активен до04:00UTC. Не создавать дубликат.
+
+## Контрольная точка 04:00 МСК
+
+- Commit `d473711` в ветке ml: основная реализация и артефакты; без coauthor.
+- Final development завершён, код не менялся: source 445bc456d1c6…, 320 origins/107 companies.
+- Audit завершён ОДИН раз, frozen source ecf8c0e8bab3…, 86 origins/30 companies, 600 paths. Auto business path WAPE 0.28799 vs naive 0.32294, business WAPE30 0.4434, coverage0.8597; 9 business events (5 opening-negative, 4 new), 37 alerts/28 false, precision0.2432, recall1.0, dateMAE4.78days, shortfallMAE1.59m. Не тюнить по audit, не выдавать 9 событий за уверенную гарантию. `reports/quality.md` теперь audit; компактные CSV/metadata в reports/metrics.
+- Все153 Python tests прошли; Go race/vet и ML contract tests проходят. После этого изменён только Go fallback metadata/clone/invalid-argument handling; его targeted race/vet прошли. Новый полный прогон нужен при последующих релевантных изменениях.
+- Docker заново собран с runtime lock и validation bounds; real Go check PASS. Docker stress:120 concurrent forecasts,8 workers,p95~0.196s,5000 classifications, invalid limits/cancel recovery PASS; отчёт `reports/metrics/docker_concurrency.json`. Локальный server session68636 всё ещё source445; Docker server sourceecf — последний.
+- Проверка охвата сохранила `reports/metrics/company_coverage.csv`:13 компаний внеосновногоокна (7ранозавершившихся,6поздноначатых). Запущен дополнительный causal/unseen cohort, файл experiments/excluded_cohort.py; исключает эти13 И audit30 изfit, результаты не смешиваются сaudit.
+- Дополнительное исследование до07: Chronos-T5 Tiny. Окружение ml/data/chronos_venv установлено отдельно, chronos-forecasting2.3.2; Apache2.0 model revision29d808298f1a62493e7b9a5e08529d0d930fa189. Исследование только development, не трогать выбранный релиз/audit по результатам; не обещать замену до проверки. Modelweights ещё не загружены на эту отметку.
+- Новые скрипты вне production package: ml/experiments/service_stress.py и excluded_cohort.py. Дополнительные изменения/отчёты послеd473711 пока не закоммичены.

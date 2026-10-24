@@ -3,6 +3,9 @@ package categorize
 import (
 	"context"
 	"errors"
+	"math"
+	"strconv"
+	"strings"
 	"testing"
 
 	"google.golang.org/grpc"
@@ -112,5 +115,30 @@ func TestMLFailOpen(t *testing.T) {
 	strict := &MLCategorizer{Client: &fakeML{err: boom}}
 	if _, err := strict.Categorize(context.Background(), outOps("x")); !errors.Is(err, boom) {
 		t.Errorf("strict mode must return error, got %v", err)
+	}
+}
+
+func TestMLBatchingRespectsTextBudget(t *testing.T) {
+	fake := &fakeML{}
+	ops := make([]domain.Operation, 500)
+	for i := range ops {
+		ops[i] = domain.Operation{ID: strconv.Itoa(i), Direction: domain.Out, Purpose: domain.Purpose(strings.Repeat("a", 5000))}
+	}
+	result, err := (&MLCategorizer{Client: fake}).Categorize(context.Background(), ops)
+	if err != nil || len(result) != len(ops) || len(fake.batches) != 2 {
+		t.Fatalf("batches=%v results=%d error=%v", fake.batches, len(result), err)
+	}
+	if fake.batches[0] >= 400 {
+		t.Fatal("text budget exceeded")
+	}
+}
+
+func TestMLInvalidConfidenceIsNotTrusted(t *testing.T) {
+	for _, confidence := range []float64{-1, 2, math.NaN(), math.Inf(1)} {
+		fake := &fakeML{answers: map[string]*categorizev1.Classification{"x": {Category: "supplier", Confidence: confidence}}}
+		result, err := (&MLCategorizer{Client: fake}).Categorize(context.Background(), outOps("x"))
+		if err != nil || result[0].Category != domain.CatUnknown {
+			t.Fatalf("accepted confidence %v: %+v %v", confidence, result, err)
+		}
 	}
 }

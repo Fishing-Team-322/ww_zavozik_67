@@ -27,6 +27,7 @@ from zavozik_ml import calendar as cal
 from zavozik_ml.forecasters import models  # noqa: F401 — регистрирует все модели
 from zavozik_ml.serving import categorizer
 from zavozik_ml.provenance import source_fingerprint
+from zavozik_ml.classify.text import CATEGORIES
 
 log = logging.getLogger("zavozik_ml")
 
@@ -34,6 +35,7 @@ MAX_HORIZON = 366
 MAX_PATHS = 5000
 MAX_HISTORY = 3650
 MAX_CELLS = 1_000_000
+MAX_FLOW = 1e15
 FLOW_SCOPE = "business_without_internal_transfers"
 VERSIONS: dict[str, str] = {}
 SOURCE_VERSION = source_fingerprint()[:12]
@@ -44,10 +46,12 @@ def to_history(req: pb.ForecastRequest) -> forecasters.History:
     if not h or len(h) > MAX_HISTORY:
         raise ValueError(f"history must contain 1..{MAX_HISTORY} days")
     values = np.array([(f.inflow, f.outflow) for f in h])
-    if not np.isfinite(values).all() or (values < 0).any():
-        raise ValueError("flows must be finite and nonnegative; use missing for unavailable data")
-    if any(not np.isfinite(v) for f in h for v in f.by_category.values()):
-        raise ValueError("category flows must be finite")
+    if not np.isfinite(values).all() or (values < 0).any() or (values > MAX_FLOW).any():
+        raise ValueError(f"flows must be finite and in [0, {MAX_FLOW:g}]; use missing for unavailable data")
+    if any(k not in CATEGORIES for f in h for k in f.by_category):
+        raise ValueError("unknown category in history")
+    if any(not np.isfinite(v) or abs(v) > MAX_FLOW for f in h for v in f.by_category.values()):
+        raise ValueError(f"category flows must be finite and within +/-{MAX_FLOW:g}")
     return forecasters.History(
         dates=[date.fromisoformat(f.date) for f in h],
         inflow=values[:, 0],
