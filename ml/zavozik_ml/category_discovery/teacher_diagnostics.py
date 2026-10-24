@@ -20,11 +20,12 @@ def create(out: Path):
     out.mkdir(parents=True)
     rows, key = [], []
     for name, level, anchor, positive, negative in CASES:
+        direction = "in" if name == "credit_subsidy" else "out"
         for expected, text in (("same", positive), ("different", negative)):
             pid = digest(name + ":" + expected)[:24]
             def side(text):
                 return dict(id="authored-"+digest(text)[:16], content_key="authored-"+digest(text)[:24],
-                            direction="out", purpose=text, semantic_text=semantic_text(text))
+                            direction=direction, purpose=text, semantic_text=semantic_text(text))
             rows.append(dict(schema=SCHEMA, pair_id=pid, partition="train", left=side(anchor), right=side(text),
                 coarse=None, fine=None, rationale="", reviewer="", reviewer_kind=""))
             key.append(dict(pair_id=pid, id=name, level=level, expected=expected))
