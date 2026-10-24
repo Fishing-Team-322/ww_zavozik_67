@@ -4,6 +4,7 @@ from __future__ import annotations
 import numpy as np
 
 from .model import softmax, sigmoid
+from .novelty import fit_reference, ranks
 
 
 def expected_calibration_error(probabilities: np.ndarray, labels: np.ndarray, bins: int = 15) -> float:
@@ -52,7 +53,8 @@ def temperature(logits: np.ndarray, labels: np.ndarray) -> float:
 
 
 def calibrate(raw: dict[str, np.ndarray], category_y: np.ndarray, channel_y: np.ndarray,
-              tag_y: np.ndarray, known_false_positive_rate: float = .05) -> dict:
+              tag_y: np.ndarray, known_false_positive_rate: float = .05,
+              categories: tuple[str, ...] | None = None) -> dict:
     if not 0 < known_false_positive_rate < 1:
         raise ValueError("invalid false positive target")
     tc = temperature(raw["category_logits"], category_y)
@@ -70,10 +72,23 @@ def calibrate(raw: dict[str, np.ndarray], category_y: np.ndarray, channel_y: np.
     # in the specified micro objective merely from independent tuning.
     choices = [thresholds] + [[float(t)] * tag_y.shape[1] for t in np.linspace(.1, .9, 33)]
     thresholds = max(choices, key=lambda ts: binary_scores(tag_p >= np.asarray(ts), tag_y)["micro_f1"])
-    novelty_threshold = float(np.quantile(raw["novelty"], 1 - known_false_positive_rate, method="higher"))
+    novelty_reference = None
+    novelty = raw["novelty"]
+    if categories is not None:
+        if len(categories) != raw["category_logits"].shape[1]:
+            raise ValueError("category calibration vocabulary mismatch")
+        predicted = raw["category_logits"].argmax(1)
+        novelty_reference = fit_reference(novelty, predicted, categories)
+        novelty = ranks(novelty, predicted, categories, novelty_reference)
+        novelty_threshold = 1 - known_false_positive_rate
+    else:
+        # Compatibility for pre-rank training artifacts. New export/train
+        # always supplies the taxonomy vocabulary, never test labels.
+        novelty_threshold = float(np.quantile(novelty, 1 - known_false_positive_rate, method="higher"))
     return {"category_temperature": tc, "channel_temperature": th,
             "tag_thresholds": thresholds, "novelty_threshold": novelty_threshold,
-            "known_calibration_fpr": float((raw["novelty"] > novelty_threshold).mean()),
+            "novelty_reference": novelty_reference,
+            "known_calibration_fpr": float((novelty > novelty_threshold).mean()),
             "category": category_scores(softmax(raw["category_logits"] / tc), category_y),
             "channel": category_scores(softmax(raw["channel_logits"] / th), channel_y),
             "tags": binary_scores(tag_p >= np.array(thresholds), tag_y),

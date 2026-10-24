@@ -30,6 +30,26 @@ def run_backend_checks(tmp_path):
                                      num_attention_heads=4, intermediate_size=32,
                                      max_position_embeddings=64, pad_token_id=0)
     encoder = transformers.BertModel(config).eval()
+    # MPS fitting keeps one sequence shape to avoid graph/cache growth. Test
+    # the batch policy without allocating another real MPS training process,
+    # and verify masked padding leaves active-token representations unchanged.
+    from types import SimpleNamespace
+    from zavozik_ml.classify_v2 import train as training
+    tokens = {"input_ids": np.array([[2, 4, 3] + [0] * 13]),
+              "attention_mask": np.array([[1] * 3 + [0] * 13])}
+    original_torch = training.torch
+    try:
+        training.torch = SimpleNamespace(from_numpy=lambda x: SimpleNamespace(to=lambda device: x))
+        padded = training.batch_tokens(tokens, np.array([0]), SimpleNamespace(type="mps"))
+        trimmed = training.batch_tokens(tokens, np.array([0]), SimpleNamespace(type="cpu"))
+    finally:
+        training.torch = original_torch
+    assert padded["input_ids"].shape == (1, 16)
+    assert trimmed["input_ids"].shape == (1, 3)
+    with torch.inference_mode():
+        short = encoder(**{k: torch.tensor(v) for k, v in trimmed.items()}).last_hidden_state
+        long = encoder(**{k: torch.tensor(v) for k, v in padded.items()}).last_hidden_state[:, :3]
+    torch.testing.assert_close(short, long, atol=1e-5, rtol=1e-5)
     encoder.save_pretrained(selected / "encoder", safe_serialization=True)
     raw_tokenizer = tokenizers.Tokenizer(tokenizers.models.WordLevel(
         {"[PAD]": 0, "[UNK]": 1, "[CLS]": 2, "[SEP]": 3, "оплата": 4, "тест": 5}, unk_token="[UNK]"))

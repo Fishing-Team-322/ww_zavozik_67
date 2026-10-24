@@ -28,6 +28,7 @@ from .model import softmax, sigmoid, sha256_file, ARTIFACT_VERSION
 from .network import MultiTaskEncoder, supervised_contrastive
 from .taxonomy import Taxonomy
 from .text import NORMALIZER_VERSION
+from .artifact import archive_fitting_sources
 
 
 def targets(rows, taxonomy):
@@ -45,8 +46,11 @@ def tokenize(tokenizer, rows, max_length, prefix=""):
 
 
 def batch_tokens(tokens, indices, device):
-    # Trim only right padding. Batch rows preserve their original token prefix.
-    length = max(1, int(tokens["attention_mask"][indices].sum(axis=1).max()))
+    # MPS graph/allocator caches grow with many sequence shapes. A fixed
+    # padded training shape keeps memory bounded; the attention mask and
+    # original token prefix are identical. CPU/CUDA retain right-pad trimming.
+    length = (tokens["input_ids"].shape[1] if device.type == "mps" else
+              max(1, int(tokens["attention_mask"][indices].sum(axis=1).max())))
     return {k: torch.from_numpy(v[indices, :length]).to(device) for k, v in tokens.items()}
 
 
@@ -74,6 +78,7 @@ def save_checkpoint(directory, model, tokenizer, taxonomy, config):
     np.savez_compressed(directory / "heads.npz", **heads)
     (directory / "taxonomy.json").write_text(taxonomy.dumps())
     config = dict(config, category_scale=float(model.log_scale.detach().clamp(0, math.log(100)).exp().cpu()))
+    archive_fitting_sources(config, ML_DIR, directory)
     (directory / "config.json").write_text(json.dumps(config, ensure_ascii=False, indent=2) + "\n")
 
 
@@ -100,6 +105,12 @@ def main():
     if args.out.exists():
         ap.error("out already exists; choose a new run directory")
     args.out.mkdir(parents=True)
+    if args.device == "mps":
+        # Default unified-memory limits are too permissive for this16GiB host.
+        # Keep math/optimizer unchanged; commit buffers and collect idle cache
+        # earlier instead of driving the laptop into swap pressure.
+        os.environ.setdefault("PYTORCH_MPS_LOW_WATERMARK_RATIO", "0.7")
+        os.environ.setdefault("PYTORCH_MPS_HIGH_WATERMARK_RATIO", "1.0")
     random.seed(args.seed); np.random.seed(args.seed); torch.manual_seed(args.seed)
     torch.set_num_threads(4)
     os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -167,11 +178,14 @@ def main():
            "cpu_threads": 4, "inference_batch_size": 64,
            "base_source": json.loads((args.base / "base_source.json").read_text()),
            "training": {k: str(v) if isinstance(v, Path) else v for k, v in vars(args).items()},
-           "data_manifest": manifest, "hidden_categories": sorted(hidden)}
+           "data_manifest": manifest, "hidden_categories": sorted(hidden),
+           "training_runtime": {"mps_fixed_padding": True, "mps_cache_release_every_batches": 100,
+                                "mps_low_watermark_ratio": os.environ.get("PYTORCH_MPS_LOW_WATERMARK_RATIO"),
+                                "mps_high_watermark_ratio": os.environ.get("PYTORCH_MPS_HIGH_WATERMARK_RATIO")}}
     # Save only the files that determine fitting/calibration. New serving/tests
     # may be written while this run is active without obscuring fit provenance.
     fit_files = [Path(__file__).with_name(name) for name in (
-        "train.py", "network.py", "model.py", "calibration.py", "data.py", "text.py", "weak_labels.py", "taxonomy.py", "taxonomy.json")]
+        "train.py", "network.py", "model.py", "calibration.py", "novelty.py", "data.py", "text.py", "weak_labels.py", "taxonomy.py", "taxonomy.json")]
     fit_files += [ML_DIR / "zavozik_ml/classify" / name for name in ("augment.py", "labels.py", "text.py")]
     cfg["training_files_sha256"] = {str(p.relative_to(ML_DIR)): sha256_file(p) for p in fit_files}
     for epoch in range(1, args.epochs + 1):
@@ -196,6 +210,10 @@ def main():
             optimizer.step(); scheduler.step()
             losses.append(float(loss.detach().cpu()))
             if batch % 100 == 0:
+                if device.type == "mps":
+                    torch.mps.synchronize()
+                    torch.mps.empty_cache()
+                    print(f"mps allocated_gib={torch.mps.current_allocated_memory()/2**30:.3f} driver_gib={torch.mps.driver_allocated_memory()/2**30:.3f}", flush=True)
                 print(f"epoch={epoch} batch={batch} loss={np.mean(losses[-100:]):.4f} elapsed={time.perf_counter()-start:.1f}s", flush=True)
         raw = inference(model, cal_tokens, device, args.batch_size)
         category = category_scores(softmax(raw["category_logits"]), ccal)
@@ -212,14 +230,16 @@ def main():
             save_checkpoint(args.out / "selected", model, tokenizer, taxonomy, cfg)
             np.savez_compressed(args.out / "selected/calibration_raw.npz", **raw, category_y=ccal, channel_y=hcal, tag_y=tcal)
         (args.out / "history.json").write_text(json.dumps(history, indent=2) + "\n")
+        if device.type == "mps":
+            torch.mps.empty_cache()
     # Calibrate the selected artifact, not the final training epoch.
     selected = args.out / "selected"
     if any(sha256_file(ML_DIR / p) != digest for p, digest in cfg["training_files_sha256"].items()):
         raise RuntimeError("fitting source changed during training; preserve checkpoint and inspect provenance")
     with np.load(selected / "calibration_raw.npz", allow_pickle=False) as r:
-        calibration = calibrate(dict(r), r["category_y"], r["channel_y"], r["tag_y"])
+        calibration = calibrate(dict(r), r["category_y"], r["channel_y"], r["tag_y"], categories=taxonomy.categories)
     config = json.loads((selected / "config.json").read_text())
-    for key in ("category_temperature", "channel_temperature", "tag_thresholds", "novelty_threshold"):
+    for key in ("category_temperature", "channel_temperature", "tag_thresholds", "novelty_threshold", "novelty_reference"):
         config[key] = calibration[key]
     config["model_version"] = "encoder-v1-" + sha256_file(selected / "encoder/model.safetensors")[:16]
     (selected / "config.json").write_text(json.dumps(config, ensure_ascii=False, indent=2) + "\n")

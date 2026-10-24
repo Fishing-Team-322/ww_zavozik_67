@@ -119,3 +119,18 @@ def test_artifact_identity_includes_nested_encoder_configuration(tmp_path):
     version = seal(tmp_path)
     (tmp_path / "README.md").write_text("A human readable card does not affect predictions.")
     assert seal(tmp_path) == version
+
+
+def test_fit_source_archive_preserves_historical_code_and_checks_its_hash(tmp_path):
+    from zavozik_ml.classify_v2.artifact import archive_fitting_sources
+    source = tmp_path / "source"; source.mkdir()
+    (source / "train.py").write_text("historical fitting recipe")
+    cfg = dict(training_files_sha256={"train.py": sha256_file(source / "train.py")})
+    out = tmp_path / "model"
+    archive_fitting_sources(cfg, source, out)
+    assert (out / "fit_source/train.py").read_text() == "historical fitting recipe"
+    assert cfg["fitting_source_archive"]["directory"] == "fit_source"
+    archive_fitting_sources(cfg, out / "fit_source", out)  # idempotent, no self-copy
+    (source / "train.py").write_text("new runtime code")
+    with pytest.raises(ValueError, match="fitting source mismatch"):
+        archive_fitting_sources(cfg, source, tmp_path / "other")

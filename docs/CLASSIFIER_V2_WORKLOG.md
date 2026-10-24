@@ -210,3 +210,66 @@
 - fetch_base теперь исключает собственный base_source.json и незавершённые
   .partial из source manifest. Повторный fetch pinned cache даёт тот же SHA
   manifest; сетевой mock regression test1PASS, actual downloads не повторялись.
+
+## MPS resource recovery и новый checkpoint, 16:41 МСК (актуально)
+
+- e5_run1 НЕ завершён. После epoch5/начала6 прекратил выдавать очередную
+  отметку100 batches на12+минут (раньше~70s). sample/vmmap: footprint12.5GiB,
+  peak13GiB на16GiB M1Pro, ожидание Metal command buffer и сильное давление
+  памяти. Последний selected checkpointepoch4 сохранён, не объявлен completed.
+  Причина записана e5_run1/STOPPED_RESOURCE_PRESSURE.json. Frozen182/novel280/
+  company test всё ещё НЕ запускались. Это инфраструктурный restart, не подбор
+  по финальному тесту.
+- Остановлены только наш старый E5 PID30469, waiting queue34739 и
+  installer35210. Старыйparent27747 также завершился после остановки child.
+  Сессии36339/42396/65738 устарели, не возобновлять их и не запускать старые
+  post_train_queue.py/install_runtime_after_e5.py повторно.
+- Новый единственный fit PID35854/session83066:
+  e5_run2_bs64_fixed.log, out e5_run2_bs64_fixed. Тот же pinned E5-base,
+  prepared_v3,seed42,loss/LR/optimizer/batch64/12epochs. Исполнение из
+  memory_bounded_snapshot_v2 (полная локальная копия source), где MPS сохраняет
+  fixed padding128,LOW_WATERMARK=.7/HIGH=1.0 и освобождает free cache каждые100
+  batches. Mask/токены/loss прежние. CPU random-BERT active-token parity
+  maxdiff5.96e-8; добавлен regression в optional export test.
+- Новый fit первые100 batches прошёл за167.8s, live allocated1.762GiB,
+  driver7.131GiB после очистки. Следить за дальнейшим ростом памяти, не запускать
+  ещё один fit. Ограничения allocator по официальной документации PyTorch:
+  https://docs.pytorch.org/docs/stable/mps_environment_variables.html
+- Новая очередь PID35915/session69644 — post_train_queue_v2.py. Она ждёт
+  e5_run2_bs64_fixed, сравнит с completed rubert_run3, заморозит selection и
+  запустит hidden_run1 из ТАКОГО ЖЕ bounded snapshot. Состояние в прежнем
+  post_train_state.json. Selection/hidden пока не существуют.
+- Теперь МОЖНО редактировать рабочие model/calibration/train/export: оба fit
+  используют immutable snapshot, их source guards не зависят от текущего пакета.
+  НЕ менять memory_bounded_snapshot_v2 во время fit.
+- Применены новые core/runtime: category-conditional novelty rank, override
+  runtime calibration+version suffix, общий manifest-verified loader с
+  encoder_factory; server Torch helper делегирует ему проверку. Tests34PASS
+  включая новый runtime, output, novelty и real Torch/ONNX subprocess smoke.
+- В final export передавать --fit-source: для выбранного Ruby
+  ml/data/classifier_v2/training_snapshot_v1; для E5 и hidden
+  ml/data/classifier_v2/memory_bounded_snapshot_v2. В артефакт добавится fit_source
+  с exact training_files_sha256; эти Python-файлы — исторические данные,
+  runtime их НЕ импортирует. Новые train checkpoints архивируют source сами.
+  Archive/runtime targeted13PASS+1SKIP в prod env. Финальные graph exports
+  с rank calibration пока НЕ выполнены.
+- Полный train-env pytest session32323 идёт в изменяющемся workspace, где
+  внешний test_trx.py импортирует Torch в parent pytest. При native-конфликте
+  не править trx: v2 optional tests выполнять отдельно, штатный полный prod
+  pytest по-прежнему обязателен. Внешние untracked trx/runs/tests не коммитить.
+- Этот полный train-env pytest остановлен: native sample36146 показал deadlock
+  Torch linear ->libomp join barrier после импорта внешнего test_trx.py; CPU0%,
+  одинаковые стеки. Sample сохранён full_pytest_native_sample.txt. Это тот же
+  класс конфликта, который сервер v2 уже исключает изоляцией Torch worker.
+  Новые проверки: train-env с --ignore=tests/test_trx.py (session9238),
+  полный prod-env (session67953). Не менять чужой trx ради этой проверки.
+- Проверки закончились: prod full277PASS+3SKIP за16.04s; optional train-env
+  full без внешнего trx279PASS за43.78s (единственный HDBSCAN FutureWarning).
+  Включены real export, masked-padding parity, worker recovery и live server.
+- e5_run2 прошёл200batches за331.9s, driver7.131GiB после cache release,
+  allocated1.762GiB — повторного роста памяти пока нет. Это единственный fit.
+- Создан heartbeat classifier-v2, ACTIVE, каждые30минут в ЭТОМ чате: продолжает
+  разрешённую задачу до deliverables, без дедлайна; не дублирует fit, молчит
+  при неизменившемся состоянии, выключается после итогового отчёта. Старый
+  overnight ml-07-00 не восстанавливать. Приложение/машина нужны включёнными
+  для локальных запусков. Автоматизация использует существующий контекст.

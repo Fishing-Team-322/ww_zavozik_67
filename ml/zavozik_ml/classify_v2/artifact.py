@@ -9,6 +9,30 @@ import shutil
 from .model import sha256_file
 
 
+def archive_fitting_sources(config: dict, source_root: Path, directory: Path) -> None:
+    """Preserve exact fitting code as data, never dynamically import it.
+
+    Runtime/calibration code may change after training without changing the
+    learned weights. A release still needs the original hashed fitting files.
+    """
+    files = config.get("training_files_sha256", {})
+    if not files:
+        return
+    for name, digest in files.items():
+        if Path(name).is_absolute() or ".." in Path(name).parts:
+            raise ValueError("invalid fitting source path")
+        path = source_root / name
+        if not path.is_file() or sha256_file(path) != digest:
+            raise ValueError(f"fitting source mismatch: {name}; supply the frozen --fit-source root")
+    for name in files:
+        target = directory / "fit_source" / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if (source_root / name).resolve() != target.resolve():
+            shutil.copy2(source_root / name, target)
+    config["fitting_source_archive"] = {"directory": "fit_source", "files_sha256": files,
+                                        "policy": "Historical fitting source, not imported by runtime"}
+
+
 def seal(directory: Path) -> str:
     """Seal an unpublished candidate. README/report text is not model identity."""
     directory = Path(directory)

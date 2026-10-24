@@ -17,6 +17,7 @@ import numpy as np
 
 from .taxonomy import Taxonomy
 from .text import NORMALIZER_VERSION, Operation, encoder_text
+from .novelty import ranks, validate_reference
 
 ARTIFACT_VERSION = 2
 
@@ -159,6 +160,8 @@ class EncoderClassifier:
         if thresholds.shape != (len(taxonomy.tags),) or not np.isfinite(thresholds).all() or ((thresholds < 0) | (thresholds > 1)).any():
             raise ValueError("invalid tag thresholds")
         self.heads["prototypes"] = unit(self.heads["prototypes"])
+        if config.get("novelty_reference") is not None:
+            validate_reference(config["novelty_reference"])
         self.model_version = config.get("model_version", "encoder-v1-in-memory")
 
     def distributions(self, embedding: np.ndarray) -> dict[str, np.ndarray]:
@@ -171,6 +174,9 @@ class EncoderClassifier:
         tg = x @ self.heads["tag_weight"].T + self.heads["tag_bias"]
         result = {"category": softmax(cat), "channel": softmax(ch), "tags": sigmoid(tg),
                   "novelty": np.clip(1 - similarity.max(axis=1), 0, 1)}
+        if self.config.get("novelty_reference") is not None:
+            result["novelty"] = ranks(result["novelty"], cat.argmax(1), self.taxonomy.categories,
+                                      self.config["novelty_reference"])
         if any(not np.isfinite(value).all() for value in result.values()):
             raise ValueError("model produced nonfinite probabilities")
         return result
@@ -207,7 +213,8 @@ class EncoderClassifier:
         return result
 
     @classmethod
-    def load(cls, directory: Path, backend: str | None = None, verify: bool = True) -> "EncoderClassifier":
+    def load(cls, directory: Path, backend: str | None = None, verify: bool = True,
+             encoder_factory: Callable | None = None) -> "EncoderClassifier":
         directory = Path(directory)
         config = json.loads((directory / "config.json").read_text())
         if config.get("artifact_version") != ARTIFACT_VERSION or config.get("normalizer_version") != NORMALIZER_VERSION:
@@ -224,15 +231,40 @@ class EncoderClassifier:
                 p = directory / name
                 if Path(name).is_absolute() or ".." in Path(name).parts or not p.is_file() or sha256_file(p) != expected:
                     raise ValueError(f"artifact digest mismatch: {name}")
+        selected_backend = config.get("runtime", "onnx")
+        backend = backend or selected_backend
+        if backend not in ("onnx", "torch"):
+            raise ValueError("backend must be onnx or torch")
+        if backend != selected_backend:
+            variant = "torch-fp32" if backend == "torch" else "onnx-fp32"
+            filename = None if backend == "torch" else "encoder-fp32.onnx"
+            comparison = json.loads((directory / "runtime_comparison.json").read_text())
+            calibration = comparison["variants"][variant]["calibration"]
+            for key in ("category_temperature", "channel_temperature", "tag_thresholds", "novelty_threshold"):
+                config[key] = calibration[key]
+            config["novelty_reference"] = calibration.get("novelty_reference")
+            config.update(runtime=backend, onnx_file=filename,
+                          model_version=config["model_version"] + "+runtime-" + variant)
+        if verify:
+            # A manifest with a missing entry must not silently load an
+            # unverified neural graph or Torch weight/config/tokenizer file.
+            if backend == "onnx":
+                runtime_files = {config.get("onnx_file")}
+            else:
+                runtime_files = {str(p.relative_to(directory)) for p in (directory / "encoder").rglob("*") if p.is_file()}
+                runtime_files |= {"encoder/config.json", "encoder/model.safetensors", "encoder/tokenizer.json"}
+            if not runtime_files <= set(manifest["files_sha256"]):
+                raise ValueError("runtime payload missing from artifact manifest")
+            if backend != selected_backend and "runtime_comparison.json" not in manifest["files_sha256"]:
+                raise ValueError("runtime calibration missing from artifact manifest")
         with np.load(directory / "heads.npz", allow_pickle=False) as data:
             heads = dict(data)
-        backend = backend or config.get("runtime", "onnx")
-        if backend == "onnx":
+        if encoder_factory is not None:
+            encoder = encoder_factory(directory, config)
+        elif backend == "onnx":
             encoder = OnnxEncoder(directory, config)
-        elif backend == "torch":
-            encoder = TorchEncoder(directory, config)
         else:
-            raise ValueError("backend must be onnx or torch")
+            encoder = TorchEncoder(directory, config)
         return cls(taxonomy, config, heads, encoder)
 
     def add_category(self, category: dict, center: np.ndarray, taxonomy_version: str) -> "EncoderClassifier":

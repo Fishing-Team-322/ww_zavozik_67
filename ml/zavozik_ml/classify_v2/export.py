@@ -15,7 +15,7 @@ import time
 import torch
 import numpy as np
 
-from .artifact import seal
+from .artifact import seal, archive_fitting_sources
 from .calibration import calibrate
 from .data import read_rows
 from .model import EncoderClassifier, OnnxEncoder, TorchEncoder, unit, sha256_file
@@ -69,11 +69,13 @@ def benchmark(encoder, texts, repeats=5):
             "max_s": max(times), "times_s": times, "includes": "tokenization + CPU encoder; no cross-request cache"}
 
 
-def export(selected: Path, out: Path, prepared: Path, quantize=True):
+def export(selected: Path, out: Path, prepared: Path, quantize=True, fit_source: Path | None = None):
     if out.exists():
         raise ValueError("out already exists; never overwrite a candidate")
     shutil.copytree(selected, out, ignore=shutil.ignore_patterns("calibration_raw.npz"))
     config = json.loads((out / "config.json").read_text())
+    archived = selected / "fit_source"
+    archive_fitting_sources(config, fit_source or (archived if archived.is_dir() else Path(__file__).resolve().parents[2]), out)
     taxonomy = Taxonomy.load(out / "taxonomy.json")
     rows = [r for r in read_rows(prepared / "calibration.jsonl") if r["label"] in taxonomy.categories]
     texts = [config.get("text_prefix", "") + r["text"] for r in rows]
@@ -107,7 +109,7 @@ def export(selected: Path, out: Path, prepared: Path, quantize=True):
         x = encode_unique(encoder, texts)
         all_x[name] = x
         raw = raw_outputs(x, heads, cfg)
-        calibration = calibrate(raw, y, h, t)
+        calibration = calibrate(raw, y, h, t, categories=taxonomy.categories)
         prediction = raw["category_logits"].argmax(1)
         if baseline_prediction is None:
             baseline_prediction = prediction
@@ -130,7 +132,7 @@ def export(selected: Path, out: Path, prepared: Path, quantize=True):
     chosen = min(eligible, key=lambda name: report["variants"][name]["latency"]["median_s"])
     report["selected_runtime"] = chosen
     config.update(runtime=variants[chosen][0], onnx_file=variants[chosen][1])
-    for key in ("category_temperature", "channel_temperature", "tag_thresholds", "novelty_threshold"):
+    for key in ("category_temperature", "channel_temperature", "tag_thresholds", "novelty_threshold", "novelty_reference"):
         config[key] = report["variants"][chosen]["calibration"][key]
     config["runtime_selection"] = {"data": "calibration_only", "selected": chosen,
                                    "category_max_accuracy_drop": .0005, "category_max_f1_drop": .001,
@@ -153,8 +155,9 @@ def main():
     ap.add_argument("--out", type=Path, required=True)
     ap.add_argument("--prepared", type=Path, required=True)
     ap.add_argument("--no-int8", action="store_true")
+    ap.add_argument("--fit-source", type=Path, help="frozen fitting ML source root if the code changed after training")
     args = ap.parse_args()
-    export(args.selected, args.out, args.prepared, not args.no_int8)
+    export(args.selected, args.out, args.prepared, not args.no_int8, args.fit_source)
 
 
 if __name__ == "__main__":

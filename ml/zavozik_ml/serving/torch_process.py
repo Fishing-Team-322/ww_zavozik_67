@@ -14,9 +14,7 @@ import time
 
 import numpy as np
 
-from zavozik_ml.classify_v2.model import EncoderClassifier, sha256_file, ARTIFACT_VERSION
-from zavozik_ml.classify_v2.taxonomy import Taxonomy
-from zavozik_ml.classify_v2.text import NORMALIZER_VERSION
+from zavozik_ml.classify_v2.model import EncoderClassifier
 
 
 class TorchProcessEncoder:
@@ -125,32 +123,5 @@ class TorchProcessEncoder:
 
 
 def load_isolated_classifier(directory: Path) -> EncoderClassifier:
-    """Verify locally before launching the worker. Consolidate with model.load
-    after active training source snapshots have finished (see worklog).
-    """
-    directory = Path(directory)
-    config = json.loads((directory / "config.json").read_text())
-    if config.get("artifact_version") != ARTIFACT_VERSION or config.get("normalizer_version") != NORMALIZER_VERSION:
-        raise ValueError("incompatible v2 artifact")
-    taxonomy = Taxonomy.load(directory / "taxonomy.json")
-    if taxonomy.sha256 != config.get("taxonomy_sha256"):
-        raise ValueError("taxonomy digest mismatch")
-    manifest = json.loads((directory / "manifest.json").read_text())
-    if manifest.get("model_version") != config.get("model_version"):
-        raise ValueError("artifact manifest version mismatch")
-    if not {"config.json", "heads.npz", "taxonomy.json", "tokenizer.json"} <= set(manifest.get("files_sha256", {})):
-        raise ValueError("incomplete artifact manifest")
-    for name, digest in manifest["files_sha256"].items():
-        path = directory / name
-        if Path(name).is_absolute() or ".." in Path(name).parts or not path.is_file() or sha256_file(path) != digest:
-            raise ValueError(f"artifact digest mismatch: {name}")
-    with np.load(directory / "heads.npz", allow_pickle=False) as values:
-        heads = dict(values)
-    if config.get("runtime") != "torch":
-        comparison = json.loads((directory / "runtime_comparison.json").read_text())
-        calibration = comparison["variants"]["torch-fp32"]["calibration"]
-        for key in ("category_temperature", "channel_temperature", "tag_thresholds", "novelty_threshold"):
-            config[key] = calibration[key]
-        config["runtime"] = "torch"
-        config["model_version"] += "+runtime-torch-fp32"
-    return EncoderClassifier(taxonomy, config, heads, TorchProcessEncoder(directory, config))
+    """Use the same verified loader with a native-library-isolated encoder."""
+    return EncoderClassifier.load(directory, backend="torch", encoder_factory=TorchProcessEncoder)
