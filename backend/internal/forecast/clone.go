@@ -10,6 +10,7 @@ func (r Result) Clone() Result {
 	out.Stochastic.Dates = slices.Clone(r.Stochastic.Dates)
 	out.Stochastic.Inflow = clone2(r.Stochastic.Inflow)
 	out.Stochastic.Outflow = clone2(r.Stochastic.Outflow)
+	out.Stochastic.Warnings = slices.Clone(r.Stochastic.Warnings)
 	out.Balances = clone2(r.Balances)
 	return out
 }

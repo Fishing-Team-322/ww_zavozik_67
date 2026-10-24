@@ -62,16 +62,43 @@ const (
 	Utilities          Category = "utilities"
 )
 
+// Defines values for CompanyDefaultHorizon.
+const (
+	CompanyDefaultHorizonN30 CompanyDefaultHorizon = 30
+	CompanyDefaultHorizonN60 CompanyDefaultHorizon = 60
+	CompanyDefaultHorizonN90 CompanyDefaultHorizon = 90
+)
+
 // Defines values for CompanyLegalForm.
 const (
 	CompanyLegalFormИП  CompanyLegalForm = "ИП"
 	CompanyLegalFormООО CompanyLegalForm = "ООО"
 )
 
+// Defines values for CompanyCreateDefaultHorizon.
+const (
+	CompanyCreateDefaultHorizonN30 CompanyCreateDefaultHorizon = 30
+	CompanyCreateDefaultHorizonN60 CompanyCreateDefaultHorizon = 60
+	CompanyCreateDefaultHorizonN90 CompanyCreateDefaultHorizon = 90
+)
+
 // Defines values for CompanyCreateLegalForm.
 const (
 	CompanyCreateLegalFormИП  CompanyCreateLegalForm = "ИП"
 	CompanyCreateLegalFormООО CompanyCreateLegalForm = "ООО"
+)
+
+// Defines values for CompanyPatchDefaultHorizon.
+const (
+	N30 CompanyPatchDefaultHorizon = 30
+	N60 CompanyPatchDefaultHorizon = 60
+	N90 CompanyPatchDefaultHorizon = 90
+)
+
+// Defines values for CompanyPatchLegalForm.
+const (
+	ИП  CompanyPatchLegalForm = "ИП"
+	ООО CompanyPatchLegalForm = "ООО"
 )
 
 // Defines values for Direction.
@@ -106,6 +133,12 @@ const (
 	Running JobStatus = "running"
 )
 
+// Defines values for OAuthProvider.
+const (
+	Google OAuthProvider = "google"
+	Yandex OAuthProvider = "yandex"
+)
+
 // Defines values for OperationCategoryMethod.
 const (
 	Llm  OperationCategoryMethod = "llm"
@@ -130,12 +163,23 @@ const (
 	PlannedEventUpdateStatusReceived  PlannedEventUpdateStatus = "received"
 )
 
+// Defines values for ProfileRole.
+const (
+	Admin ProfileRole = "admin"
+	Owner ProfileRole = "owner"
+)
+
 // Defines values for RecurringPatternPeriod.
 const (
 	Biweekly  RecurringPatternPeriod = "biweekly"
 	Monthly   RecurringPatternPeriod = "monthly"
 	Quarterly RecurringPatternPeriod = "quarterly"
 	Weekly    RecurringPatternPeriod = "weekly"
+)
+
+// Defines values for RegisterRequestConsentPd.
+const (
+	True RegisterRequestConsentPd = true
 )
 
 // Defines values for RetroItemsKind.
@@ -191,7 +235,7 @@ const (
 
 // Action defines model for Action.
 type Action struct {
-	// Cost Стоимость действия
+	// Cost Стоимость действия, например проценты
 	Cost        *float32 `json:"cost,omitempty"`
 	Description *string  `json:"description,omitempty"`
 
@@ -224,44 +268,105 @@ type Alert struct {
 // AlertSeverity defines model for Alert.Severity.
 type AlertSeverity string
 
+// AuthProviders defines model for AuthProviders.
+type AuthProviders = []OAuthProvider
+
 // Category Категория операции
 type Category string
 
 // Cause defines model for Cause.
 type Cause struct {
-	// Amount Вклад в разрыв
+	// Amount Вклад в разрыв, со знаком
 	Amount       float32 `json:"amount"`
 	ComponentKey *string `json:"component_key,omitempty"`
 	Title        string  `json:"title"`
 }
 
+// ChangePasswordRequest defines model for ChangePasswordRequest.
+type ChangePasswordRequest struct {
+	NewPassword string `json:"new_password"`
+	OldPassword string `json:"old_password"`
+}
+
 // Company defines model for Company.
 type Company struct {
-	Id        openapi_types.UUID `json:"id"`
-	Industry  string             `json:"industry"`
-	Inn       *string            `json:"inn,omitempty"`
-	LegalForm CompanyLegalForm   `json:"legal_form"`
-	Name      string             `json:"name"`
+	CreatedAt      time.Time             `json:"created_at"`
+	DataAsOf       *time.Time            `json:"data_as_of"`
+	DefaultHorizon CompanyDefaultHorizon `json:"default_horizon"`
+	Id             openapi_types.UUID    `json:"id"`
+	Industry       string                `json:"industry"`
+	Inn            *string               `json:"inn"`
+	LegalForm      CompanyLegalForm      `json:"legal_form"`
+	Name           string                `json:"name"`
 
-	// Reserve Порог «неснижаемого остатка»
-	Reserve   *float32   `json:"reserve,omitempty"`
-	TaxRegime *TaxRegime `json:"tax_regime,omitempty"`
+	// Reserve Рубли, точность до копейки
+	Reserve   float64   `json:"reserve"`
+	TaxRegime TaxRegime `json:"tax_regime"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
+
+// CompanyDefaultHorizon defines model for Company.DefaultHorizon.
+type CompanyDefaultHorizon int
 
 // CompanyLegalForm defines model for Company.LegalForm.
 type CompanyLegalForm string
 
 // CompanyCreate defines model for CompanyCreate.
 type CompanyCreate struct {
-	Industry  string                 `json:"industry"`
-	Inn       *string                `json:"inn,omitempty"`
-	LegalForm CompanyCreateLegalForm `json:"legal_form"`
-	Name      string                 `json:"name"`
-	TaxRegime *TaxRegime             `json:"tax_regime,omitempty"`
+	DefaultHorizon *CompanyCreateDefaultHorizon `json:"default_horizon,omitempty"`
+	Industry       string                       `json:"industry"`
+	Inn            *string                      `json:"inn"`
+	LegalForm      CompanyCreateLegalForm       `json:"legal_form"`
+	Name           string                       `json:"name"`
+
+	// Reserve Рубли, точность до копейки
+	Reserve   *float64   `json:"reserve,omitempty"`
+	TaxRegime *TaxRegime `json:"tax_regime,omitempty"`
 }
+
+// CompanyCreateDefaultHorizon defines model for CompanyCreate.DefaultHorizon.
+type CompanyCreateDefaultHorizon int
 
 // CompanyCreateLegalForm defines model for CompanyCreate.LegalForm.
 type CompanyCreateLegalForm string
+
+// CompanyDeleteRequest defines model for CompanyDeleteRequest.
+type CompanyDeleteRequest struct {
+	ConfirmName string `json:"confirm_name"`
+}
+
+// CompanyPatch defines model for CompanyPatch.
+type CompanyPatch struct {
+	DefaultHorizon *CompanyPatchDefaultHorizon `json:"default_horizon,omitempty"`
+	Industry       *string                     `json:"industry,omitempty"`
+	Inn            *string                     `json:"inn"`
+	LegalForm      *CompanyPatchLegalForm      `json:"legal_form,omitempty"`
+	Name           *string                     `json:"name,omitempty"`
+
+	// Reserve Рубли, точность до копейки
+	Reserve   *float64   `json:"reserve,omitempty"`
+	TaxRegime *TaxRegime `json:"tax_regime,omitempty"`
+}
+
+// CompanyPatchDefaultHorizon defines model for CompanyPatch.DefaultHorizon.
+type CompanyPatchDefaultHorizon int
+
+// CompanyPatchLegalForm defines model for CompanyPatch.LegalForm.
+type CompanyPatchLegalForm string
+
+// CompanyState defines model for CompanyState.
+type CompanyState struct {
+	CompanyId openapi_types.UUID     `json:"company_id"`
+	Data      map[string]interface{} `json:"data"`
+	UpdatedAt time.Time              `json:"updated_at"`
+	Version   int64                  `json:"version"`
+}
+
+// CompanyStateWrite defines model for CompanyStateWrite.
+type CompanyStateWrite struct {
+	Data            map[string]interface{} `json:"data"`
+	ExpectedVersion int64                  `json:"expected_version"`
+}
 
 // Counterparty defines model for Counterparty.
 type Counterparty struct {
@@ -331,9 +436,14 @@ type ForecastPoint struct {
 	P90        float32              `json:"p90"`
 }
 
+// ForgotPasswordRequest defines model for ForgotPasswordRequest.
+type ForgotPasswordRequest struct {
+	Email openapi_types.Email `json:"email"`
+}
+
 // Gap defines model for Gap.
 type Gap struct {
-	// Date Первый день
+	// Date Первый день, когда остаток ниже резерва
 	Date openapi_types.Date `json:"date"`
 
 	// Headline «28 ноября не хватит ~340 000 ₽ на ЕНП и зарплату»
@@ -341,7 +451,7 @@ type Gap struct {
 	Id          string  `json:"id"`
 	Probability float32 `json:"probability"`
 
-	// Shortfall Сколько не хватит (медиана)
+	// Shortfall Сколько не хватит (медиана), руб.
 	Shortfall float32 `json:"shortfall"`
 
 	// ShortfallP90 Пессимистичная оценка
@@ -353,7 +463,7 @@ type GapDetail struct {
 	Actions []Action `json:"actions"`
 	Causes  []Cause  `json:"causes"`
 
-	// Date Первый день
+	// Date Первый день, когда остаток ниже резерва
 	Date openapi_types.Date `json:"date"`
 
 	// Headline «28 ноября не хватит ~340 000 ₽ на ЕНП и зарплату»
@@ -361,7 +471,7 @@ type GapDetail struct {
 	Id          string  `json:"id"`
 	Probability float32 `json:"probability"`
 
-	// Shortfall Сколько не хватит (медиана)
+	// Shortfall Сколько не хватит (медиана), руб.
 	Shortfall float32 `json:"shortfall"`
 
 	// ShortfallP90 Пессимистичная оценка
@@ -410,6 +520,9 @@ type ModelQuality struct {
 	Model        string   `json:"model"`
 	Wape30       *float32 `json:"wape_30,omitempty"`
 }
+
+// OAuthProvider defines model for OAuthProvider.
+type OAuthProvider string
 
 // Operation defines model for Operation.
 type Operation struct {
@@ -492,6 +605,18 @@ type PlannedEventUpdate struct {
 // PlannedEventUpdateStatus defines model for PlannedEventUpdate.Status.
 type PlannedEventUpdateStatus string
 
+// Profile defines model for Profile.
+type Profile struct {
+	Companies []Company           `json:"companies"`
+	CreatedAt time.Time           `json:"created_at"`
+	Email     openapi_types.Email `json:"email"`
+	Id        openapi_types.UUID  `json:"id"`
+	Role      ProfileRole         `json:"role"`
+}
+
+// ProfileRole defines model for Profile.Role.
+type ProfileRole string
+
 // RecurringPattern defines model for RecurringPattern.
 type RecurringPattern struct {
 	Amount float32 `json:"amount"`
@@ -509,12 +634,28 @@ type RecurringPattern struct {
 	NextDate         openapi_types.Date     `json:"next_date"`
 	Period           RecurringPatternPeriod `json:"period"`
 
-	// Title «Зарплата (аванс)»
+	// Title «Зарплата (аванс)», «Аренда — АО Арендодатель»
 	Title string `json:"title"`
 }
 
 // RecurringPatternPeriod defines model for RecurringPattern.Period.
 type RecurringPatternPeriod string
+
+// RegisterRequest defines model for RegisterRequest.
+type RegisterRequest struct {
+	ConsentPd RegisterRequestConsentPd `json:"consent_pd"`
+	Email     openapi_types.Email      `json:"email"`
+	Password  string                   `json:"password"`
+}
+
+// RegisterRequestConsentPd defines model for RegisterRequest.ConsentPd.
+type RegisterRequestConsentPd bool
+
+// ResetPasswordRequest defines model for ResetPasswordRequest.
+type ResetPasswordRequest struct {
+	NewPassword string `json:"new_password"`
+	Token       string `json:"token"`
+}
 
 // Retro defines model for Retro.
 type Retro struct {
@@ -575,6 +716,20 @@ type ScenarioStep struct {
 // ScenarioStepKind defines model for ScenarioStep.Kind.
 type ScenarioStepKind string
 
+// Session defines model for Session.
+type Session struct {
+	City       *string            `json:"city"`
+	CreatedAt  time.Time          `json:"created_at"`
+	Current    bool               `json:"current"`
+	Device     string             `json:"device"`
+	ExpiresAt  time.Time          `json:"expires_at"`
+	Id         openapi_types.UUID `json:"id"`
+	LastSeenAt time.Time          `json:"last_seen_at"`
+}
+
+// Sessions defines model for Sessions.
+type Sessions = []Session
+
 // Source defines model for Source.
 type Source struct {
 	Error        *string            `json:"error,omitempty"`
@@ -610,6 +765,18 @@ type Token struct {
 
 // CompanyId defines model for CompanyId.
 type CompanyId = openapi_types.UUID
+
+// FinishOAuthParams defines parameters for FinishOAuth.
+type FinishOAuthParams struct {
+	Code  *string `form:"code,omitempty" json:"code,omitempty"`
+	State *string `form:"state,omitempty" json:"state,omitempty"`
+	Error *string `form:"error,omitempty" json:"error,omitempty"`
+}
+
+// StartOAuthParams defines parameters for StartOAuth.
+type StartOAuthParams struct {
+	ConsentPd bool `form:"consent_pd" json:"consent_pd"`
+}
 
 // ListEventsParams defines parameters for ListEvents.
 type ListEventsParams struct {
@@ -665,11 +832,23 @@ type UpdateRecurringJSONBody struct {
 // LoginJSONRequestBody defines body for Login for application/json ContentType.
 type LoginJSONRequestBody = Credentials
 
+// ForgotPasswordJSONRequestBody defines body for ForgotPassword for application/json ContentType.
+type ForgotPasswordJSONRequestBody = ForgotPasswordRequest
+
+// ResetPasswordJSONRequestBody defines body for ResetPassword for application/json ContentType.
+type ResetPasswordJSONRequestBody = ResetPasswordRequest
+
 // RegisterJSONRequestBody defines body for Register for application/json ContentType.
-type RegisterJSONRequestBody = Credentials
+type RegisterJSONRequestBody = RegisterRequest
 
 // CreateCompanyJSONRequestBody defines body for CreateCompany for application/json ContentType.
 type CreateCompanyJSONRequestBody = CompanyCreate
+
+// DeleteCompanyJSONRequestBody defines body for DeleteCompany for application/json ContentType.
+type DeleteCompanyJSONRequestBody = CompanyDeleteRequest
+
+// UpdateCompanyJSONRequestBody defines body for UpdateCompany for application/json ContentType.
+type UpdateCompanyJSONRequestBody = CompanyPatch
 
 // CreateEventJSONRequestBody defines body for CreateEvent for application/json ContentType.
 type CreateEventJSONRequestBody = PlannedEventCreate
@@ -683,11 +862,17 @@ type CreateScenarioJSONRequestBody = ScenarioCreate
 // CreateSourceJSONRequestBody defines body for CreateSource for application/json ContentType.
 type CreateSourceJSONRequestBody = SourceCreate
 
+// PutCompanyStateJSONRequestBody defines body for PutCompanyState for application/json ContentType.
+type PutCompanyStateJSONRequestBody = CompanyStateWrite
+
 // UploadStatementMultipartRequestBody defines body for UploadStatement for multipart/form-data ContentType.
 type UploadStatementMultipartRequestBody UploadStatementMultipartBody
 
 // UpdateEventJSONRequestBody defines body for UpdateEvent for application/json ContentType.
 type UpdateEventJSONRequestBody = PlannedEventUpdate
+
+// ChangePasswordJSONRequestBody defines body for ChangePassword for application/json ContentType.
+type ChangePasswordJSONRequestBody = ChangePasswordRequest
 
 // UpdateOperationJSONRequestBody defines body for UpdateOperation for application/json ContentType.
 type UpdateOperationJSONRequestBody UpdateOperationJSONBody
@@ -704,6 +889,27 @@ type ServerInterface interface {
 	// (POST /v1/auth/login)
 	Login(w http.ResponseWriter, r *http.Request)
 
+	// (POST /v1/auth/logout)
+	Logout(w http.ResponseWriter, r *http.Request)
+
+	// (GET /v1/auth/oauth/{provider}/callback)
+	FinishOAuth(w http.ResponseWriter, r *http.Request, provider OAuthProvider, params FinishOAuthParams)
+
+	// (GET /v1/auth/oauth/{provider}/start)
+	StartOAuth(w http.ResponseWriter, r *http.Request, provider OAuthProvider, params StartOAuthParams)
+
+	// (POST /v1/auth/password/forgot)
+	ForgotPassword(w http.ResponseWriter, r *http.Request)
+
+	// (POST /v1/auth/password/reset)
+	ResetPassword(w http.ResponseWriter, r *http.Request)
+
+	// (GET /v1/auth/providers)
+	ListAuthProviders(w http.ResponseWriter, r *http.Request)
+
+	// (POST /v1/auth/refresh)
+	Refresh(w http.ResponseWriter, r *http.Request)
+
 	// (POST /v1/auth/register)
 	Register(w http.ResponseWriter, r *http.Request)
 
@@ -712,6 +918,15 @@ type ServerInterface interface {
 
 	// (POST /v1/companies)
 	CreateCompany(w http.ResponseWriter, r *http.Request)
+
+	// (DELETE /v1/companies/{companyId})
+	DeleteCompany(w http.ResponseWriter, r *http.Request, companyId CompanyId)
+
+	// (GET /v1/companies/{companyId})
+	GetCompany(w http.ResponseWriter, r *http.Request, companyId CompanyId)
+
+	// (PATCH /v1/companies/{companyId})
+	UpdateCompany(w http.ResponseWriter, r *http.Request, companyId CompanyId)
 
 	// (GET /v1/companies/{companyId}/alerts)
 	ListAlerts(w http.ResponseWriter, r *http.Request, companyId CompanyId)
@@ -760,6 +975,12 @@ type ServerInterface interface {
 
 	// (POST /v1/companies/{companyId}/sources)
 	CreateSource(w http.ResponseWriter, r *http.Request, companyId CompanyId)
+
+	// (GET /v1/companies/{companyId}/state)
+	GetCompanyState(w http.ResponseWriter, r *http.Request, companyId CompanyId)
+
+	// (PUT /v1/companies/{companyId}/state)
+	PutCompanyState(w http.ResponseWriter, r *http.Request, companyId CompanyId)
 	// Загрузка выписки (1CClientBankExchange, Excel, CSV)
 	// (POST /v1/companies/{companyId}/uploads)
 	UploadStatement(w http.ResponseWriter, r *http.Request, companyId CompanyId)
@@ -772,9 +993,18 @@ type ServerInterface interface {
 
 	// (GET /v1/jobs/{jobId})
 	GetJob(w http.ResponseWriter, r *http.Request, jobId string)
-	// Одноразовая ссылка на бота для привязки чата
-	// (POST /v1/me/telegram/link)
-	CreateTelegramLink(w http.ResponseWriter, r *http.Request)
+
+	// (GET /v1/me)
+	GetMe(w http.ResponseWriter, r *http.Request)
+
+	// (PATCH /v1/me/password)
+	ChangePassword(w http.ResponseWriter, r *http.Request)
+
+	// (GET /v1/me/sessions)
+	ListSessions(w http.ResponseWriter, r *http.Request)
+
+	// (DELETE /v1/me/sessions/{sessionId})
+	RevokeSession(w http.ResponseWriter, r *http.Request, sessionId openapi_types.UUID)
 	// Доступные прогнозные модели (из ML-сервиса + встроенный фолбэк)
 	// (GET /v1/models)
 	ListModels(w http.ResponseWriter, r *http.Request)
@@ -829,6 +1059,177 @@ func (siw *ServerInterfaceWrapper) Login(w http.ResponseWriter, r *http.Request)
 	handler.ServeHTTP(w, r)
 }
 
+// Logout operation middleware
+func (siw *ServerInterfaceWrapper) Logout(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.Logout(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// FinishOAuth operation middleware
+func (siw *ServerInterfaceWrapper) FinishOAuth(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "provider" -------------
+	var provider OAuthProvider
+
+	err = runtime.BindStyledParameterWithOptions("simple", "provider", r.PathValue("provider"), &provider, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "provider", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params FinishOAuthParams
+
+	// ------------- Optional query parameter "code" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "code", r.URL.Query(), &params.Code)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "code", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "state" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "state", r.URL.Query(), &params.State)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "state", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "error" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "error", r.URL.Query(), &params.Error)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "error", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.FinishOAuth(w, r, provider, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// StartOAuth operation middleware
+func (siw *ServerInterfaceWrapper) StartOAuth(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "provider" -------------
+	var provider OAuthProvider
+
+	err = runtime.BindStyledParameterWithOptions("simple", "provider", r.PathValue("provider"), &provider, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "provider", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params StartOAuthParams
+
+	// ------------- Required query parameter "consent_pd" -------------
+
+	if paramValue := r.URL.Query().Get("consent_pd"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "consent_pd"})
+		return
+	}
+
+	err = runtime.BindQueryParameter("form", true, true, "consent_pd", r.URL.Query(), &params.ConsentPd)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "consent_pd", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.StartOAuth(w, r, provider, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ForgotPassword operation middleware
+func (siw *ServerInterfaceWrapper) ForgotPassword(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ForgotPassword(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ResetPassword operation middleware
+func (siw *ServerInterfaceWrapper) ResetPassword(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ResetPassword(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListAuthProviders operation middleware
+func (siw *ServerInterfaceWrapper) ListAuthProviders(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListAuthProviders(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// Refresh operation middleware
+func (siw *ServerInterfaceWrapper) Refresh(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.Refresh(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // Register operation middleware
 func (siw *ServerInterfaceWrapper) Register(w http.ResponseWriter, r *http.Request) {
 
@@ -874,6 +1275,99 @@ func (siw *ServerInterfaceWrapper) CreateCompany(w http.ResponseWriter, r *http.
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.CreateCompany(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteCompany operation middleware
+func (siw *ServerInterfaceWrapper) DeleteCompany(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "companyId" -------------
+	var companyId CompanyId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "companyId", r.PathValue("companyId"), &companyId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "companyId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteCompany(w, r, companyId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetCompany operation middleware
+func (siw *ServerInterfaceWrapper) GetCompany(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "companyId" -------------
+	var companyId CompanyId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "companyId", r.PathValue("companyId"), &companyId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "companyId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetCompany(w, r, companyId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateCompany operation middleware
+func (siw *ServerInterfaceWrapper) UpdateCompany(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "companyId" -------------
+	var companyId CompanyId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "companyId", r.PathValue("companyId"), &companyId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "companyId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateCompany(w, r, companyId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1497,6 +1991,68 @@ func (siw *ServerInterfaceWrapper) CreateSource(w http.ResponseWriter, r *http.R
 	handler.ServeHTTP(w, r)
 }
 
+// GetCompanyState operation middleware
+func (siw *ServerInterfaceWrapper) GetCompanyState(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "companyId" -------------
+	var companyId CompanyId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "companyId", r.PathValue("companyId"), &companyId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "companyId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetCompanyState(w, r, companyId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PutCompanyState operation middleware
+func (siw *ServerInterfaceWrapper) PutCompanyState(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "companyId" -------------
+	var companyId CompanyId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "companyId", r.PathValue("companyId"), &companyId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "companyId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PutCompanyState(w, r, companyId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // UploadStatement operation middleware
 func (siw *ServerInterfaceWrapper) UploadStatement(w http.ResponseWriter, r *http.Request) {
 
@@ -1621,8 +2177,8 @@ func (siw *ServerInterfaceWrapper) GetJob(w http.ResponseWriter, r *http.Request
 	handler.ServeHTTP(w, r)
 }
 
-// CreateTelegramLink operation middleware
-func (siw *ServerInterfaceWrapper) CreateTelegramLink(w http.ResponseWriter, r *http.Request) {
+// GetMe operation middleware
+func (siw *ServerInterfaceWrapper) GetMe(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 
@@ -1631,7 +2187,78 @@ func (siw *ServerInterfaceWrapper) CreateTelegramLink(w http.ResponseWriter, r *
 	r = r.WithContext(ctx)
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.CreateTelegramLink(w, r)
+		siw.Handler.GetMe(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ChangePassword operation middleware
+func (siw *ServerInterfaceWrapper) ChangePassword(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ChangePassword(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListSessions operation middleware
+func (siw *ServerInterfaceWrapper) ListSessions(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListSessions(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// RevokeSession operation middleware
+func (siw *ServerInterfaceWrapper) RevokeSession(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "sessionId" -------------
+	var sessionId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "sessionId", r.PathValue("sessionId"), &sessionId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sessionId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RevokeSession(w, r, sessionId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1643,12 +2270,6 @@ func (siw *ServerInterfaceWrapper) CreateTelegramLink(w http.ResponseWriter, r *
 
 // ListModels operation middleware
 func (siw *ServerInterfaceWrapper) ListModels(w http.ResponseWriter, r *http.Request) {
-
-	ctx := r.Context()
-
-	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
-
-	r = r.WithContext(ctx)
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ListModels(w, r)
@@ -1663,12 +2284,6 @@ func (siw *ServerInterfaceWrapper) ListModels(w http.ResponseWriter, r *http.Req
 
 // GetModelQuality operation middleware
 func (siw *ServerInterfaceWrapper) GetModelQuality(w http.ResponseWriter, r *http.Request) {
-
-	ctx := r.Context()
-
-	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
-
-	r = r.WithContext(ctx)
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetModelQuality(w, r)
@@ -1896,9 +2511,19 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 
 	m.HandleFunc("GET "+options.BaseURL+"/healthz", wrapper.GetHealth)
 	m.HandleFunc("POST "+options.BaseURL+"/v1/auth/login", wrapper.Login)
+	m.HandleFunc("POST "+options.BaseURL+"/v1/auth/logout", wrapper.Logout)
+	m.HandleFunc("GET "+options.BaseURL+"/v1/auth/oauth/{provider}/callback", wrapper.FinishOAuth)
+	m.HandleFunc("GET "+options.BaseURL+"/v1/auth/oauth/{provider}/start", wrapper.StartOAuth)
+	m.HandleFunc("POST "+options.BaseURL+"/v1/auth/password/forgot", wrapper.ForgotPassword)
+	m.HandleFunc("POST "+options.BaseURL+"/v1/auth/password/reset", wrapper.ResetPassword)
+	m.HandleFunc("GET "+options.BaseURL+"/v1/auth/providers", wrapper.ListAuthProviders)
+	m.HandleFunc("POST "+options.BaseURL+"/v1/auth/refresh", wrapper.Refresh)
 	m.HandleFunc("POST "+options.BaseURL+"/v1/auth/register", wrapper.Register)
 	m.HandleFunc("GET "+options.BaseURL+"/v1/companies", wrapper.ListCompanies)
 	m.HandleFunc("POST "+options.BaseURL+"/v1/companies", wrapper.CreateCompany)
+	m.HandleFunc("DELETE "+options.BaseURL+"/v1/companies/{companyId}", wrapper.DeleteCompany)
+	m.HandleFunc("GET "+options.BaseURL+"/v1/companies/{companyId}", wrapper.GetCompany)
+	m.HandleFunc("PATCH "+options.BaseURL+"/v1/companies/{companyId}", wrapper.UpdateCompany)
 	m.HandleFunc("GET "+options.BaseURL+"/v1/companies/{companyId}/alerts", wrapper.ListAlerts)
 	m.HandleFunc("GET "+options.BaseURL+"/v1/companies/{companyId}/counterparties", wrapper.ListCounterparties)
 	m.HandleFunc("GET "+options.BaseURL+"/v1/companies/{companyId}/events", wrapper.ListEvents)
@@ -1915,11 +2540,16 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc("GET "+options.BaseURL+"/v1/companies/{companyId}/scenarios/{scenarioId}/compare", wrapper.CompareScenario)
 	m.HandleFunc("GET "+options.BaseURL+"/v1/companies/{companyId}/sources", wrapper.ListSources)
 	m.HandleFunc("POST "+options.BaseURL+"/v1/companies/{companyId}/sources", wrapper.CreateSource)
+	m.HandleFunc("GET "+options.BaseURL+"/v1/companies/{companyId}/state", wrapper.GetCompanyState)
+	m.HandleFunc("PUT "+options.BaseURL+"/v1/companies/{companyId}/state", wrapper.PutCompanyState)
 	m.HandleFunc("POST "+options.BaseURL+"/v1/companies/{companyId}/uploads", wrapper.UploadStatement)
 	m.HandleFunc("DELETE "+options.BaseURL+"/v1/events/{eventId}", wrapper.DeleteEvent)
 	m.HandleFunc("PATCH "+options.BaseURL+"/v1/events/{eventId}", wrapper.UpdateEvent)
 	m.HandleFunc("GET "+options.BaseURL+"/v1/jobs/{jobId}", wrapper.GetJob)
-	m.HandleFunc("POST "+options.BaseURL+"/v1/me/telegram/link", wrapper.CreateTelegramLink)
+	m.HandleFunc("GET "+options.BaseURL+"/v1/me", wrapper.GetMe)
+	m.HandleFunc("PATCH "+options.BaseURL+"/v1/me/password", wrapper.ChangePassword)
+	m.HandleFunc("GET "+options.BaseURL+"/v1/me/sessions", wrapper.ListSessions)
+	m.HandleFunc("DELETE "+options.BaseURL+"/v1/me/sessions/{sessionId}", wrapper.RevokeSession)
 	m.HandleFunc("GET "+options.BaseURL+"/v1/models", wrapper.ListModels)
 	m.HandleFunc("GET "+options.BaseURL+"/v1/models/quality", wrapper.GetModelQuality)
 	m.HandleFunc("PATCH "+options.BaseURL+"/v1/operations/{operationId}", wrapper.UpdateOperation)
@@ -1945,6 +2575,18 @@ func (response GetHealth200JSONResponse) VisitGetHealthResponse(w http.ResponseW
 	w.WriteHeader(200)
 
 	return json.NewEncoder(w).Encode(response)
+}
+
+type GetHealthdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response GetHealthdefaultJSONResponse) VisitGetHealthResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+
+	return json.NewEncoder(w).Encode(response.Body)
 }
 
 type LoginRequestObject struct {
@@ -1973,6 +2615,227 @@ func (response Login401JSONResponse) VisitLoginResponse(w http.ResponseWriter) e
 	return json.NewEncoder(w).Encode(response)
 }
 
+type LogindefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response LogindefaultJSONResponse) VisitLoginResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+
+	return json.NewEncoder(w).Encode(response.Body)
+}
+
+type LogoutRequestObject struct {
+}
+
+type LogoutResponseObject interface {
+	VisitLogoutResponse(w http.ResponseWriter) error
+}
+
+type Logout204Response struct {
+}
+
+func (response Logout204Response) VisitLogoutResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type LogoutdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response LogoutdefaultJSONResponse) VisitLogoutResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+
+	return json.NewEncoder(w).Encode(response.Body)
+}
+
+type FinishOAuthRequestObject struct {
+	Provider OAuthProvider `json:"provider"`
+	Params   FinishOAuthParams
+}
+
+type FinishOAuthResponseObject interface {
+	VisitFinishOAuthResponse(w http.ResponseWriter) error
+}
+
+type FinishOAuth302ResponseHeaders struct {
+	Location string
+}
+
+type FinishOAuth302Response struct {
+	Headers FinishOAuth302ResponseHeaders
+}
+
+func (response FinishOAuth302Response) VisitFinishOAuthResponse(w http.ResponseWriter) error {
+	w.Header().Set("Location", fmt.Sprint(response.Headers.Location))
+	w.WriteHeader(302)
+	return nil
+}
+
+type FinishOAuthdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response FinishOAuthdefaultJSONResponse) VisitFinishOAuthResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+
+	return json.NewEncoder(w).Encode(response.Body)
+}
+
+type StartOAuthRequestObject struct {
+	Provider OAuthProvider `json:"provider"`
+	Params   StartOAuthParams
+}
+
+type StartOAuthResponseObject interface {
+	VisitStartOAuthResponse(w http.ResponseWriter) error
+}
+
+type StartOAuth302ResponseHeaders struct {
+	Location string
+}
+
+type StartOAuth302Response struct {
+	Headers StartOAuth302ResponseHeaders
+}
+
+func (response StartOAuth302Response) VisitStartOAuthResponse(w http.ResponseWriter) error {
+	w.Header().Set("Location", fmt.Sprint(response.Headers.Location))
+	w.WriteHeader(302)
+	return nil
+}
+
+type StartOAuthdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response StartOAuthdefaultJSONResponse) VisitStartOAuthResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+
+	return json.NewEncoder(w).Encode(response.Body)
+}
+
+type ForgotPasswordRequestObject struct {
+	Body *ForgotPasswordJSONRequestBody
+}
+
+type ForgotPasswordResponseObject interface {
+	VisitForgotPasswordResponse(w http.ResponseWriter) error
+}
+
+type ForgotPassword204Response struct {
+}
+
+func (response ForgotPassword204Response) VisitForgotPasswordResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type ForgotPassworddefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response ForgotPassworddefaultJSONResponse) VisitForgotPasswordResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+
+	return json.NewEncoder(w).Encode(response.Body)
+}
+
+type ResetPasswordRequestObject struct {
+	Body *ResetPasswordJSONRequestBody
+}
+
+type ResetPasswordResponseObject interface {
+	VisitResetPasswordResponse(w http.ResponseWriter) error
+}
+
+type ResetPassword204Response struct {
+}
+
+func (response ResetPassword204Response) VisitResetPasswordResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type ResetPassworddefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response ResetPassworddefaultJSONResponse) VisitResetPasswordResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+
+	return json.NewEncoder(w).Encode(response.Body)
+}
+
+type ListAuthProvidersRequestObject struct {
+}
+
+type ListAuthProvidersResponseObject interface {
+	VisitListAuthProvidersResponse(w http.ResponseWriter) error
+}
+
+type ListAuthProviders200JSONResponse AuthProviders
+
+func (response ListAuthProviders200JSONResponse) VisitListAuthProvidersResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListAuthProvidersdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response ListAuthProvidersdefaultJSONResponse) VisitListAuthProvidersResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+
+	return json.NewEncoder(w).Encode(response.Body)
+}
+
+type RefreshRequestObject struct {
+}
+
+type RefreshResponseObject interface {
+	VisitRefreshResponse(w http.ResponseWriter) error
+}
+
+type Refresh200JSONResponse Token
+
+func (response Refresh200JSONResponse) VisitRefreshResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type RefreshdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response RefreshdefaultJSONResponse) VisitRefreshResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+
+	return json.NewEncoder(w).Encode(response.Body)
+}
+
 type RegisterRequestObject struct {
 	Body *RegisterJSONRequestBody
 }
@@ -1999,6 +2862,18 @@ func (response Register409JSONResponse) VisitRegisterResponse(w http.ResponseWri
 	return json.NewEncoder(w).Encode(response)
 }
 
+type RegisterdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response RegisterdefaultJSONResponse) VisitRegisterResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+
+	return json.NewEncoder(w).Encode(response.Body)
+}
+
 type ListCompaniesRequestObject struct {
 }
 
@@ -2013,6 +2888,18 @@ func (response ListCompanies200JSONResponse) VisitListCompaniesResponse(w http.R
 	w.WriteHeader(200)
 
 	return json.NewEncoder(w).Encode(response)
+}
+
+type ListCompaniesdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response ListCompaniesdefaultJSONResponse) VisitListCompaniesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+
+	return json.NewEncoder(w).Encode(response.Body)
 }
 
 type CreateCompanyRequestObject struct {
@@ -2032,6 +2919,106 @@ func (response CreateCompany201JSONResponse) VisitCreateCompanyResponse(w http.R
 	return json.NewEncoder(w).Encode(response)
 }
 
+type CreateCompanydefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response CreateCompanydefaultJSONResponse) VisitCreateCompanyResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+
+	return json.NewEncoder(w).Encode(response.Body)
+}
+
+type DeleteCompanyRequestObject struct {
+	CompanyId CompanyId `json:"companyId"`
+	Body      *DeleteCompanyJSONRequestBody
+}
+
+type DeleteCompanyResponseObject interface {
+	VisitDeleteCompanyResponse(w http.ResponseWriter) error
+}
+
+type DeleteCompany204Response struct {
+}
+
+func (response DeleteCompany204Response) VisitDeleteCompanyResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteCompanydefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response DeleteCompanydefaultJSONResponse) VisitDeleteCompanyResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+
+	return json.NewEncoder(w).Encode(response.Body)
+}
+
+type GetCompanyRequestObject struct {
+	CompanyId CompanyId `json:"companyId"`
+}
+
+type GetCompanyResponseObject interface {
+	VisitGetCompanyResponse(w http.ResponseWriter) error
+}
+
+type GetCompany200JSONResponse Company
+
+func (response GetCompany200JSONResponse) VisitGetCompanyResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetCompanydefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response GetCompanydefaultJSONResponse) VisitGetCompanyResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+
+	return json.NewEncoder(w).Encode(response.Body)
+}
+
+type UpdateCompanyRequestObject struct {
+	CompanyId CompanyId `json:"companyId"`
+	Body      *UpdateCompanyJSONRequestBody
+}
+
+type UpdateCompanyResponseObject interface {
+	VisitUpdateCompanyResponse(w http.ResponseWriter) error
+}
+
+type UpdateCompany200JSONResponse Company
+
+func (response UpdateCompany200JSONResponse) VisitUpdateCompanyResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateCompanydefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response UpdateCompanydefaultJSONResponse) VisitUpdateCompanyResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+
+	return json.NewEncoder(w).Encode(response.Body)
+}
+
 type ListAlertsRequestObject struct {
 	CompanyId CompanyId `json:"companyId"`
 }
@@ -2049,6 +3036,18 @@ func (response ListAlerts200JSONResponse) VisitListAlertsResponse(w http.Respons
 	return json.NewEncoder(w).Encode(response)
 }
 
+type ListAlertsdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response ListAlertsdefaultJSONResponse) VisitListAlertsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+
+	return json.NewEncoder(w).Encode(response.Body)
+}
+
 type ListCounterpartiesRequestObject struct {
 	CompanyId CompanyId `json:"companyId"`
 }
@@ -2064,6 +3063,18 @@ func (response ListCounterparties200JSONResponse) VisitListCounterpartiesRespons
 	w.WriteHeader(200)
 
 	return json.NewEncoder(w).Encode(response)
+}
+
+type ListCounterpartiesdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response ListCounterpartiesdefaultJSONResponse) VisitListCounterpartiesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+
+	return json.NewEncoder(w).Encode(response.Body)
 }
 
 type ListEventsRequestObject struct {
@@ -2084,6 +3095,18 @@ func (response ListEvents200JSONResponse) VisitListEventsResponse(w http.Respons
 	return json.NewEncoder(w).Encode(response)
 }
 
+type ListEventsdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response ListEventsdefaultJSONResponse) VisitListEventsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+
+	return json.NewEncoder(w).Encode(response.Body)
+}
+
 type CreateEventRequestObject struct {
 	CompanyId CompanyId `json:"companyId"`
 	Body      *CreateEventJSONRequestBody
@@ -2100,6 +3123,18 @@ func (response CreateEvent201JSONResponse) VisitCreateEventResponse(w http.Respo
 	w.WriteHeader(201)
 
 	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateEventdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response CreateEventdefaultJSONResponse) VisitCreateEventResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+
+	return json.NewEncoder(w).Encode(response.Body)
 }
 
 type ParseEventRequestObject struct {
@@ -2120,6 +3155,18 @@ func (response ParseEvent200JSONResponse) VisitParseEventResponse(w http.Respons
 	return json.NewEncoder(w).Encode(response)
 }
 
+type ParseEventdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response ParseEventdefaultJSONResponse) VisitParseEventResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+
+	return json.NewEncoder(w).Encode(response.Body)
+}
+
 type GetForecastRequestObject struct {
 	CompanyId CompanyId `json:"companyId"`
 	Params    GetForecastParams
@@ -2136,6 +3183,18 @@ func (response GetForecast200JSONResponse) VisitGetForecastResponse(w http.Respo
 	w.WriteHeader(200)
 
 	return json.NewEncoder(w).Encode(response)
+}
+
+type GetForecastdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response GetForecastdefaultJSONResponse) VisitGetForecastResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+
+	return json.NewEncoder(w).Encode(response.Body)
 }
 
 type GetGapRequestObject struct {
@@ -2156,6 +3215,18 @@ func (response GetGap200JSONResponse) VisitGetGapResponse(w http.ResponseWriter)
 	return json.NewEncoder(w).Encode(response)
 }
 
+type GetGapdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response GetGapdefaultJSONResponse) VisitGetGapResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+
+	return json.NewEncoder(w).Encode(response.Body)
+}
+
 type ListOperationsRequestObject struct {
 	CompanyId CompanyId `json:"companyId"`
 	Params    ListOperationsParams
@@ -2172,6 +3243,18 @@ func (response ListOperations200JSONResponse) VisitListOperationsResponse(w http
 	w.WriteHeader(200)
 
 	return json.NewEncoder(w).Encode(response)
+}
+
+type ListOperationsdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response ListOperationsdefaultJSONResponse) VisitListOperationsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+
+	return json.NewEncoder(w).Encode(response.Body)
 }
 
 type GetPlanFactRequestObject struct {
@@ -2192,6 +3275,18 @@ func (response GetPlanFact200JSONResponse) VisitGetPlanFactResponse(w http.Respo
 	return json.NewEncoder(w).Encode(response)
 }
 
+type GetPlanFactdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response GetPlanFactdefaultJSONResponse) VisitGetPlanFactResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+
+	return json.NewEncoder(w).Encode(response.Body)
+}
+
 type ListRecurringRequestObject struct {
 	CompanyId CompanyId `json:"companyId"`
 }
@@ -2207,6 +3302,18 @@ func (response ListRecurring200JSONResponse) VisitListRecurringResponse(w http.R
 	w.WriteHeader(200)
 
 	return json.NewEncoder(w).Encode(response)
+}
+
+type ListRecurringdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response ListRecurringdefaultJSONResponse) VisitListRecurringResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+
+	return json.NewEncoder(w).Encode(response.Body)
 }
 
 type GetRetroRequestObject struct {
@@ -2226,6 +3333,18 @@ func (response GetRetro200JSONResponse) VisitGetRetroResponse(w http.ResponseWri
 	return json.NewEncoder(w).Encode(response)
 }
 
+type GetRetrodefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response GetRetrodefaultJSONResponse) VisitGetRetroResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+
+	return json.NewEncoder(w).Encode(response.Body)
+}
+
 type ListScenariosRequestObject struct {
 	CompanyId CompanyId `json:"companyId"`
 }
@@ -2241,6 +3360,18 @@ func (response ListScenarios200JSONResponse) VisitListScenariosResponse(w http.R
 	w.WriteHeader(200)
 
 	return json.NewEncoder(w).Encode(response)
+}
+
+type ListScenariosdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response ListScenariosdefaultJSONResponse) VisitListScenariosResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+
+	return json.NewEncoder(w).Encode(response.Body)
 }
 
 type CreateScenarioRequestObject struct {
@@ -2261,6 +3392,18 @@ func (response CreateScenario201JSONResponse) VisitCreateScenarioResponse(w http
 	return json.NewEncoder(w).Encode(response)
 }
 
+type CreateScenariodefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response CreateScenariodefaultJSONResponse) VisitCreateScenarioResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+
+	return json.NewEncoder(w).Encode(response.Body)
+}
+
 type CompareScenarioRequestObject struct {
 	CompanyId  CompanyId          `json:"companyId"`
 	ScenarioId openapi_types.UUID `json:"scenarioId"`
@@ -2279,6 +3422,18 @@ func (response CompareScenario200JSONResponse) VisitCompareScenarioResponse(w ht
 	return json.NewEncoder(w).Encode(response)
 }
 
+type CompareScenariodefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response CompareScenariodefaultJSONResponse) VisitCompareScenarioResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+
+	return json.NewEncoder(w).Encode(response.Body)
+}
+
 type ListSourcesRequestObject struct {
 	CompanyId CompanyId `json:"companyId"`
 }
@@ -2294,6 +3449,18 @@ func (response ListSources200JSONResponse) VisitListSourcesResponse(w http.Respo
 	w.WriteHeader(200)
 
 	return json.NewEncoder(w).Encode(response)
+}
+
+type ListSourcesdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response ListSourcesdefaultJSONResponse) VisitListSourcesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+
+	return json.NewEncoder(w).Encode(response.Body)
 }
 
 type CreateSourceRequestObject struct {
@@ -2314,6 +3481,77 @@ func (response CreateSource201JSONResponse) VisitCreateSourceResponse(w http.Res
 	return json.NewEncoder(w).Encode(response)
 }
 
+type CreateSourcedefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response CreateSourcedefaultJSONResponse) VisitCreateSourceResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+
+	return json.NewEncoder(w).Encode(response.Body)
+}
+
+type GetCompanyStateRequestObject struct {
+	CompanyId CompanyId `json:"companyId"`
+}
+
+type GetCompanyStateResponseObject interface {
+	VisitGetCompanyStateResponse(w http.ResponseWriter) error
+}
+
+type GetCompanyState200JSONResponse CompanyState
+
+func (response GetCompanyState200JSONResponse) VisitGetCompanyStateResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetCompanyStatedefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response GetCompanyStatedefaultJSONResponse) VisitGetCompanyStateResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+
+	return json.NewEncoder(w).Encode(response.Body)
+}
+
+type PutCompanyStateRequestObject struct {
+	CompanyId CompanyId `json:"companyId"`
+	Body      *PutCompanyStateJSONRequestBody
+}
+
+type PutCompanyStateResponseObject interface {
+	VisitPutCompanyStateResponse(w http.ResponseWriter) error
+}
+
+type PutCompanyState200JSONResponse CompanyState
+
+func (response PutCompanyState200JSONResponse) VisitPutCompanyStateResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PutCompanyStatedefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response PutCompanyStatedefaultJSONResponse) VisitPutCompanyStateResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+
+	return json.NewEncoder(w).Encode(response.Body)
+}
+
 type UploadStatementRequestObject struct {
 	CompanyId CompanyId `json:"companyId"`
 	Body      *multipart.Reader
@@ -2332,6 +3570,18 @@ func (response UploadStatement202JSONResponse) VisitUploadStatementResponse(w ht
 	return json.NewEncoder(w).Encode(response)
 }
 
+type UploadStatementdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response UploadStatementdefaultJSONResponse) VisitUploadStatementResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+
+	return json.NewEncoder(w).Encode(response.Body)
+}
+
 type DeleteEventRequestObject struct {
 	EventId openapi_types.UUID `json:"eventId"`
 }
@@ -2346,6 +3596,18 @@ type DeleteEvent204Response struct {
 func (response DeleteEvent204Response) VisitDeleteEventResponse(w http.ResponseWriter) error {
 	w.WriteHeader(204)
 	return nil
+}
+
+type DeleteEventdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response DeleteEventdefaultJSONResponse) VisitDeleteEventResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+
+	return json.NewEncoder(w).Encode(response.Body)
 }
 
 type UpdateEventRequestObject struct {
@@ -2366,6 +3628,18 @@ func (response UpdateEvent200JSONResponse) VisitUpdateEventResponse(w http.Respo
 	return json.NewEncoder(w).Encode(response)
 }
 
+type UpdateEventdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response UpdateEventdefaultJSONResponse) VisitUpdateEventResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+
+	return json.NewEncoder(w).Encode(response.Body)
+}
+
 type GetJobRequestObject struct {
 	JobId string `json:"jobId"`
 }
@@ -2383,23 +3657,128 @@ func (response GetJob200JSONResponse) VisitGetJobResponse(w http.ResponseWriter)
 	return json.NewEncoder(w).Encode(response)
 }
 
-type CreateTelegramLinkRequestObject struct {
+type GetJobdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
 }
 
-type CreateTelegramLinkResponseObject interface {
-	VisitCreateTelegramLinkResponse(w http.ResponseWriter) error
+func (response GetJobdefaultJSONResponse) VisitGetJobResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+
+	return json.NewEncoder(w).Encode(response.Body)
 }
 
-type CreateTelegramLink200JSONResponse struct {
-	ExpiresAt time.Time `json:"expires_at"`
-	Url       string    `json:"url"`
+type GetMeRequestObject struct {
 }
 
-func (response CreateTelegramLink200JSONResponse) VisitCreateTelegramLinkResponse(w http.ResponseWriter) error {
+type GetMeResponseObject interface {
+	VisitGetMeResponse(w http.ResponseWriter) error
+}
+
+type GetMe200JSONResponse Profile
+
+func (response GetMe200JSONResponse) VisitGetMeResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(200)
 
 	return json.NewEncoder(w).Encode(response)
+}
+
+type GetMedefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response GetMedefaultJSONResponse) VisitGetMeResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+
+	return json.NewEncoder(w).Encode(response.Body)
+}
+
+type ChangePasswordRequestObject struct {
+	Body *ChangePasswordJSONRequestBody
+}
+
+type ChangePasswordResponseObject interface {
+	VisitChangePasswordResponse(w http.ResponseWriter) error
+}
+
+type ChangePassword204Response struct {
+}
+
+func (response ChangePassword204Response) VisitChangePasswordResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type ChangePassworddefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response ChangePassworddefaultJSONResponse) VisitChangePasswordResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+
+	return json.NewEncoder(w).Encode(response.Body)
+}
+
+type ListSessionsRequestObject struct {
+}
+
+type ListSessionsResponseObject interface {
+	VisitListSessionsResponse(w http.ResponseWriter) error
+}
+
+type ListSessions200JSONResponse Sessions
+
+func (response ListSessions200JSONResponse) VisitListSessionsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListSessionsdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response ListSessionsdefaultJSONResponse) VisitListSessionsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+
+	return json.NewEncoder(w).Encode(response.Body)
+}
+
+type RevokeSessionRequestObject struct {
+	SessionId openapi_types.UUID `json:"sessionId"`
+}
+
+type RevokeSessionResponseObject interface {
+	VisitRevokeSessionResponse(w http.ResponseWriter) error
+}
+
+type RevokeSession204Response struct {
+}
+
+func (response RevokeSession204Response) VisitRevokeSessionResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type RevokeSessiondefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response RevokeSessiondefaultJSONResponse) VisitRevokeSessionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+
+	return json.NewEncoder(w).Encode(response.Body)
 }
 
 type ListModelsRequestObject struct {
@@ -2418,6 +3797,18 @@ func (response ListModels200JSONResponse) VisitListModelsResponse(w http.Respons
 	return json.NewEncoder(w).Encode(response)
 }
 
+type ListModelsdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response ListModelsdefaultJSONResponse) VisitListModelsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+
+	return json.NewEncoder(w).Encode(response.Body)
+}
+
 type GetModelQualityRequestObject struct {
 }
 
@@ -2432,6 +3823,18 @@ func (response GetModelQuality200JSONResponse) VisitGetModelQualityResponse(w ht
 	w.WriteHeader(200)
 
 	return json.NewEncoder(w).Encode(response)
+}
+
+type GetModelQualitydefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response GetModelQualitydefaultJSONResponse) VisitGetModelQualityResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+
+	return json.NewEncoder(w).Encode(response.Body)
 }
 
 type UpdateOperationRequestObject struct {
@@ -2452,6 +3855,18 @@ func (response UpdateOperation200JSONResponse) VisitUpdateOperationResponse(w ht
 	return json.NewEncoder(w).Encode(response)
 }
 
+type UpdateOperationdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response UpdateOperationdefaultJSONResponse) VisitUpdateOperationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+
+	return json.NewEncoder(w).Encode(response.Body)
+}
+
 type UpdateRecurringRequestObject struct {
 	PatternId openapi_types.UUID `json:"patternId"`
 	Body      *UpdateRecurringJSONRequestBody
@@ -2468,6 +3883,18 @@ func (response UpdateRecurring200JSONResponse) VisitUpdateRecurringResponse(w ht
 	w.WriteHeader(200)
 
 	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateRecurringdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response UpdateRecurringdefaultJSONResponse) VisitUpdateRecurringResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+
+	return json.NewEncoder(w).Encode(response.Body)
 }
 
 type SyncSourceRequestObject struct {
@@ -2487,6 +3914,18 @@ func (response SyncSource202JSONResponse) VisitSyncSourceResponse(w http.Respons
 	return json.NewEncoder(w).Encode(response)
 }
 
+type SyncSourcedefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response SyncSourcedefaultJSONResponse) VisitSyncSourceResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+
+	return json.NewEncoder(w).Encode(response.Body)
+}
+
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
 
@@ -2496,6 +3935,27 @@ type StrictServerInterface interface {
 	// (POST /v1/auth/login)
 	Login(ctx context.Context, request LoginRequestObject) (LoginResponseObject, error)
 
+	// (POST /v1/auth/logout)
+	Logout(ctx context.Context, request LogoutRequestObject) (LogoutResponseObject, error)
+
+	// (GET /v1/auth/oauth/{provider}/callback)
+	FinishOAuth(ctx context.Context, request FinishOAuthRequestObject) (FinishOAuthResponseObject, error)
+
+	// (GET /v1/auth/oauth/{provider}/start)
+	StartOAuth(ctx context.Context, request StartOAuthRequestObject) (StartOAuthResponseObject, error)
+
+	// (POST /v1/auth/password/forgot)
+	ForgotPassword(ctx context.Context, request ForgotPasswordRequestObject) (ForgotPasswordResponseObject, error)
+
+	// (POST /v1/auth/password/reset)
+	ResetPassword(ctx context.Context, request ResetPasswordRequestObject) (ResetPasswordResponseObject, error)
+
+	// (GET /v1/auth/providers)
+	ListAuthProviders(ctx context.Context, request ListAuthProvidersRequestObject) (ListAuthProvidersResponseObject, error)
+
+	// (POST /v1/auth/refresh)
+	Refresh(ctx context.Context, request RefreshRequestObject) (RefreshResponseObject, error)
+
 	// (POST /v1/auth/register)
 	Register(ctx context.Context, request RegisterRequestObject) (RegisterResponseObject, error)
 
@@ -2504,6 +3964,15 @@ type StrictServerInterface interface {
 
 	// (POST /v1/companies)
 	CreateCompany(ctx context.Context, request CreateCompanyRequestObject) (CreateCompanyResponseObject, error)
+
+	// (DELETE /v1/companies/{companyId})
+	DeleteCompany(ctx context.Context, request DeleteCompanyRequestObject) (DeleteCompanyResponseObject, error)
+
+	// (GET /v1/companies/{companyId})
+	GetCompany(ctx context.Context, request GetCompanyRequestObject) (GetCompanyResponseObject, error)
+
+	// (PATCH /v1/companies/{companyId})
+	UpdateCompany(ctx context.Context, request UpdateCompanyRequestObject) (UpdateCompanyResponseObject, error)
 
 	// (GET /v1/companies/{companyId}/alerts)
 	ListAlerts(ctx context.Context, request ListAlertsRequestObject) (ListAlertsResponseObject, error)
@@ -2552,6 +4021,12 @@ type StrictServerInterface interface {
 
 	// (POST /v1/companies/{companyId}/sources)
 	CreateSource(ctx context.Context, request CreateSourceRequestObject) (CreateSourceResponseObject, error)
+
+	// (GET /v1/companies/{companyId}/state)
+	GetCompanyState(ctx context.Context, request GetCompanyStateRequestObject) (GetCompanyStateResponseObject, error)
+
+	// (PUT /v1/companies/{companyId}/state)
+	PutCompanyState(ctx context.Context, request PutCompanyStateRequestObject) (PutCompanyStateResponseObject, error)
 	// Загрузка выписки (1CClientBankExchange, Excel, CSV)
 	// (POST /v1/companies/{companyId}/uploads)
 	UploadStatement(ctx context.Context, request UploadStatementRequestObject) (UploadStatementResponseObject, error)
@@ -2564,9 +4039,18 @@ type StrictServerInterface interface {
 
 	// (GET /v1/jobs/{jobId})
 	GetJob(ctx context.Context, request GetJobRequestObject) (GetJobResponseObject, error)
-	// Одноразовая ссылка на бота для привязки чата
-	// (POST /v1/me/telegram/link)
-	CreateTelegramLink(ctx context.Context, request CreateTelegramLinkRequestObject) (CreateTelegramLinkResponseObject, error)
+
+	// (GET /v1/me)
+	GetMe(ctx context.Context, request GetMeRequestObject) (GetMeResponseObject, error)
+
+	// (PATCH /v1/me/password)
+	ChangePassword(ctx context.Context, request ChangePasswordRequestObject) (ChangePasswordResponseObject, error)
+
+	// (GET /v1/me/sessions)
+	ListSessions(ctx context.Context, request ListSessionsRequestObject) (ListSessionsResponseObject, error)
+
+	// (DELETE /v1/me/sessions/{sessionId})
+	RevokeSession(ctx context.Context, request RevokeSessionRequestObject) (RevokeSessionResponseObject, error)
 	// Доступные прогнозные модели (из ML-сервиса + встроенный фолбэк)
 	// (GET /v1/models)
 	ListModels(ctx context.Context, request ListModelsRequestObject) (ListModelsResponseObject, error)
@@ -2668,6 +4152,194 @@ func (sh *strictHandler) Login(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// Logout operation middleware
+func (sh *strictHandler) Logout(w http.ResponseWriter, r *http.Request) {
+	var request LogoutRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.Logout(ctx, request.(LogoutRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "Logout")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(LogoutResponseObject); ok {
+		if err := validResponse.VisitLogoutResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// FinishOAuth operation middleware
+func (sh *strictHandler) FinishOAuth(w http.ResponseWriter, r *http.Request, provider OAuthProvider, params FinishOAuthParams) {
+	var request FinishOAuthRequestObject
+
+	request.Provider = provider
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.FinishOAuth(ctx, request.(FinishOAuthRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "FinishOAuth")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(FinishOAuthResponseObject); ok {
+		if err := validResponse.VisitFinishOAuthResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// StartOAuth operation middleware
+func (sh *strictHandler) StartOAuth(w http.ResponseWriter, r *http.Request, provider OAuthProvider, params StartOAuthParams) {
+	var request StartOAuthRequestObject
+
+	request.Provider = provider
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.StartOAuth(ctx, request.(StartOAuthRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "StartOAuth")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(StartOAuthResponseObject); ok {
+		if err := validResponse.VisitStartOAuthResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ForgotPassword operation middleware
+func (sh *strictHandler) ForgotPassword(w http.ResponseWriter, r *http.Request) {
+	var request ForgotPasswordRequestObject
+
+	var body ForgotPasswordJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ForgotPassword(ctx, request.(ForgotPasswordRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ForgotPassword")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ForgotPasswordResponseObject); ok {
+		if err := validResponse.VisitForgotPasswordResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ResetPassword operation middleware
+func (sh *strictHandler) ResetPassword(w http.ResponseWriter, r *http.Request) {
+	var request ResetPasswordRequestObject
+
+	var body ResetPasswordJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ResetPassword(ctx, request.(ResetPasswordRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ResetPassword")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ResetPasswordResponseObject); ok {
+		if err := validResponse.VisitResetPasswordResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListAuthProviders operation middleware
+func (sh *strictHandler) ListAuthProviders(w http.ResponseWriter, r *http.Request) {
+	var request ListAuthProvidersRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListAuthProviders(ctx, request.(ListAuthProvidersRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListAuthProviders")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListAuthProvidersResponseObject); ok {
+		if err := validResponse.VisitListAuthProvidersResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// Refresh operation middleware
+func (sh *strictHandler) Refresh(w http.ResponseWriter, r *http.Request) {
+	var request RefreshRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.Refresh(ctx, request.(RefreshRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "Refresh")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(RefreshResponseObject); ok {
+		if err := validResponse.VisitRefreshResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // Register operation middleware
 func (sh *strictHandler) Register(w http.ResponseWriter, r *http.Request) {
 	var request RegisterRequestObject
@@ -2747,6 +4419,98 @@ func (sh *strictHandler) CreateCompany(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(CreateCompanyResponseObject); ok {
 		if err := validResponse.VisitCreateCompanyResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteCompany operation middleware
+func (sh *strictHandler) DeleteCompany(w http.ResponseWriter, r *http.Request, companyId CompanyId) {
+	var request DeleteCompanyRequestObject
+
+	request.CompanyId = companyId
+
+	var body DeleteCompanyJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteCompany(ctx, request.(DeleteCompanyRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteCompany")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteCompanyResponseObject); ok {
+		if err := validResponse.VisitDeleteCompanyResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetCompany operation middleware
+func (sh *strictHandler) GetCompany(w http.ResponseWriter, r *http.Request, companyId CompanyId) {
+	var request GetCompanyRequestObject
+
+	request.CompanyId = companyId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetCompany(ctx, request.(GetCompanyRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetCompany")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetCompanyResponseObject); ok {
+		if err := validResponse.VisitGetCompanyResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateCompany operation middleware
+func (sh *strictHandler) UpdateCompany(w http.ResponseWriter, r *http.Request, companyId CompanyId) {
+	var request UpdateCompanyRequestObject
+
+	request.CompanyId = companyId
+
+	var body UpdateCompanyJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateCompany(ctx, request.(UpdateCompanyRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateCompany")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateCompanyResponseObject); ok {
+		if err := validResponse.VisitUpdateCompanyResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -3204,6 +4968,65 @@ func (sh *strictHandler) CreateSource(w http.ResponseWriter, r *http.Request, co
 	}
 }
 
+// GetCompanyState operation middleware
+func (sh *strictHandler) GetCompanyState(w http.ResponseWriter, r *http.Request, companyId CompanyId) {
+	var request GetCompanyStateRequestObject
+
+	request.CompanyId = companyId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetCompanyState(ctx, request.(GetCompanyStateRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetCompanyState")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetCompanyStateResponseObject); ok {
+		if err := validResponse.VisitGetCompanyStateResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PutCompanyState operation middleware
+func (sh *strictHandler) PutCompanyState(w http.ResponseWriter, r *http.Request, companyId CompanyId) {
+	var request PutCompanyStateRequestObject
+
+	request.CompanyId = companyId
+
+	var body PutCompanyStateJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PutCompanyState(ctx, request.(PutCompanyStateRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PutCompanyState")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PutCompanyStateResponseObject); ok {
+		if err := validResponse.VisitPutCompanyStateResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // UploadStatement operation middleware
 func (sh *strictHandler) UploadStatement(w http.ResponseWriter, r *http.Request, companyId CompanyId) {
 	var request UploadStatementRequestObject
@@ -3322,23 +5145,104 @@ func (sh *strictHandler) GetJob(w http.ResponseWriter, r *http.Request, jobId st
 	}
 }
 
-// CreateTelegramLink operation middleware
-func (sh *strictHandler) CreateTelegramLink(w http.ResponseWriter, r *http.Request) {
-	var request CreateTelegramLinkRequestObject
+// GetMe operation middleware
+func (sh *strictHandler) GetMe(w http.ResponseWriter, r *http.Request) {
+	var request GetMeRequestObject
 
 	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
-		return sh.ssi.CreateTelegramLink(ctx, request.(CreateTelegramLinkRequestObject))
+		return sh.ssi.GetMe(ctx, request.(GetMeRequestObject))
 	}
 	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "CreateTelegramLink")
+		handler = middleware(handler, "GetMe")
 	}
 
 	response, err := handler(r.Context(), w, r, request)
 
 	if err != nil {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
-	} else if validResponse, ok := response.(CreateTelegramLinkResponseObject); ok {
-		if err := validResponse.VisitCreateTelegramLinkResponse(w); err != nil {
+	} else if validResponse, ok := response.(GetMeResponseObject); ok {
+		if err := validResponse.VisitGetMeResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ChangePassword operation middleware
+func (sh *strictHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
+	var request ChangePasswordRequestObject
+
+	var body ChangePasswordJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ChangePassword(ctx, request.(ChangePasswordRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ChangePassword")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ChangePasswordResponseObject); ok {
+		if err := validResponse.VisitChangePasswordResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListSessions operation middleware
+func (sh *strictHandler) ListSessions(w http.ResponseWriter, r *http.Request) {
+	var request ListSessionsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListSessions(ctx, request.(ListSessionsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListSessions")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListSessionsResponseObject); ok {
+		if err := validResponse.VisitListSessionsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// RevokeSession operation middleware
+func (sh *strictHandler) RevokeSession(w http.ResponseWriter, r *http.Request, sessionId openapi_types.UUID) {
+	var request RevokeSessionRequestObject
+
+	request.SessionId = sessionId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.RevokeSession(ctx, request.(RevokeSessionRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RevokeSession")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(RevokeSessionResponseObject); ok {
+		if err := validResponse.VisitRevokeSessionResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
