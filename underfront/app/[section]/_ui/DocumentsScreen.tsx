@@ -29,7 +29,8 @@ function DocumentsPanel({ kind }: { kind: Kind }) {
   const base = `/v1/companies/${company!.id}/${kind}`;
   const [status, setStatus] = useState("");
   const [direction, setDirection] = useState("");
-  const rows = useApiResource<Array<Invoice | Contract>>(`${base}?${new URLSearchParams({ status, direction })}`);
+  const filters = new URLSearchParams(Object.entries({ status, direction }).filter(([, value]) => value));
+  const rows = useApiResource<Array<Invoice | Contract>>(`${base}?${filters}`);
   const [editing, setEditing] = useState<Invoice | Contract | "new" | null>(null);
   const [deleting, setDeleting] = useState<Invoice | Contract | null>(null);
   const action = useAction();

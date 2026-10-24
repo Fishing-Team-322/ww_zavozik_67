@@ -1,5 +1,4 @@
 "use client";
-
 /**
  * ПУЛЬС / Runway-inspired overview — pure TSX + Tailwind CSS.
  *
@@ -12,12 +11,10 @@
  * No CSS modules or extra stylesheet required.
  * All fictional data are labelled. Risk probability is never invented.
  */
-
 import Link from "next/link";
 import type { Schemas } from "@/src/shared/api";
 import { alertLink } from "@/src/features/notifications";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/src/shared/ui/table";
-import { Select } from "@/src/shared/ui/select";
 import { useId, useMemo, useState } from "react";
 import {
   Activity,
@@ -47,10 +44,8 @@ import {
 } from "recharts";
 import { Button } from "@/src/shared/ui/button";
 import { Tabs } from "@/src/shared/ui/tabs";
-
 export type ScenarioKey = "base" | "delay" | "downturn";
 export type EventCategory = "revenue" | "payroll" | "suppliers" | "taxes" | "other";
-
 export type ForecastDay = {
   date: string; // YYYY-MM-DD, consecutive forecast dates
   base: number; // projected EOD balance, RUB
@@ -61,10 +56,8 @@ export type ForecastDay = {
   p50?: number;
   p90?: number;
 };
-
 export type HistoryDay = { date: string; actual: number | null };
 export type OverdueReceipt = { title: string; counterparty: string; amount: number; dueDate: string };
-
 export type CashEvent = {
   id: string;
   title: string;
@@ -76,7 +69,6 @@ export type CashEvent = {
   source?: string;
   paymentDiscipline?: string; // supplied client history, shown for receipts
 };
-
 export type PulsOverviewData = {
   company?: string;
   currentBalance: number;
@@ -95,7 +87,6 @@ export type PulsOverviewData = {
   updatedAt?: string;
   isDemo?: boolean;
 };
-
 export type PulsOverviewProps = {
   data?: PulsOverviewData | null;
   onAddSource?: () => void;
@@ -109,13 +100,11 @@ export type PulsOverviewProps = {
   onOpenDay?: (date: string) => void;
   alerts?: Schemas["Alert"][];
 };
-
 const SCENARIOS: ReadonlyArray<{ key: ScenarioKey; label: string; full: string }> = [
   { key: "base", label: "Базовый", full: "Базовый прогноз" },
   { key: "delay", label: "Оплата +14 дней", full: "Задержка оплаты клиента" },
   { key: "downturn", label: "Выручка −20%", full: "Снижение выручки" },
 ];
-
 const CATEGORY_ROWS: ReadonlyArray<{ key: EventCategory; label: string }> = [
   { key: "revenue", label: "Поступления клиентов" },
   { key: "payroll", label: "Заработная плата" },
@@ -123,11 +112,9 @@ const CATEGORY_ROWS: ReadonlyArray<{ key: EventCategory; label: string }> = [
   { key: "taxes", label: "Налоги и взносы" },
   { key: "other", label: "Операционные расходы" },
 ];
-
 const numberFormat = new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 0 });
 export const formatMoney = (value: number) =>
   `${value < 0 ? "−" : ""}${numberFormat.format(Math.abs(value))} ₽`;
-
 const compactMoney = (value: number) => {
   const sign = value < 0 ? "−" : "";
   const magnitude = Math.abs(value);
@@ -137,7 +124,6 @@ const compactMoney = (value: number) => {
   if (magnitude >= 1_000) return `${sign}${Math.round(magnitude / 1_000).toLocaleString("ru-RU")} тыс ₽`;
   return formatMoney(value);
 };
-
 const displayDate = (value: string) => {
   const date = new Date(`${value}T00:00:00Z`);
   if (Number.isNaN(date.getTime())) return value;
@@ -145,11 +131,9 @@ const displayDate = (value: string) => {
     timeZone: "UTC", day: "numeric", month: "short",
   }).format(date);
 };
-
 function scenarioSupported(data: PulsOverviewData, key: ScenarioKey) {
   return key === "base" || (data.forecast.length > 0 && data.forecast.every(p => typeof p[key] === "number" && Number.isFinite(p[key])));
 }
-
 export function getForecastStats(points: ForecastDay[], key: ScenarioKey) {
   if (points.length === 0) return { last: 0, minimum: 0, firstNegative: -1, negativeDays: 0, deficit: 0 };
   const balances = points.map(point => point[key] ?? point.base);
@@ -162,7 +146,6 @@ export function getForecastStats(points: ForecastDay[], key: ScenarioKey) {
     deficit: Math.max(0, -minimum),
   };
 }
-
 // Deterministic sample only. Do not show these figures as your backend's actual prediction.
 function createDemo(): PulsOverviewData {
   const events: CashEvent[] = [
@@ -206,7 +189,6 @@ function createDemo(): PulsOverviewData {
   return { currentBalance: 470000, company: "ООО «Горизонт»", forecast, history, events, reserve: 100000, shortfallProbability: 0.64, overdueReceipts: [{ title: "Просроченная оплата", counterparty: "ООО «Орион»", amount: 110000, dueDate: "2026-10-21" }], unusualExpenseIds: ["e8"], isDemo: true };
 }
 export const PULS_DEMO_DATA = createDemo();
-
 /** Small SVG, no charting dependencies or extra CSS. */
 export function KpiSparkline({
   first, second, id,
@@ -237,57 +219,162 @@ export function KpiSparkline({
     <line x1="69%" x2="69%" y1="0" y2={height} stroke="var(--puls-border-strong)" strokeWidth="1"/>
   </svg>;
 }
-
 export function KpiStrip({ data, selected }: { data: PulsOverviewData; selected: ScenarioKey }) {
-  const period = data.forecast.slice(0, (data.horizon ?? 30) + 1);
-  const stats = getForecastStats(period, selected);
-  const minimum = selected === "base" && data.minimumBalance ? data.minimumBalance.p50 : stats.minimum;
-  const minimumDay = selected === "base" && data.minimumBalance ? data.minimumBalance : period.find(p => (p[selected] ?? p.base) === minimum);
-  const spendable = data.isDemo ? Math.max(0, Math.min(data.currentBalance, stats.minimum - (data.reserve ?? 0))) : data.safeToSpend;
+  const days = data.forecast.slice(0, (data.horizon ?? 30) + 1);
+  const stats = getForecastStats(days, selected);
+  const minimum = selected === "base" && data.minimumBalance
+    ? data.minimumBalance.p50
+    : stats.minimum;
+  const minimumDate = selected === "base" && data.minimumBalance
+    ? data.minimumBalance.date
+    : days.find((point) => (point[selected] ?? point.base) === minimum)?.date;
+  const spendable = data.isDemo
+    ? Math.max(0, Math.min(data.currentBalance, getForecastStats(days, "base").minimum - (data.reserve ?? 0)))
+    : data.safeToSpend;
+  const reserveDifference = data.reserve == null ? null : minimum - data.reserve;
   const change = stats.last - data.currentBalance;
-  const reserveGap = minimum - (data.reserve ?? 0);
+
   const items = [
-    { title: "Текущий баланс", value: compactMoney(data.currentBalance), detail: `Резерв: ${compactMoney(data.reserve ?? 0)}`, hint: "На счетах сегодня" },
-    { title: "Можно потратить сегодня", value: spendable == null ? "Нет оценки" : compactMoney(spendable), detail: "С учётом резерва и неопределённости", hint: data.isDemo ? "Демонстрационная оценка" : "По расчёту сервиса" },
-    { title: "Минимальный остаток", value: compactMoney(minimum), detail: reserveGap < 0 ? `Ниже резерва на ${compactMoney(-reserveGap)}` : `Выше резерва на ${compactMoney(reserveGap)}`, hint: minimumDay ? `${displayDate(minimumDay.date)} · по выбранному сценарию` : "Нижняя точка за выбранный период" },
-    { title: `Остаток через ${data.horizon ?? 30} дней`, value: compactMoney(stats.last), detail: `${change > 0 ? "+" : ""}${compactMoney(change)} к сегодняшнему дню`, hint: "По выбранному сценарию" },
+    {
+      label: "Текущий баланс",
+      value: compactMoney(data.currentBalance),
+      detail: data.reserve != null ? `Резерв ${compactMoney(data.reserve)}` : "На счетах компании",
+      foot: "На текущую дату",
+      alert: false,
+    },
+    {
+      label: "Можно потратить сегодня",
+      value: spendable == null ? "Нет оценки" : compactMoney(spendable),
+      detail: "С учётом резерва и рисков",
+      foot: "По базовому прогнозу",
+      alert: false,
+    },
+    {
+      label: "Минимальный остаток",
+      value: compactMoney(minimum),
+      detail: reserveDifference == null
+        ? "Минимум за период"
+        : reserveDifference < 0
+          ? `Ниже резерва на ${compactMoney(-reserveDifference)}`
+          : `Выше резерва на ${compactMoney(reserveDifference)}`,
+      foot: minimumDate ? displayDate(minimumDate) : "За выбранный период",
+      alert: minimum < 0,
+    },
+    {
+      label: `Через ${data.horizon ?? 30} дней`,
+      value: compactMoney(stats.last),
+      detail: `${change > 0 ? "+" : ""}${compactMoney(change)} к текущему`,
+      foot: selected === "base" ? "Базовый прогноз" : "Выбранный сценарий",
+      alert: stats.last < 0,
+    },
   ];
-  return <section aria-label="Ключевые показатели" className="grid grid-cols-2 border border-[color:var(--puls-border)] bg-[color:var(--puls-bg)] xl:grid-cols-4">
-    {items.map((item, index) => <div key={item.title} className={`flex min-h-[126px] min-w-0 flex-col border-[color:var(--puls-border)] p-3.5 xl:border-r xl:border-b-0 xl:last:border-r-0 ${index < 2 ? "border-b" : ""} ${index % 2 === 0 ? "border-r" : ""}`}>
-      <p className="text-[12px] font-medium leading-4 text-[color:var(--puls-text-secondary)] sm:text-[13px]">{item.title}</p>
-      <strong className="mt-3 text-[18px] font-semibold leading-6 tracking-[-0.025em] tabular-nums text-[color:var(--puls-text-strong)] sm:text-[20px]">{item.value}</strong>
-      <div className="mt-auto border-t border-[color:var(--puls-border)] pt-2">
-        <p className="text-[12px] font-medium leading-4 text-[color:var(--puls-text)]">{item.detail}</p>
-        <p className="mt-0.5 text-[11px] leading-4 text-[color:var(--puls-text-muted)]">{item.hint}</p>
-      </div>
-    </div>)}
-  </section>;
+
+  return (
+    <section
+      aria-label="Ключевые показатели"
+      className="grid grid-cols-2 border border-[color:var(--puls-border)] bg-[color:var(--puls-bg)] xl:grid-cols-4"
+    >
+      {items.map((item, index) => (
+        <div
+          key={item.label}
+          className={[
+            "flex min-h-[120px] min-w-0 flex-col px-3.5 py-3 sm:px-4",
+            "border-[color:var(--puls-border)]",
+            index < 2 ? "border-b xl:border-b-0" : "",
+            index % 2 === 0 ? "border-r" : "",
+            index !== 3 ? "xl:border-r" : "xl:border-r-0",
+          ].join(" ")}
+        >
+          <span className="text-[12px] leading-4 text-[color:var(--puls-text-secondary)]">
+            {item.label}
+          </span>
+          <strong
+            className={`mt-2 text-[20px] font-semibold leading-6 tracking-[-0.035em] tabular-nums sm:text-[22px] ${
+              item.alert ? "text-[color:var(--puls-negative-text)]" : "text-[color:var(--puls-text-strong)]"
+            }`}
+          >
+            {item.value}
+          </strong>
+          <div className="mt-auto border-t border-[color:var(--puls-border)] pt-2">
+            <p className="text-[12px] leading-4 text-[color:var(--puls-text)]">{item.detail}</p>
+            <p className="mt-0.5 text-[11px] leading-4 text-[color:var(--puls-text-muted)]">
+              {item.foot}
+            </p>
+          </div>
+        </div>
+      ))}
+    </section>
+  );
 }
 
 function FinancialStatus({ data, onOpenGap }: { data: PulsOverviewData; onOpenGap?: () => void }) {
-  const period = data.forecast.slice(0, (data.horizon ?? 30) + 1);
-  const stats = getForecastStats(period, "base");
-  const firstGap = stats.firstNegative >= 0 ? period[stats.firstNegative] : null;
-  const probability = data.shortfallProbability;
-  const riskPercent = probability == null ? null : Math.round(probability * 1000) / 10;
-  const severity = data.serverStatus ? (({ ok: "Спокойно", warning: "Внимание", danger: "Опасно" } as Record<string, string>)[data.serverStatus] ?? "Нет оценки") : probability == null
-    ? stats.deficit > 0 ? "Опасно" : "Спокойно"
-    : probability > 0.4 ? "Опасно" : probability >= 0.1 ? "Внимание" : "Спокойно";
-  const accent = severity === "Спокойно" ? "text-[color:var(--puls-good-text)]" : severity === "Внимание" ? "text-[color:var(--puls-demo-text)]" : "text-[color:var(--puls-chart-zero)]";
-  return <section aria-label="Финансовое состояние" className="mb-5 flex flex-col gap-3 border-y border-[color:var(--puls-border)] bg-[color:var(--puls-surface-soft)] px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
-    <div className="flex min-w-0 items-start gap-3">
-      <AlertTriangle size={16} className={`mt-1 shrink-0 ${accent}`} aria-hidden="true"/>
-      <div className="min-w-0">
-        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1"><h2 className={`text-[16px] font-semibold leading-5 ${accent}`}>{severity}</h2><span className="text-[12px] text-[color:var(--puls-text-secondary)]">{riskPercent == null ? "Вероятность разрыва: нет оценки" : `Вероятность разрыва: ${riskPercent}%${data.isDemo ? " · демо-оценка" : ""}`}</span></div>
-        <p className="mt-1 text-[13px] leading-5 text-[color:var(--puls-text-secondary)]">{data.headline ?? (firstGap ? `По базовому прогнозу с ${displayDate(firstGap.date)} возможна нехватка; максимальный дефицит — ${formatMoney(stats.deficit)}.` : "Базовый прогнозный остаток остаётся положительным в выбранном периоде.")}</p>
+  const days = data.forecast.slice(0, (data.horizon ?? 30) + 1);
+  const stats = getForecastStats(days, "base");
+  const firstGap = stats.firstNegative >= 0 ? days[stats.firstNegative] : null;
+  const mappedStatus: Record<string, "ok" | "warning" | "danger" | "unknown"> = {
+    ok: "ok",
+    warning: "warning",
+    danger: "danger",
+  };
+  const status = data.serverStatus
+    ? (mappedStatus[data.serverStatus] ?? "unknown")
+    : (firstGap ? "danger" : "ok");
+  const risk = status === "danger";
+  const warning = status === "warning";
+  const headline = status === "ok" ? "Без критических рисков" :
+    risk ? "Есть риск нехватки денег" :
+    warning ? "Требует внимания" : "Статус не определён";
+  const color = risk
+    ? "text-[color:var(--puls-negative-text)]"
+    : warning
+      ? "text-[color:var(--puls-demo-text)]"
+      : "text-[color:var(--puls-text)]";
+  const marker = risk
+    ? "border-l-[color:var(--puls-negative-text)]"
+    : warning
+      ? "border-l-[color:var(--puls-demo-text)]"
+      : "border-l-[color:var(--puls-chart-primary)]";
+  const riskPercent = data.shortfallProbability != null &&
+    Number.isFinite(data.shortfallProbability) &&
+    data.shortfallProbability >= 0 && data.shortfallProbability <= 1
+      ? `${Math.round(data.shortfallProbability * 100)}%`
+      : null;
+
+  return (
+    <section aria-label="Финансовое состояние" className="mb-5 min-w-0 border-y border-[color:var(--puls-border)] py-3">
+      <div className={`flex min-w-0 flex-col gap-3 border-l-2 pl-3 sm:flex-row sm:items-center sm:justify-between ${marker}`}>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+            <span className={`inline-flex items-center gap-1.5 text-[13px] font-semibold ${color}`}>
+              {risk || warning ? <AlertTriangle size={14} aria-hidden="true" /> : <Activity size={14} aria-hidden="true" />}
+              {headline}
+            </span>
+            {riskPercent && (
+              <span className="text-[11px] text-[color:var(--puls-text-secondary)]">
+                Вероятность разрыва: <strong className="font-semibold tabular-nums">{riskPercent}</strong>
+              </span>
+            )}
+            {data.isDemo && (
+              <span className="text-[11px] text-[color:var(--puls-demo-text)]">Демо-данные</span>
+            )}
+          </div>
+          <p className="mt-1 text-[12px] leading-[18px] text-[color:var(--puls-text-secondary)]">
+            {data.headline || (firstGap
+              ? `По базовому прогнозу с ${displayDate(firstGap.date)} возможен отрицательный остаток. Максимальная нехватка — ${formatMoney(stats.deficit)}.`
+              : "В выбранном периоде отрицательный остаток не прогнозируется.")}
+          </p>
+        </div>
+        {onOpenGap && (risk || warning || firstGap) && (
+          <Button type="button" variant="outline" size="sm" onClick={onOpenGap} className="shrink-0 self-start sm:self-center">
+            Разобрать риск <ChevronRight size={14} aria-hidden="true" />
+          </Button>
+        )}
       </div>
-    </div>
-    {onOpenGap && <Button type="button" variant="outline" size="md" onClick={onOpenGap} className="w-fit shrink-0">Что делать <ChevronRight aria-hidden="true"/></Button>}
-  </section>;
+    </section>
+  );
 }
 
 type OverviewChartPoint = ForecastDay & { selectedValue?: number | null; corridor?: [number, number]; historical?: boolean };
-
 function ForecastTooltip({ active, label, rows, selected, events, reserve }: {
   active?: boolean;
   label?: string | number;
@@ -313,19 +400,18 @@ function ForecastTooltip({ active, label, rows, selected, events, reserve }: {
     </>}
   </div>;
 }
-
 function rowDateForEvent(event: CashEvent, rows: OverviewChartPoint[]) {
   const firstForecast = rows.findIndex(row => !row.historical);
   return rows[firstForecast + event.day]?.date;
 }
-
-export function ForecastChart({ data, selected, horizon, onChangeHorizon, onChangeScenario, onOpenForecast, onOpenDay }: {
+export function ForecastChart({ data, selected, horizon, onChangeHorizon, onChangeScenario, onOpenForecast, onOpenScenarios, onOpenDay }: {
   data: PulsOverviewData;
   selected: ScenarioKey;
   horizon: 30 | 60 | 90;
   onChangeHorizon: (value: 30 | 60 | 90) => void;
   onChangeScenario: (key: ScenarioKey) => void;
   onOpenForecast?: () => void;
+  onOpenScenarios?: () => void;
   onOpenDay?: (date: string) => void;
 }) {
   const reactId = useId().replace(/[^a-zA-Z0-9]/g, "");
@@ -338,9 +424,9 @@ export function ForecastChart({ data, selected, horizon, onChangeHorizon, onChan
   ];
   const ticks = chartPoints.filter((_, index) => index === 0 || index === chartPoints.length - 1 || index % Math.max(6, Math.round(chartPoints.length / 6)) === 0).map(p => p.date);
   const eventPoints = data.events.filter(event => event.day >= 0 && event.day <= horizon && visible[event.day]);
-  return <section aria-label="Прогноз денежных средств" className="mt-9 min-w-0">
-    <header className="mb-4 flex flex-wrap items-start justify-between gap-x-5 gap-y-3">
-      <div><h2 className="text-[21px] font-semibold tracking-[-0.035em] text-[color:var(--puls-text)]">Финансовый прогноз <span className="font-normal text-[color:var(--puls-text-faint)]">/ {horizon} дней</span></h2><p className="mt-0.5 text-[12px] text-[color:var(--puls-text-muted)]">История, {data.isDemo ? "демо-коридор" : "прогнозный коридор"} и сравнение сценариев</p></div>
+  return <section aria-label="Прогноз денежных средств" className="mt-7 min-w-0">
+    <header className="mb-3 flex flex-wrap items-start justify-between gap-x-5 gap-y-3">
+      <div><h2 className="text-[19px] font-semibold tracking-[-0.025em] text-[color:var(--puls-text)]">Финансовый прогноз <span className="font-normal text-[color:var(--puls-text-faint)]">/ {horizon} дней</span></h2><p className="mt-0.5 text-[12px] text-[color:var(--puls-text-muted)]">История, {data.isDemo ? "демо-коридор" : "прогнозный коридор"} и сравнение сценариев</p></div>
       <div className="flex max-w-full flex-wrap items-center gap-2">
         <Tabs ariaLabel="Период прогноза" size="sm" tabs={([30, 60, 90] as const).map(value => ({ key: String(value), label: `${value} дн.`, content: null }))} value={String(horizon)} onValueChange={(value) => onChangeHorizon(Number(value) as 30 | 60 | 90)} showContent={false}/>
         <Tabs
@@ -356,6 +442,7 @@ export function ForecastChart({ data, selected, horizon, onChangeHorizon, onChan
           onValueChange={(value) => onChangeScenario(value as ScenarioKey)}
           showContent={false}
         />
+        {onOpenScenarios && <Button type="button" variant="ghost" size="sm" onClick={onOpenScenarios}>Все сценарии <ChevronRight size={14} aria-hidden="true" /></Button>}
         {onOpenForecast && <Button type="button" variant="outline" size="icon" aria-label="Открыть полный прогноз" onClick={onOpenForecast} className="text-[color:var(--puls-text-secondary)]! hover:text-[color:var(--puls-chart-primary)]!"><ArrowUpRight aria-hidden="true" /></Button>}
       </div>
     </header>
@@ -367,10 +454,11 @@ export function ForecastChart({ data, selected, horizon, onChangeHorizon, onChan
       {data.reserve != null && <span className="flex items-center gap-1.5"><span className="w-[16px] border-t border-dashed border-[color:var(--puls-text-muted)]"/>Резерв</span>}
       <span className="flex items-center gap-1.5"><span className="size-1.5 rounded-full bg-[color:var(--puls-text-strong)]"/>Важный платёж</span>
     </div>
-    <div className="h-[265px] w-full min-w-0 border-b border-[color:var(--puls-border)] sm:h-[300px]">
+    <div className="h-[255px] w-full min-w-0 border-b border-[color:var(--puls-border)] sm:h-[285px]">
       <ResponsiveContainer width="100%" height="100%">
         <ComposedChart data={chartPoints} margin={{ top: 9, right: 8, bottom: 2, left: 0 }} onClick={state => {
-          const date = state?.activeLabel;
+          const pointDate = state?.activePayload?.map(item => item.payload).find(point => point && visible.some(day => day.date === point.date))?.date;
+          const date = pointDate ?? state?.activeLabel;
           if (typeof date === "string" && visible.some(point => point.date === date)) onOpenDay?.(date);
         }}>
           <defs>
@@ -379,7 +467,7 @@ export function ForecastChart({ data, selected, horizon, onChangeHorizon, onChan
           </defs>
           <CartesianGrid vertical={false} stroke="var(--puls-grid)" strokeDasharray="3 5"/>
           <XAxis dataKey="date" ticks={ticks} tickFormatter={displayDate} tickLine={false} axisLine={false} fontSize={11} dy={10} tick={{ fill: "var(--puls-text-muted)" }}/>
-          <YAxis width={62} tickLine={false} axisLine={false} fontSize={11} tick={{ fill: "var(--puls-text-muted)" }} tickFormatter={(value: number) => `${Math.round(value / 1000)}k`}/>
+          <YAxis width={62} tickLine={false} axisLine={false} fontSize={11} tick={{ fill: "var(--puls-text-muted)" }} tickFormatter={formatAxisMoney}/>
           <Tooltip cursor={{ stroke: "var(--puls-text-muted)", strokeDasharray: "4 4" }} content={({ active, label }) => <ForecastTooltip active={active} label={label} rows={chartPoints} selected={selected} events={data.events} reserve={data.reserve}/>}/>
           <ReferenceLine y={0} stroke="var(--puls-chart-zero)" strokeDasharray="5 5" strokeWidth={1.2}/>
           {data.reserve != null && <ReferenceLine y={data.reserve} stroke="var(--puls-text-muted)" strokeDasharray="3 4" strokeWidth={1}/>}
@@ -396,8 +484,24 @@ export function ForecastChart({ data, selected, horizon, onChangeHorizon, onChan
         </ComposedChart>
       </ResponsiveContainer>
     </div>
-    {onOpenDay && <Select label="Подробности дня" containerClassName="mt-3 max-w-xs" value="" options={[{ value: "", label: "Выберите день на графике или в списке" }, ...visible.map(point => ({ value: point.date, label: displayDate(point.date) }))]} onChange={event => { if (event.target.value) onOpenDay(event.target.value); }} />}
+    {onOpenDay && <p className="mt-2 text-[11px] text-[color:var(--puls-text-muted)]">Наведите на день и нажмите на график, чтобы открыть подробности.</p>}
   </section>;
+}
+function formatAxisMoney(value: number) {
+  const abs = Math.abs(value);
+  if (abs >= 1_000_000) return `${(value / 1_000_000).toLocaleString("ru-RU", { maximumFractionDigits: 1 })} млн`;
+  if (abs >= 1_000) return `${Math.round(value / 1_000).toLocaleString("ru-RU")} тыс.`;
+  return Math.round(value).toLocaleString("ru-RU");
+}
+
+function sourceLabel(value?: string) {
+  const names: Record<string, string> = {
+    manual: "Ручное событие",
+    recurring: "Регулярный платёж",
+    invoice: "Счёт",
+    statement: "Банковская выписка",
+  };
+  return value ? (names[value] ?? value) : "Источник не указан";
 }
 
 function NearTermFlows({ data, onOpenCalendar, onOpenEvent }: { data: PulsOverviewData; onOpenCalendar?: () => void; onOpenEvent?: (id: string) => void }) {
@@ -406,30 +510,29 @@ function NearTermFlows({ data, onOpenCalendar, onOpenEvent }: { data: PulsOvervi
     { title: "Ближайшие платежи", items: events.filter(event => event.amount < 0), color: "text-[color:var(--puls-text-strong)]" },
     { title: "Ожидаемые поступления", items: events.filter(event => event.amount > 0), color: "text-[color:var(--puls-positive-text)]" },
   ];
-  return <div className="mt-7 grid min-w-0 gap-5 lg:grid-cols-2 lg:gap-7">
+  return <div className="mt-6 grid min-w-0 gap-5 lg:grid-cols-2 lg:gap-7">
     {groups.map(group => <section key={group.title} className="min-w-0 border-t border-[color:var(--puls-border)]">
       <header className="flex items-center justify-between gap-3 py-3"><div><h2 className="text-[16px] font-semibold text-[color:var(--puls-text)]">{group.title}</h2><p className="mt-0.5 text-[12px] text-[color:var(--puls-text-muted)]">На ближайшие 14 дней</p></div>{onOpenCalendar && <Button type="button" variant="ghost" size="sm" onClick={onOpenCalendar}>Календарь <ChevronRight aria-hidden="true"/></Button>}</header>
-      <div className="border-y border-[color:var(--puls-border)]">{group.items.length ? group.items.map(event => <div key={event.id} className="grid grid-cols-[55px_minmax(0,1fr)_auto] items-center gap-2 border-b border-[color:var(--puls-border)] px-1 py-2.5 text-[13px] last:border-b-0 hover:bg-[color:var(--puls-surface-soft)] sm:gap-3">
+      <div className="border-y border-[color:var(--puls-border)]">{group.items.length ? group.items.slice(0, 4).map(event => <div key={event.id} className="grid grid-cols-[55px_minmax(0,1fr)_auto] items-center gap-2 border-b border-[color:var(--puls-border)] px-1 py-2.5 text-[13px] last:border-b-0 hover:bg-[color:var(--puls-surface-soft)] sm:gap-3">
         <span className="text-[12px] text-[color:var(--puls-text-muted)]">{displayDate(data.forecast[event.day].date)}</span>
-        <span className="min-w-0"><span className="block truncate font-medium text-[color:var(--puls-text)]">{onOpenEvent ? <Button type="button" variant="ghost" className="h-auto! max-w-full truncate rounded-none! border-0! p-0! text-left text-[13px]! text-inherit! underline underline-offset-2 hover:bg-transparent! hover:text-inherit!" onClick={() => onOpenEvent(event.id)}>{event.title}</Button> : event.title}</span><span className="block truncate text-[12px] text-[color:var(--puls-text-secondary)]">{event.counterparty ?? "Контрагент не указан"}</span><span className="block truncate text-[11px] text-[color:var(--puls-text-muted)]" title={event.amount < 0 ? event.source ?? "Источник не указан" : event.paymentDiscipline ?? "Истории оплат пока нет"}>{event.amount < 0 ? `Источник: ${event.source ?? "не указан"}` : `Дисциплина: ${event.paymentDiscipline ?? "истории оплат нет"}`}</span></span>
+        <span className="min-w-0"><span className="block truncate font-medium text-[color:var(--puls-text)]">{onOpenEvent ? <Button type="button" variant="ghost" className="h-auto! max-w-full truncate rounded-none! border-0! p-0! text-left text-[13px]! text-inherit! underline underline-offset-2 hover:bg-transparent! hover:text-inherit!" onClick={() => onOpenEvent(event.id)}>{event.title}</Button> : event.title}</span><span className="block truncate text-[12px] text-[color:var(--puls-text-secondary)]">{event.counterparty ?? "Контрагент не указан"}</span><span className="block truncate text-[11px] text-[color:var(--puls-text-muted)]" title={event.amount < 0 ? sourceLabel(event.source) : event.paymentDiscipline ?? "Истории оплат пока нет"}>{event.amount < 0 ? `Источник: ${sourceLabel(event.source)}` : `Дисциплина: ${event.paymentDiscipline ?? "истории оплат нет"}`}</span></span>
         <strong className={`whitespace-nowrap text-right font-medium tabular-nums ${group.color}`}>{event.amount > 0 ? "+" : ""}{formatMoney(event.amount)}</strong>
       </div>) : <p className="px-1 py-4 text-[12px] text-[color:var(--puls-text-secondary)]">Событий на ближайшие 14 дней нет.</p>}</div>
     </section>)}
   </div>;
 }
-
 function OverviewAlerts({ alerts }: { alerts: Schemas["Alert"][] }) {
   if (!alerts.length) return null;
-  return <section aria-label="Предупреждения" className="mt-9 min-w-0">
+  return <section aria-label="Предупреждения" className="mt-7 min-w-0">
     <header className="mb-3"><h2 className="text-[21px] font-semibold tracking-[-0.035em] text-[color:var(--puls-text)]">Предупреждения</h2><p className="mt-0.5 text-[12px] text-[color:var(--puls-text-muted)]">События, которые стоит проверить</p></header>
-    <div className="border-y border-[color:var(--puls-border)]">{alerts.map(alert => <div key={alert.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-[color:var(--puls-border)] px-1 py-3 last:border-b-0">
+    <div className="border-y border-[color:var(--puls-border)]">{alerts.slice(0, 3).map(alert => <div key={alert.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-[color:var(--puls-border)] px-1 py-3 last:border-b-0">
       <AlertTriangle size={16} aria-label={alert.severity === "danger" ? "Опасно" : alert.severity === "warning" ? "Внимание" : "Информация"} className={`shrink-0 ${alert.severity === "danger" ? "text-[color:var(--puls-chart-zero)]" : alert.severity === "warning" ? "text-[color:var(--puls-demo-text)]" : "text-[color:var(--puls-text-secondary)]"}`} />
       <div className="min-w-[180px] flex-1 text-[13px]"><strong className="font-medium text-[color:var(--puls-text)]">{alert.title}</strong>{!alert.read && <span className="ml-2 text-[11px] text-[color:var(--puls-text-muted)]">Новое</span>}<p className="mt-0.5 text-[12px] text-[color:var(--puls-text-secondary)]">{alert.body}</p></div>
       <Link href={alertLink(alert.ref)} className="inline-flex items-center gap-1 text-[12px] text-[color:var(--puls-text-secondary)] underline underline-offset-2">Подробнее <ChevronRight size={12} aria-hidden="true" /></Link>
     </div>)}</div>
+    {alerts.length > 3 && <Link href="/notifications" className="mt-2 inline-flex items-center gap-1 text-[12px] text-[color:var(--puls-text-secondary)] hover:text-[color:var(--puls-text)]">Все уведомления ({alerts.length}) <ChevronRight size={13} /></Link>}
   </section>;
 }
-
 function DemoWarnings({ data, selected, onOpenGap, onOpenCalendar }: { data: PulsOverviewData; selected: ScenarioKey; onOpenGap?: () => void; onOpenCalendar?: () => void }) {
   const period = data.forecast.slice(0, (data.horizon ?? 30) + 1);
   const stats = getForecastStats(period, selected);
@@ -437,7 +540,7 @@ function DemoWarnings({ data, selected, onOpenGap, onOpenCalendar }: { data: Pul
   const unusual = data.events.filter(event => data.unusualExpenseIds?.includes(event.id) && event.amount < 0);
   const overdue = data.overdueReceipts ?? [];
   if (!firstGap && overdue.length === 0 && unusual.length === 0) return null;
-  return <section aria-label="Предупреждения" className="mt-9 min-w-0">
+  return <section aria-label="Предупреждения" className="mt-7 min-w-0">
     <header className="mb-3"><h2 className="text-[21px] font-semibold tracking-[-0.035em] text-[color:var(--puls-text)]">Предупреждения</h2><p className="mt-0.5 text-[12px] text-[color:var(--puls-text-muted)]">События, которые стоит проверить</p></header>
     <div className="border-y border-[color:var(--puls-border)]">
       {firstGap && <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-[color:var(--puls-border)] px-1 py-3 last:border-b-0"><AlertTriangle size={16} className="shrink-0 text-[color:var(--puls-chart-zero)]"/><div className="min-w-[180px] flex-1 text-[13px]"><strong className="font-medium text-[color:var(--puls-text)]">Возможная нехватка денег · {displayDate(firstGap.date)}</strong><p className="mt-0.5 text-[12px] text-[color:var(--puls-text-secondary)]">Максимальный дефицит по выбранному сценарию: {formatMoney(stats.deficit)}</p></div>{onOpenGap && <Button type="button" variant="ghost" size="sm" onClick={onOpenGap}>Подробнее <ChevronRight aria-hidden="true"/></Button>}</div>}
@@ -446,33 +549,6 @@ function DemoWarnings({ data, selected, onOpenGap, onOpenCalendar }: { data: Pul
     </div>
   </section>;
 }
-
-function OverviewPreviews({ data, selected, onChangeScenario, onOpenCalendar, onOpenScenarios }: {
-  data: PulsOverviewData;
-  selected: ScenarioKey;
-  onChangeScenario: (key: ScenarioKey) => void;
-  onOpenCalendar?: () => void;
-  onOpenScenarios?: () => void;
-}) {
-  const near = data.events.filter(event => event.day >= 0 && event.day <= 14);
-  const incoming = near.reduce((total, event) => total + Math.max(0, event.amount), 0);
-  const outgoing = near.reduce((total, event) => total + Math.max(0, -event.amount), 0);
-  const period = data.forecast.slice(0, (data.horizon ?? 30) + 1);
-  return <div className="mt-9 grid min-w-0 gap-5 lg:grid-cols-2 lg:gap-7">
-    <section aria-label="Превью платёжного календаря" className="min-w-0 border-t border-[color:var(--puls-border)]">
-      <header className="flex items-center justify-between gap-3 py-3"><div><h2 className="text-[16px] font-semibold text-[color:var(--puls-text)]">Платёжный календарь</h2><p className="mt-0.5 text-[12px] text-[color:var(--puls-text-muted)]">План на ближайшие 14 дней</p></div>{onOpenCalendar && <Button type="button" variant="ghost" size="sm" onClick={onOpenCalendar}>Открыть <ChevronRight aria-hidden="true"/></Button>}</header>
-      <div className="grid grid-cols-3 gap-2 border-t border-[color:var(--puls-border)] py-3 text-[12px]"><div><span className="block text-[color:var(--puls-text-muted)]">Событий</span><strong className="mt-1 block text-[15px] font-semibold tabular-nums text-[color:var(--puls-text)]">{near.length}</strong></div><div><span className="block text-[color:var(--puls-text-muted)]">Поступления</span><strong className="mt-1 block text-[15px] font-semibold tabular-nums text-[color:var(--puls-positive-text)]">{compactMoney(incoming)}</strong></div><div><span className="block text-[color:var(--puls-text-muted)]">Списания</span><strong className="mt-1 block text-[15px] font-semibold tabular-nums text-[color:var(--puls-text)]">{compactMoney(outgoing)}</strong></div></div>
-    </section>
-    <section aria-label="Превью сравнения сценариев" className="min-w-0 border-t border-[color:var(--puls-border)]">
-      <header className="flex items-center justify-between gap-3 py-3"><div><h2 className="text-[16px] font-semibold text-[color:var(--puls-text)]">Сценарии</h2><p className="mt-0.5 text-[12px] text-[color:var(--puls-text-muted)]">Остаток в конце периода</p></div>{onOpenScenarios && <Button type="button" variant="ghost" size="sm" onClick={onOpenScenarios}>Сравнить <ChevronRight aria-hidden="true"/></Button>}</header>
-      <div className="divide-y divide-[color:var(--puls-border)] border-t border-[color:var(--puls-border)]">{SCENARIOS.filter(scenario => scenarioSupported(data, scenario.key)).map(scenario => {
-        const stats = getForecastStats(period, scenario.key);
-        return <Button variant="ghost" key={scenario.key} type="button" aria-pressed={selected === scenario.key} onClick={() => onChangeScenario(scenario.key)} className={`h-auto! rounded-none! border-0! flex w-full items-center justify-between! gap-3! px-1! py-1.5! font-normal! text-left text-[12px] transition-colors hover:bg-[color:var(--puls-surface-soft)] focus-visible:outline-2 focus-visible:outline-[color:var(--puls-chart-primary)] ${selected === scenario.key ? "bg-[color:var(--puls-surface-muted)] text-[color:var(--puls-text)]" : "text-[color:var(--puls-text-secondary)]"}`}><span className="min-w-0 truncate">{scenario.label}</span><strong className="shrink-0 font-medium tabular-nums text-[color:var(--puls-text-strong)]">{compactMoney(stats.last)}</strong></Button>;
-      })}</div>
-    </section>
-  </div>;
-}
-
 export function PaymentTimeline({ data, onOpenCalendar }: { data: PulsOverviewData; onOpenCalendar?: () => void }) {
   const [selectedEvent, setSelectedEvent] = useState<string | null>(null);
   const current = data.events.find(e => e.id === selectedEvent);
@@ -513,7 +589,6 @@ export function PaymentTimeline({ data, onOpenCalendar }: { data: PulsOverviewDa
     </div> : <p className="mt-2.5 text-[11px] text-[color:var(--puls-text-faint)]">Нажми на событие, чтобы посмотреть сумму, дату и источник данных.</p>}
   </section>;
 }
-
 export function ScenarioComparison({ data, selected, onChangeScenario, onOpenScenarios }: {
   data: PulsOverviewData; selected: ScenarioKey; onChangeScenario: (key: ScenarioKey) => void; onOpenScenarios?: () => void;
 }) {
@@ -557,7 +632,6 @@ export function ScenarioComparison({ data, selected, onChangeScenario, onOpenSce
     <p className="mt-2.5 flex items-center gap-1.5 text-[11px] text-[color:var(--puls-text-faint)]"><CircleHelp size={14}/>Нажми на сценарий в таблице, чтобы переключить график.</p>
   </section>;
 }
-
 export function PulsEmptyState({ onAddSource }: { onAddSource?: () => void }) {
   return <section className="mt-5 flex min-h-[360px] flex-col items-center justify-center rounded-xl border border-dashed border-[color:var(--puls-border)] p-7 text-center">
     <div className="flex size-[58px] items-center justify-center rounded-xl bg-[color:var(--puls-good-bg)] text-[color:var(--puls-good-text)]"><Activity size={27}/></div>
@@ -566,27 +640,74 @@ export function PulsEmptyState({ onAddSource }: { onAddSource?: () => void }) {
     {onAddSource && <Button type="button" variant="ghost" onClick={onAddSource} className="mt-4 h-auto! border-0! inline-flex cursor-pointer items-center gap-1.5! rounded-md! bg-[color:var(--brand)]! px-3.5! py-2.5! text-[12px] font-semibold! text-[color:var(--button-primary-fg)]! hover:text-[color:var(--button-primary-fg)]! hover:bg-[color:var(--brand-hover)]! focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--focus-ring-strong)]"><Plus size={15} className="size-[15px]!"/>Добавить источник данных</Button>}
   </section>;
 }
-
-export default function PulsOverview({ data = PULS_DEMO_DATA, onAddSource, onOpenForecast, onOpenCalendar, onOpenEvent, onOpenScenarios, onOpenGap, onOpenDay, alerts = [], horizon: controlledHorizon, onChangeHorizon }: PulsOverviewProps) {
+export default function PulsOverview({
+  data = PULS_DEMO_DATA,
+  onAddSource,
+  onOpenForecast,
+  onOpenCalendar,
+  onOpenEvent,
+  onOpenScenarios,
+  onOpenGap,
+  onOpenDay,
+  alerts = [],
+  horizon: controlledHorizon,
+  onChangeHorizon,
+}: PulsOverviewProps) {
   const [requested, setRequested] = useState<ScenarioKey>("base");
   const [localHorizon, setLocalHorizon] = useState<30 | 60 | 90>(30);
   const horizon = controlledHorizon ?? localHorizon;
   const setHorizon = onChangeHorizon ?? setLocalHorizon;
-  const prepared = useMemo(() => data && data.forecast.length > 0 ? data : null, [data]);
-  const selected = prepared && scenarioSupported(prepared, requested) ? requested : "base";
-  return <div className="puls-overview min-w-0 w-full bg-[color:var(--puls-bg)] pb-10 text-[color:var(--puls-text)] tabular-nums">
-    {prepared ? <>
-      <div className="mb-3 flex min-h-[24px] flex-wrap items-center justify-end gap-3">
-        {prepared.isDemo && <span className="inline-flex items-center gap-1.5 rounded-[5px] border border-[color:var(--puls-demo-border)] bg-[color:var(--puls-demo-bg)] px-2 py-0.5 text-[11px] text-[color:var(--puls-demo-text)]"><span className="size-1.5 rounded-full bg-[color:var(--puls-demo-text)]"/>Демо-данные</span>}
-        <span className="inline-flex items-center gap-1.5 text-[11px] text-[color:var(--puls-text-muted)]"><Clock3 size={13}/>{prepared.updatedAt ?? `Прогноз на ${horizon} дней`}</span>
-      </div>
-      <FinancialStatus data={prepared} onOpenGap={onOpenGap}/>
-      <KpiStrip data={prepared} selected={selected}/>
-      <ForecastChart data={prepared} selected={selected} horizon={horizon} onChangeHorizon={setHorizon} onChangeScenario={setRequested} onOpenForecast={onOpenForecast} onOpenDay={onOpenDay}/>
-      <NearTermFlows data={prepared} onOpenCalendar={onOpenCalendar} onOpenEvent={onOpenEvent}/>
-      {prepared.isDemo ? <DemoWarnings data={prepared} selected={selected} onOpenGap={onOpenGap} onOpenCalendar={onOpenCalendar}/> : <OverviewAlerts alerts={alerts}/>}
-      <OverviewPreviews data={prepared} selected={selected} onChangeScenario={setRequested} onOpenCalendar={onOpenCalendar} onOpenScenarios={onOpenScenarios}/>
-      <p className="mt-6 text-[10px] leading-[18px] text-[color:var(--puls-text-faint)]">{prepared.isDemo ? "Синтетические демонстрационные данные. Числа не являются прогнозом реальной компании." : "Прогноз построен на загруженных данных; точность зависит от полноты информации и качества модели."}</p>
-    </> : <><PulsEmptyState onAddSource={onAddSource}/><OverviewAlerts alerts={alerts}/></>}
-  </div>;
+  const prepared = useMemo(
+    () => (data && data.forecast.length > 0 ? data : null),
+    [data],
+  );
+  const selected = prepared && scenarioSupported(prepared, requested)
+    ? requested
+    : "base";
+
+  return (
+    <div className="puls-overview w-full min-w-0 bg-[color:var(--puls-bg)] pb-8 text-[color:var(--puls-text)] tabular-nums">
+      {prepared ? (
+        <>
+          <FinancialStatus data={prepared} onOpenGap={onOpenGap} />
+          <KpiStrip data={prepared} selected={selected} />
+          <ForecastChart
+            data={prepared}
+            selected={selected}
+            horizon={horizon}
+            onChangeHorizon={setHorizon}
+            onChangeScenario={setRequested}
+            onOpenForecast={onOpenForecast}
+            onOpenScenarios={onOpenScenarios}
+            onOpenDay={onOpenDay}
+          />
+          {prepared.isDemo ? (
+            <DemoWarnings
+              data={prepared}
+              selected={selected}
+              onOpenGap={onOpenGap}
+              onOpenCalendar={onOpenCalendar}
+            />
+          ) : (
+            <OverviewAlerts alerts={alerts} />
+          )}
+          <NearTermFlows
+            data={prepared}
+            onOpenCalendar={onOpenCalendar}
+            onOpenEvent={onOpenEvent}
+          />
+          <p className="mt-7 border-t border-[color:var(--puls-border)] pt-3 text-[11px] leading-[18px] text-[color:var(--puls-text-muted)]">
+            {prepared.isDemo
+              ? "Синтетические демонстрационные данные. Это не прогноз реальной компании."
+              : "Оценка основана на доступных финансовых данных. Фактические поступления и расходы могут отличаться от прогноза."}
+          </p>
+        </>
+      ) : (
+        <>
+          <PulsEmptyState onAddSource={onAddSource} />
+          <OverviewAlerts alerts={alerts} />
+        </>
+      )}
+    </div>
+  );
 }

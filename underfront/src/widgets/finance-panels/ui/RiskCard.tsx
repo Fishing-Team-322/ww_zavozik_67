@@ -12,16 +12,16 @@ export type CashflowRisk = {
   recommendation?: string;
 };
 
-export function RiskCard({risk, status = "unknown", onOpenScenario}: {risk: CashflowRisk | null; status?: "unknown" | "clear"; onOpenScenario?: () => void}) {
+export function RiskCard({risk, status = "unknown", onOpenScenario, compact = false}: {risk: CashflowRisk | null; status?: "unknown" | "clear"; onOpenScenario?: () => void; compact?: boolean}) {
   return (
-    <section className="rounded-[18px] border border-[color:var(--border)] bg-[color:var(--surface)] p-5">
+    <section className={`rounded-[18px] border border-[color:var(--border)] bg-[color:var(--surface)] ${compact ? "p-4" : "p-5"}`}>
       {risk ? <>
         <div className="flex items-center gap-2 text-sm font-semibold text-[color:var(--danger)]"><AlertTriangle size={18}/> Возможен кассовый разрыв</div>
         <div className="mt-4 flex flex-wrap items-end justify-between gap-2">
-          <div><p className="text-xs text-[color:var(--text-secondary)]">Дата риска</p><p className="mt-1 text-xl font-semibold text-[color:var(--text-primary)]">{risk.date}</p></div>
-          <div className="text-right"><p className="text-xs text-[color:var(--text-secondary)]">Не хватает</p><p className="mt-1 text-xl font-semibold tabular-nums text-[color:var(--danger)]">{Math.abs(risk.deficit).toLocaleString("ru-RU")} ₽</p></div>
+          <div><p className="text-xs text-[color:var(--text-secondary)]">Дата риска</p><p className={`mt-1 font-semibold text-[color:var(--text-primary)] ${compact ? "text-base" : "text-xl"}`}>{risk.date}</p></div>
+          <div className="text-right"><p className="text-xs text-[color:var(--text-secondary)]">Не хватает</p><p className={`mt-1 font-semibold tabular-nums text-[color:var(--danger)] ${compact ? "text-base" : "text-xl"}`}>{Math.abs(risk.deficit).toLocaleString("ru-RU")} ₽</p></div>
         </div>
-        {risk.probability != null && <p className="mt-3 text-sm text-[color:var(--text-secondary)]">Оценка вероятности: <strong className="text-[color:var(--text-primary)]">{Math.round(risk.probability*100)}%</strong></p>}
+        {risk.probability != null && <p className={`mt-3 text-[color:var(--text-secondary)] ${compact ? "text-xs" : "text-sm"}`}>Оценка вероятности: <strong className="text-[color:var(--text-primary)]">{Math.round(risk.probability*100)}%</strong></p>}
         {risk.reasons.length > 0 && <div className="mt-4 space-y-1.5 border-t border-[color:var(--divider)] pt-3"><p className="text-xs font-semibold text-[color:var(--text-primary)]">Что влияет на риск</p><ul className="list-inside list-disc space-y-1 text-xs leading-5 text-[color:var(--text-secondary)]">{risk.reasons.map((reason,i)=><li key={i}>{reason}</li>)}</ul></div>}
         {risk.recommendation && <p className="mt-3 rounded-lg bg-[color:var(--surface-subtle)] p-3 text-xs leading-5 text-[color:var(--text-primary)]">{risk.recommendation}</p>}
         {onOpenScenario && <Button variant="secondary" className="mt-4 w-full" onClick={onOpenScenario}>Проверить сценарий <ArrowUpRight size={16}/></Button>}
