@@ -60,6 +60,7 @@ func (s *Service) FNSSnapshot(ctx context.Context, uid, cid string) (Doc, error)
 	if e != nil {
 		return nil, e
 	}
+	result["auto_refresh_configured"] = state["configured"] == true
 	data, e := fetch("/v1/risk-signals/" + url.PathEscape(s.FNSHubCompany))
 	if e != nil {
 		return nil, e

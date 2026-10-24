@@ -47,6 +47,10 @@ func TestSandboxMarketplaceWiringSecretsAndBankIsolation(t *testing.T) {
 			t.Fatal("secret leaked in source")
 		}
 		sid := source["id"].(string)
+		rotated := call("PATCH", "/v1/sources/"+sid, product.Doc{"config": product.Doc{"api_key": "sandbox-key"}}, 200)
+		if rotated["status"] != "pending" || strings.Contains(string(mustJSON(t, rotated)), "sandbox-key") {
+			t.Fatal("credential rotation status or masking failed")
+		}
 		call("POST", "/v1/sources/"+sid+"/test", nil, 200)
 		for run := 0; run < 2; run++ {
 			job := call("POST", "/v1/sources/"+sid+"/sync", nil, 202)
@@ -125,6 +129,10 @@ func TestSandboxMarketplaceWiringSecretsAndBankIsolation(t *testing.T) {
 	}
 	call("PATCH", sheetPath, product.Doc{"enabled": false}, 200)
 	call("POST", sheetPath+"/sheet-preview", nil, 409)
+	enabled := call("PATCH", sheetPath, product.Doc{"enabled": true}, 200)
+	if enabled["status"] != "pending" {
+		t.Fatal("re-enabled source retained disconnected status", enabled)
+	}
 }
 func mustJSON(t *testing.T, value any) []byte {
 	t.Helper()

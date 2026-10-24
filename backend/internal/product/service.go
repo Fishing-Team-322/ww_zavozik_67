@@ -412,6 +412,22 @@ func (s *Service) crud(ctx context.Context, uid, cid string, desc [3]string, r *
 	if e := validateResource(kind, body, create); e != nil {
 		return Result{}, e
 	}
+	if kind == "source" && !create {
+		if patch, yes := body["config"].(map[string]any); yes {
+			_, previous, err := s.sourceConfig(ctx, uid, id)
+			if err != nil {
+				return Result{}, err
+			}
+			for key, value := range patch {
+				previous[key] = value
+			}
+			body["config"] = map[string]any(previous)
+			d["status"], d["error"] = "pending", nil
+		}
+		if enabled, yes := body["enabled"].(bool); yes && enabled && !flag(d, "enabled") {
+			d["status"], d["error"] = "pending", nil
+		}
+	}
 	for k, v := range body {
 		d[k] = v
 	}

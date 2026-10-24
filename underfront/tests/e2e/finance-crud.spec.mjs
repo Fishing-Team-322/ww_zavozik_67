@@ -37,6 +37,14 @@ test('invoice partial payment, recurring schedule, settings, export and theme pe
   await dialog.getByRole('button', { name: 'Статус', exact: true }).click(); await page.getByRole('option', { name: 'Оплачен', exact: true }).click();
   await dialog.getByRole('button', { name: 'Сохранить', exact: true }).click(); await expect(dialog).toHaveCount(0);
   await page.reload(); await expect(row).toContainText('Оплачен');
+  await page.getByRole('tab',{name:'Договоры',exact:true}).click();
+  await page.getByRole('button',{name:'Добавить договор',exact:true}).click();
+  await dialog.getByLabel('Номер',{exact:true}).fill('SYNTHETIC-CONTRACT');
+  await dialog.getByLabel('Сумма, ₽',{exact:true}).first().fill('100000');
+  await dialog.getByLabel('Сумма, ₽',{exact:true}).last().fill('100000');
+  await dialog.getByRole('button',{name:'Сохранить',exact:true}).click();
+  await expect(dialog).toHaveCount(0);await expect(page.getByRole('row').filter({hasText:'SYNTHETIC-CONTRACT'})).toBeVisible();
+  const contracts=await request.get(`${api}/v1/companies/${cid}/contracts`,{headers});expect((await contracts.json())[0].total).toBe(100000);
   await page.goto('/recurring'); await page.getByRole('button', { name: 'Добавить платёж', exact: true }).click();
   await dialog.getByLabel('Название', { exact: true }).fill('Synthetic rent');
   await dialog.getByLabel('Сумма, ₽', { exact: true }).fill('12345.67');

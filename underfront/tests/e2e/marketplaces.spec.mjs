@@ -46,6 +46,15 @@ test('isolated sandbox: WB/Ozon financial reports, duplicate sync and secret mas
   for (const row of data) { expect(row.data_mode).toBe('mock'); expect(row.forecast_eligible).toBe(false); expect(row.bank_fact).toBe(false); }
   const operations = await request.get(`${api}/v1/companies/${cid}/operations`, { headers }); expect((await operations.json()).items).toHaveLength(0);
   await page.reload(); await expect(workspace.getByRole('article')).toHaveCount(4);
+  const wbSource=page.getByRole('article').filter({has:page.getByRole('heading',{name:'Wildberries · отчёты продавца',exact:true})});
+  await wbSource.getByRole('button',{name:'Доступ и параметры',exact:true}).click();
+  const credentials=page.getByRole('dialog');
+  await credentials.getByLabel('Новый ключ доступа',{exact:true}).fill('sandbox-key');
+  await credentials.getByRole('button',{name:'Сохранить параметры',exact:true}).click();
+  await expect(credentials).toHaveCount(0);
+  await expect(wbSource).toContainText('Ожидает проверки');
+  await wbSource.getByRole('button',{name:'Проверить',exact:true}).click();
+  await expect(wbSource).toContainText('Готово');
   const shots = process.env.E2E_SCREENSHOTS_DIR || path.resolve('../docs/e2e-v2-screenshots'); mkdirSync(shots, { recursive: true });
   await workspace.screenshot({ path: path.join(shots, 'marketplace-sandbox-reports.png') });
   const sheet = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Google Sheets · предпросмотр и импорт', exact: true }) });

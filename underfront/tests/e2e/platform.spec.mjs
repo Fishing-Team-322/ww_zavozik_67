@@ -247,6 +247,18 @@ test('synthetic CSV drives dashboard, forecast and a persistent manual event', a
     await expect(page.getByRole('heading', { name: heading, exact: true })).toBeVisible();
     await expect(page.getByText('Загружаем данные…', { exact: true })).toHaveCount(0);
     await expect(page.locator('main').getByRole('alert')).toHaveCount(0);
+    if(route==='/notifications'){
+      await expect(page.getByRole('article')).toHaveCount(1);
+      await page.getByRole('button',{name:'Прочитать все',exact:true}).click();
+      await page.getByRole('button',{name:'Прочтение',exact:true}).click();
+      await page.getByRole('option',{name:'Прочитанные',exact:true}).click();
+      await expect(page.getByRole('article')).toHaveCount(1);
+      await page.getByRole('button',{name:'Отметить непрочитанным',exact:true}).click();
+      await expect(page.getByRole('article')).toHaveCount(0);
+      await page.getByRole('button',{name:'Прочтение',exact:true}).click();
+      await page.getByRole('option',{name:'Непрочитанные',exact:true}).click();
+      await expect(page.getByRole('article')).toHaveCount(1);
+    }
   }
   await navigate(page, '/risks');
   await page.setViewportSize({ width: 375, height: 812 });
