@@ -82,6 +82,16 @@ def main():
 
     call('GET', '/healthz')
     call('GET', '/readyz')
+    if args.require_ml:
+        # API readiness covers PostgreSQL. After a stack restart, the Python
+        # process can still be loading its trained artifacts while API requests
+        # correctly use the fallback. Wait for model readiness, not just a port.
+        deadline = time.monotonic() + 60
+        while call('GET', '/healthz').get('ml') != 'ok':
+            if time.monotonic() >= deadline:
+                raise AssertionError('Trained ML did not become ready within 60 seconds')
+            time.sleep(.5)
+        checked('trained_ml_readiness', 'Trained model service is ready before financial acceptance')
     if args.verify_restart:
         if not args.state:
             raise ValueError('--state is required for restart verification')
