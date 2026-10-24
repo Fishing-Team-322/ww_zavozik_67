@@ -1,0 +1,14 @@
+name: zavozik-integrations
+services:
+  hub:
+    build: .
+    environment:
+      INTEGRATIONS_ADDR: 0.0.0.0:8091
+      INTEGRATIONS_SYNC_TOKEN: ${INTEGRATIONS_SYNC_TOKEN:?set INTEGRATIONS_SYNC_TOKEN before starting}
+    ports:
+      - "127.0.0.1:8091:8091"
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
