@@ -112,6 +112,8 @@ test('live educational 1C imports once and keeps undated invoices out of calenda
   await page.getByRole('textbox', { name: 'Адрес OData 1С' }).fill(process.env.LIVE_ONEC_URL);
   await page.getByRole('button', { name: 'Найти организацию и счета', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Найденный счёт организации', exact: true })).toBeVisible({ timeout: 60_000 });
+  await page.getByRole('button', { name: 'Найденный счёт организации', exact: true }).click();
+  await page.getByRole('option', { name: new RegExp(`^${process.env.LIVE_ONEC_ACCOUNT} `) }).click();
   await expect(page.getByRole('button', { name: 'Найденный счёт организации', exact: true })).toContainText(process.env.LIVE_ONEC_ACCOUNT);
   await page.getByRole('button', { name: 'Подключить и синхронизировать' }).click();
   await expect(page.getByRole('status').filter({ hasText: /Синхронизация завершена/ })).toContainText('Новых операций: 15', { timeout: 120_000 });
@@ -243,7 +245,7 @@ test('synthetic CSV drives dashboard, forecast and a persistent manual event', a
   for (const [route, heading] of [['/documents', 'Счета, договоры и налоги'], ['/recurring', 'Регулярные платежи'], ['/plan-fact', 'План и факт'], ['/counterparties', 'Контрагенты'], ['/notifications', 'Уведомления'], ['/settings', 'Настройки компании'], ['/methodology', 'Как мы считаем']]) {
     await navigate(page, route);
     await expect(page.getByRole('heading', { name: heading, exact: true })).toBeVisible();
-    await expect(page.getByText('Загружаем данные…', { exact: true })).not.toBeVisible();
+    await expect(page.getByText('Загружаем данные…', { exact: true })).toHaveCount(0);
     await expect(page.locator('main').getByRole('alert')).toHaveCount(0);
   }
   await navigate(page, '/risks');
@@ -252,7 +254,7 @@ test('synthetic CSV drives dashboard, forecast and a persistent manual event', a
   for (const [route, heading] of [['/overview', /Финансовый прогноз/], ['/transactions', 'История операций'], ['/forecast', 'Денежный остаток'], ['/calendar', 'Платёжный календарь'], ['/scenarios', 'Базовый и негативный прогноз']]) {
     await page.goto(route);
     await expect(page.getByRole('heading', { name: heading })).toBeVisible();
-    await expect(page.getByText('Загружаем данные…', { exact: true })).not.toBeVisible();
+    await expect(page.getByText('Загружаем данные…', { exact: true })).toHaveCount(0);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), `mobile overflow: ${route}`).toBe(true);
     if (route === '/calendar') await page.screenshot({ path: path.join(screenshots, 'calendar-mobile-synthetic.png') });
   }
