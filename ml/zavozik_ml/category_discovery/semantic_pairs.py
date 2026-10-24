@@ -38,7 +38,8 @@ def sample(corpus: Path, out: Path, per_partition=1000, seed=42):
     if out.exists():
         raise ValueError("review exists; refuse overwrite")
     meta = json.loads((corpus / "manifest.json").read_text())
-    if meta["protocol"] != PROTOCOL or per_partition < 1:
+    from .public_corpus import PROTOCOL as PUBLIC_PROTOCOL
+    if meta["protocol"] not in (PROTOCOL, PUBLIC_PROTOCOL) or per_partition < 1:
         raise ValueError("purged discovery v2 corpus and positive sample size required")
     all_rows, owner = {}, {}
     for p in PARTS:
@@ -57,9 +58,15 @@ def sample(corpus: Path, out: Path, per_partition=1000, seed=42):
     report = dict(schema=SCHEMA, corpus_manifest_sha256=sha256_file(corpus / "manifest.json"),
                   source_kind=meta["source_kind"], independent_external_test=False,
                   scope="development pair review; historical synthetic source is not independent bank gold",
-                  seed=seed, judgments_prefilled=False, instructions=INSTRUCTIONS, partitions={})
+                  seed=seed, judgments_prefilled=False, instructions=INSTRUCTIONS, partitions={},
+                  sampling_policy="bounded per-stratum reservoir v1; proposals are not labels",
+                  sampling_code_sha256=sha256_file(Path(__file__)))
+    if meta["source_kind"] == "public_institution_transactions":
+        report["scope"] = "auxiliary public multilingual budget development pairs; no independent Russian bank gold"
     for p, rows in all_rows.items():
-        strata = defaultdict(list)
+        strata, eligible = defaultdict(list), Counter()
+        rng = random.Random(f"{seed}:{p}")
+        words = {r["content_key"]: set(r["semantic_text"].split()) for r in rows}
         for a, b in itertools.combinations(rows, 2):
             if a["direction"] != b["direction"]:
                 continue  # direction is an observed constraint, not an easy negative target
@@ -67,11 +74,19 @@ def sample(corpus: Path, out: Path, per_partition=1000, seed=42):
             # families: cosmetic variants cannot inflate verified support.
             if a["template_family"] == b["template_family"] or a["company"] == b["company"]:
                 continue
-            wa, wb = set(a["semantic_text"].split()), set(b["semantic_text"].split())
+            wa, wb = words[a["content_key"]], words[b["content_key"]]
             similarity = len(wa & wb) / max(1, len(wa | wb))
             stratum = "lexically_close" if similarity >= .3 else "other"
-            strata[stratum].append((a, b))
-        rng = random.Random(f"{seed}:{p}")
+            eligible[stratum] += 1
+            # Never materialize millions of candidate pairs from a larger
+            # external corpus. Reservoir probabilities are uniform per stratum.
+            reservoir = strata[stratum]
+            if len(reservoir) < per_partition:
+                reservoir.append((a, b))
+            else:
+                chosen_index = rng.randrange(eligible[stratum])
+                if chosen_index < per_partition:
+                    reservoir[chosen_index] = (a, b)
         chosen = []
         for kind, candidates in sorted(strata.items()):
             chosen.extend((kind, pair) for pair in rng.sample(candidates, min((per_partition + 1)//2, len(candidates))))
@@ -93,7 +108,7 @@ def sample(corpus: Path, out: Path, per_partition=1000, seed=42):
                                 companies=[a["companies"], b["companies"]]))
         write_rows(out / f"{p}_blind.jsonl", blind)
         write_rows(out / f"{p}_private.jsonl", private)
-        report["partitions"][p] = dict(pairs=len(blind), eligible=sum(map(len, strata.values())),
+        report["partitions"][p] = dict(pairs=len(blind), eligible=sum(eligible.values()), eligible_by_stratum=dict(eligible),
             sampling=dict(Counter(kind for kind, _ in chosen)),
             blind_sha256=sha256_file(out / f"{p}_blind.jsonl"), private_sha256=sha256_file(out / f"{p}_private.jsonl"))
     (out / "manifest.json").write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n")

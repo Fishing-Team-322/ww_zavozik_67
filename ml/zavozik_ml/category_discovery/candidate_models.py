@@ -113,7 +113,7 @@ def fetch(name: str, root: Path, *, weights=True):
     return base
 
 
-def tokenizer_for(name, base):
+def tokenizer_for(name, base, *, text_version=TEXT_VERSION):
     from transformers import AutoTokenizer
     spec = MODELS[name]
     source = verify_base(base, spec, weights=False)
@@ -122,7 +122,7 @@ def tokenizer_for(name, base):
     def tokenize(query_texts):
         texts = [t.removeprefix("query: ") for t in query_texts]
         return tokenizer(spec.inputs(texts), truncation=True, max_length=spec.max_length)["input_ids"]
-    return tokenize, dict(source, recipe=asdict(spec), text_version=TEXT_VERSION)
+    return tokenize, dict(source, recipe=asdict(spec), text_version=text_version)
 
 
 class CandidateEncoder:

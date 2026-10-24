@@ -25,13 +25,16 @@ def cache(corpus: Path, base: Path, out: Path, model: str, device="cpu"):
         raise ValueError("candidate cache exists; refuse overwrite")
     meta = json.loads((corpus / "manifest.json").read_text())
     spec = MODELS[model]
-    if meta["protocol"] != PROTOCOL or meta["text_version"] != TEXT_VERSION:
+    from .public_corpus import PROTOCOL as PUBLIC_PROTOCOL, TEXT_VERSION as PUBLIC_TEXT_VERSION
+    supported = {PROTOCOL: (TEXT_VERSION, "normalization.py"), PUBLIC_PROTOCOL: (PUBLIC_TEXT_VERSION, "public_corpus.py")}
+    text_recipe = supported.get(meta["protocol"])
+    if text_recipe is None or meta["text_version"] != text_recipe[0]:
         raise ValueError("unsupported prepared corpus/text version")
     recipe = meta["tokenizers"].get(spec.model_id + "@" + spec.revision, {}).get("recipe")
     if recipe != asdict(spec):
         raise ValueError("candidate input recipe not audited before splitting")
-    expected_normalizer = meta["source_files_sha256"]["zavozik_ml/category_discovery/normalization.py"]
-    if sha256_file(Path(__file__).with_name("normalization.py")) != expected_normalizer:
+    expected_normalizer = meta["source_files_sha256"]["zavozik_ml/category_discovery/" + text_recipe[1]]
+    if sha256_file(Path(__file__).with_name(text_recipe[1])) != expected_normalizer:
         raise ValueError("normalizer changed after preparation")
     parts = {}
     for part in ("train", "calibration"):
@@ -40,11 +43,11 @@ def cache(corpus: Path, base: Path, out: Path, model: str, device="cpu"):
             raise ValueError("corpus changed")
         parts[part] = read_rows(path)
     encoder = CandidateEncoder(model, base, device=device)
-    report = dict(model=model, recipe=asdict(spec), text_version=TEXT_VERSION, base=encoder.source,
+    report = dict(model=model, recipe=asdict(spec), text_version=meta["text_version"], base=encoder.source,
                   corpus_manifest_sha256=sha256_file(corpus / "manifest.json"),
                   semantic_accuracy=None, fine_tuning=False, final_test_read=False, device=device,
                   code_sha256={name: sha256_file(Path(__file__).with_name(name)) for name in
-                               ("candidate_cache.py", "candidate_models.py", "normalization.py")})
+                               ("candidate_cache.py", "candidate_models.py", text_recipe[1])})
     out.mkdir(parents=True)
     # Preserve provenance before the first forward pass, including on failure.
     (out / "started.json").write_text(json.dumps(report, indent=2) + "\n")

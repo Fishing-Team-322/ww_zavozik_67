@@ -587,3 +587,45 @@
   50d427756c6b1b2fe0c0a10f67fbda1fc8e82c1b. Не дублировать, model.partial
   ~132MiBна18:48. Ещё НЕ generation/fit. Новая qualified_v2 сохраняет текущие
   preparation_source snapshots; в дальнейшем использовать её вместоv1.
+
+## Продолжение ~18:58 MSK (не считать завершением)
+
+- Commit8fe04eb сохранил предыдущую большую контрольную точку. После него
+  добавлен public_corpus.py/test и local_teacher.py/test/teacher_diagnostics.py,
+  модифицированы candidate_models/cache и semantic_pairs (покаuncommitted).
+- Publicqualified_v2 готов с текущимsource_snapshot. Новыйpublic_corpus_v1
+  УЖЕ ПОДГОТОВЛЕН, не повторятьclosure: bounded6000rows breadth-first companies,
+  UnicodepurposepreservingUKletters, noKEKVtargets,hashcompanyownership60/20/20,
+  near/numeric-leakage aliases/actual128/128/256tokenclosure before split.
+  train3492rows/3454unique/2588companies/3205families;
+  cal1091/1080/835/1022;devtest1142/1135/853/1081; всеintersections0.
+  Metadata ml/data/category_discovery/public_corpus_v1/manifest.json,
+  sourcecopy public_corpus_source.py.txt. Разбиение толькоheuristic template
+  independence, не доказательство semanticindependence или Russianbankgold.
+- public_pair_review_v1 УЖЕ СФОРМИРОВАН,1000pairsнакаждыйpart. Никакихответов.
+  semantic_pairs теперь bounded reservoir sampling,неO(N²)storage; lexical
+  sets cached. Старыеeconomic_pair_review_v2 immutableне менялись.
+- ЕДИНСТВЕННЫЙ GPUjob сейчас public CandidateCacheQwen: session98283,PID50967,
+  logfilepublic_cache_qwen.log, outpublic_candidate_cache_v1/qwen3-embedding-0.6b.
+  Он кодируетТОЛЬКОtrain/cal,no devtestread. На18:58run~3min,не дублировать,
+  не запускать другиеMPS/MLXjobs покаон не закончит.
+- Teacherdownload session2061,PID49627 ещёактивен,fetch_teacher.log;
+  weights expected2263022417bytes,на18:58~1.9GiB. Кодfetch_teacher pinned,
+  LFSSHAverify mandatory. tokenizerfilesбудутпослевесов;не load доteacher_source.json.
+- MLX API проверен черезinspect вteacher_venv: mlx_lm.load(localpath,
+  trust_remote_code=False,tokenizer_config={local_files_only:True,...});
+  generate(...,max_tokens256,sampler=make_sampler(temp=0)).
+  local_teacher.pyresumablewithfilelock/perpairatomicfiles/exactevidencespans,
+  rejectsbadJSON/hierarchy/changedinputs,ALWAYSlocal_model_weak nothuman.
+  Егоsource/protocol ДОЛЖНЫБЫТЬзафиксированы доfirstgeneration. Очередьне запущена.
+- teacher_open_diagnostics_v1_inputs создан(28pairs из14openauthoredtriplets,
+  private_expected.jsonl). Сначала boundedteacher_diagnostics.py послеweights
+  иQwencache, outteacher_open_diagnostics_v1. ЭтоdebugНЕgold/НЕtraining.
+  Послеpilotизучитьschema/evidencefailures/экономическиеошибки/runtime;только
+  еслиосмысленно,запускать boundedweakannotation public_pair_review_v1 train/cal.
+  Не teacherannotate devtest/frozenoldfinal. Не называтьselflabelsindependent.
+- Новыеfocusedtests normalizerUnicode3PASS,teacherparser4PASS,semantic+candidate
+  вместе12/13PASS. Текущийprod fullsessionбудетпроверенследующимпроходом.
+  UIserver ужеостановлен. ColimaOFF. Нетheartbeat/новыхthreads/subagents.
+  Пользовательявноотказался отhumanreviewпока ипроситискатьpublicdata; незадавать
+  опятьэтиже вопросы. ПродолжатьMLresearchбездедлайна,неостанавливатьсялишьиз-заgold.
