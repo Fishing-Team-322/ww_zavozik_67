@@ -111,6 +111,23 @@ def is_workday(dates) -> np.ndarray:
     return _table()["work"][_index(dates)]
 
 
+def uses_workday_calendar(history) -> bool:
+    """Нули в выходные — свойство источника, а не универсальное правило.
+
+    Если в доступной истории есть достоверное движение в нерабочий день,
+    жёсткая маска отключается. Это не использует будущую часть истории.
+    """
+    if not history.dates:
+        return True
+    off = ~is_workday(np.array(history.dates, dtype="datetime64[D]"))
+    active = (history.inflow + history.outflow) > 0
+    return not bool((off & active & ~history.missing).any())
+
+
+def forecast_day_mask(history, dates) -> np.ndarray:
+    return is_workday(dates) if uses_workday_calendar(history) else np.ones(np.shape(dates), dtype=bool)
+
+
 def features(dates, origin) -> dict[str, np.ndarray]:
     """Календарные признаки целевых дней `dates` для прогноза от дня `origin`
     (скаляр или массив той же длины)."""

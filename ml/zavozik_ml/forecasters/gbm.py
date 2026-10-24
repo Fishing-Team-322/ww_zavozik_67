@@ -21,6 +21,7 @@
 from __future__ import annotations
 
 import json
+from datetime import timedelta
 from pathlib import Path
 
 import lightgbm as lgb
@@ -162,6 +163,9 @@ class GBMGlobal(Forecaster):
     name = "gbm_global"
     description = "LightGBM по всем компаниям: календарь, «то же число месяц назад», регулярные платежи"
     is_global = True
+    # Development company CV: a global level improves 14/28-day histories
+    # substantially over pure repetition; uncertainty remains low-confidence.
+    short_history_global = True
 
     def __init__(self) -> None:
         self.models: dict[str, lgb.Booster] = {}
@@ -182,14 +186,30 @@ class GBMGlobal(Forecaster):
             return -1
 
     def fit(self, histories: list[History]) -> None:
+        histories = [h for h in histories if len(h)]
+        if not histories:
+            raise ValueError("no nonempty histories supplied")
         self.industries = sorted({h.industry for h in histories})
-        # Калибровка разброса: учимся без последних CAL_DAYS дней и подбираем
-        # множитель так, чтобы коридор p10–p90 накопленного потока покрывал
-        # 80% факта на этих днях. Потом переобучаемся на всём.
-        head = [h.head(len(h) - CAL_DAYS) for h in histories if len(h) - CAL_DAYS > MIN_HISTORY + MAX_HORIZON]
+        # A shared calendar cutoff is essential: subtracting 60 rows separately
+        # would let a long-lived company's April data calibrate a short-lived
+        # company's March forecast. Also reserve companies for spread calibration
+        # to match the new-company evaluation/use case.
+        cutoff = max(h.dates[-1] for h in histories) - timedelta(days=CAL_DAYS)
+        order = np.random.default_rng(42).permutation(len(histories))
+        reserved = set(order[:max(1, len(histories)//5)]) if len(histories) >= 5 else set()
+        head = []
+        for i, h in enumerate(histories):
+            if i in reserved:
+                continue
+            n = sum(d <= cutoff for d in h.dates)
+            if n > MIN_HISTORY + MAX_HORIZON:
+                head.append(h.head(n))
+        if not head:
+            raise ValueError("insufficient complete history before calibration cutoff")
         self.spread = 1.0
         self.models = self._train(head)
-        self.spread, self.calibration = self._calibrate(histories)
+        calibration = [h for i, h in enumerate(histories) if not reserved or i in reserved]
+        self.spread, self.calibration = self._calibrate(calibration, earliest_origin=cutoff)
         self.models = self._train(histories)
 
     def _train(self, histories: list[History]) -> dict[str, lgb.Booster]:
@@ -205,6 +225,8 @@ class GBMGlobal(Forecaster):
             frames.append(X)
             y_in.append(s.inflow[t0 + h] / scale)
             y_out.append(s.outflow[t0 + h] / scale)
+        if not frames:
+            raise ValueError("no complete training windows: need histories longer than 86 days (and calibration prefix)")
         X = pd.concat(frames, ignore_index=True)
         models = {}
         for key, y in (("in", np.concatenate(y_in)), ("out", np.concatenate(y_out))):
@@ -213,7 +235,7 @@ class GBMGlobal(Forecaster):
             models[key] = lgb.train(PARAMS, ds, NUM_ROUNDS)
         return models
 
-    def _calibrate(self, histories: list[History]) -> tuple[float, dict[str, float]]:
+    def _calibrate(self, histories: list[History], earliest_origin=None) -> tuple[float, dict[str, float]]:
         rng = np.random.default_rng(0)
         covered = np.zeros(len(SPREAD_GRID))
         total = 0
@@ -221,6 +243,8 @@ class GBMGlobal(Forecaster):
             n = len(hist)
             for t0 in (n - 1 - MAX_HORIZON - 7 * k for k in range(4)):
                 if t0 < MIN_HISTORY - 1 or hist.missing[t0 - MIN_HISTORY + 1 : t0 + MAX_HORIZON + 1].any():
+                    continue
+                if earliest_origin is not None and hist.dates[t0] < earliest_origin:
                     continue
                 c = self._components(hist.head(t0 + 1), MAX_HORIZON)
                 if c is None:
@@ -230,8 +254,11 @@ class GBMGlobal(Forecaster):
                 actual = np.cumsum(hist.inflow - hist.outflow)[t0 + 1 : t0 + MAX_HORIZON + 1] - np.cumsum(
                     hist.inflow - hist.outflow
                 )[t0]
+                # Match forecast(): residual blocks are aligned by horizon,
+                # so their non-working days can differ from the target calendar.
+                work = cal.forecast_day_mask(hist.head(t0 + 1), np.array(hist.dates[t0+1:t0+MAX_HORIZON+1], dtype="datetime64[D]"))
                 for i, a in enumerate(SPREAD_GRID):
-                    net = np.cumsum(mu_in - mu_out + a * (r_in[k] - r_out[k]) * scale, axis=1)
+                    net = np.cumsum((mu_in - mu_out + a * (r_in[k] - r_out[k]) * scale) * work, axis=1)
                     lo, hi = np.quantile(net, [0.1, 0.9], axis=0)
                     covered[i] += ((actual >= lo) & (actual <= hi)).sum()
                 total += MAX_HORIZON
@@ -252,7 +279,10 @@ class GBMGlobal(Forecaster):
         if not (directory / "meta.json").exists():
             return False
         meta = json.loads((directory / "meta.json").read_text())
-        self.industries, self.spread = meta["industries"], meta.get("spread", 1.0)
+        spread = float(meta.get("spread", 1.0))
+        if not np.isfinite(spread) or spread <= 0 or not isinstance(meta["industries"], list):
+            raise ValueError("invalid GBM artifact metadata")
+        self.industries, self.spread = meta["industries"], spread
         self.calibration = meta.get("calibration", {})
         self.models = {k: lgb.Booster(model_file=str(directory / f"{k}.txt")) for k in ("in", "out")}
         return True
@@ -261,7 +291,9 @@ class GBMGlobal(Forecaster):
 
     def _predict(self, s: _Series, t0: np.ndarray, h: np.ndarray, industry: str) -> tuple[np.ndarray, np.ndarray]:
         X, scale = _features(s, t0, h, self._industry_code(industry))
-        work = cal.is_workday(s.d0 + (t0 + h).astype("timedelta64[D]")).astype(float)  # в нерабочий день операций нет
+        # Для обучающей выборки кейса все операции рабочие. На новом источнике
+        # наблюдаемые операции выходного дня запрещают принудительное обнуление.
+        work = cal.forecast_day_mask(s.h, s.d0 + (t0 + h).astype("timedelta64[D]")).astype(float)
         return self.models["in"].predict(X) * scale * work, self.models["out"].predict(X) * scale * work
 
     def _components(self, history: History, horizon: int):
@@ -291,7 +323,7 @@ class GBMGlobal(Forecaster):
     def forecast(self, history: History, horizon: int, n_paths: int, rng: np.random.Generator) -> Paths:
         if not self.ready:
             raise NotTrainedError("gbm_global is not trained: run training or load artifacts")
-        if len(history) < MIN_HISTORY:
+        if len(history) < MIN_HISTORY and not (self.short_history_global and len(history) >= 14):
             return SeasonalNaive().forecast(history, horizon, n_paths, rng)
         if horizon > MAX_HORIZON:
             # Дальше обученного горизонта: первые дни — бустинг, хвост — naive.
@@ -314,7 +346,7 @@ class GBMGlobal(Forecaster):
         mu_in, mu_out, r_in, r_out, scale = c
         k = rng.integers(len(r_in), size=n_paths)
         inflow, outflow = _nonneg(mu_in + self.spread * r_in[k] * scale, mu_out + self.spread * r_out[k] * scale)
-        work = cal.is_workday(np.datetime64(history.dates[-1], "D") + np.arange(1, horizon + 1))
+        work = cal.forecast_day_mask(history, np.datetime64(history.dates[-1], "D") + np.arange(1, horizon + 1))
         return Paths(inflow * work, outflow * work, low_confidence=history.valid_days < MIN_CONFIDENT_DAYS)
 
 

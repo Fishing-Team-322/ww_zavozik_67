@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 
 import matplotlib
@@ -92,10 +93,11 @@ def fan_chart(df: pd.DataFrame, flows: pd.DataFrame, model: str, company: str, a
 
 
 def pick_demo(df: pd.DataFrame, model: str):
-    """Точка старта с реальным разрывом, который модель увидела заранее."""
-    g = df[(df.model == model) & (df.h == 1)]
-    hit = g[g.gap_true & (g.gap_prob >= 0.3) & (g.gap_day >= 7)].sort_values("gap_prob", ascending=False)
-    row = (hit if len(hit) else g).iloc[0]
+    """Median-error example, deterministic; no selection for an impressive hit."""
+    g = df[df.model == model].groupby(["company_id", "as_of"]).agg(mae=("mae_run", "first")).reset_index()
+    if g.empty:
+        raise ValueError(f"no results for model {model}")
+    row = g.sort_values(["mae", "company_id", "as_of"]).iloc[len(g)//2]
     return row.company_id, row.as_of
 
 
@@ -132,58 +134,106 @@ def to_markdown(summary: pd.DataFrame) -> str:
     return header + "\n".join("| " + " | ".join(map(str, r)) + " |" for r in t.itertuples(index=False))
 
 
+def metric_table(frame: pd.DataFrame, columns: dict[str, str]) -> str:
+    columns = {k: v for k, v in columns.items() if k in frame}
+    rows = []
+    for _, row in frame.iterrows():
+        cells = []
+        for key in columns:
+            v = row[key]
+            if isinstance(v, (float, np.floating)):
+                cells.append("—" if not np.isfinite(v) else f"{v:.3f}")
+            else:
+                cells.append(str(v).replace("|", "/"))
+        rows.append("| " + " | ".join(cells) + " |")
+    return "| " + " | ".join(columns.values()) + " |\n|" + "---|"*len(columns) + "\n" + "\n".join(rows)
+
+
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--results", type=Path, default=DEFAULT_FLOWS.parent / "backtest_py.parquet")
-    p.add_argument("--best", default="gbm_global")
+    p.add_argument("--flows", type=Path, default=DEFAULT_FLOWS)
+    p.add_argument("--out", type=Path, default=REPORTS / "quality.md")
+    p.add_argument("--best", default="ensemble", help="model for representative example; does not select a winner")
     args = p.parse_args()
-
     df = pd.read_parquet(args.results)
     summary = pd.read_csv(args.results.with_suffix(".summary.csv"))
-    flows = pd.read_csv(DEFAULT_FLOWS, usecols=["company_id", "date", "balance"], parse_dates=["date"])
-    REPORTS.mkdir(parents=True, exist_ok=True)
-
-    wape_by_horizon(df, REPORTS / "wape_by_horizon.png")
-    company, as_of = pick_demo(df, args.best)
-    fan_chart(df, flows, args.best, company, as_of, REPORTS / "fan_chart.png")
-
-    md = f"""# Качество прогноза остатка
-
-Бэктест на датасете кейса: {df.company_id.nunique()} компаний с подходящей историей,
-{df.groupby(['model']).size().iloc[0] // 30} прогонов на модель, горизонт 30 дней, 6 точек старта на компанию с шагом
-30 дней.
-
-**Все компании оценены как новые для модели** — кросс-валидация по компаниям
-на 5 групп: глобальная модель учится без группы и прогнозирует только её. Так
-мы имитируем проверку экспертами на своём наборе данных. Дополнительно модель
-переобучается раз в месяц и видит только прошлое относительно точки старта.
-
-- **WAPE** — суммарная абсолютная ошибка медианы прогноза остатка / сумма |остатка|.
-- **WAPE (бизнес)** — то же против остатка без переводов владельца (займы
-  учредителя, переводы своих средств): их не предсказать по потокам бизнеса.
-- **Покрытие p10–p90** — доля дней, когда факт внутри коридора (цель — 80%).
-- **Ошибка к naive** — средняя (геометрическая) по прогонам ошибка модели,
-  делённая на ошибку seasonal naive на том же прогоне: не зависит от размера
-  компании, < 1 — лучше бейзлайна. **Лучше naive** — доля таких прогонов.
-- **Разрывы** — остаток без докачки владельцем уходит ниже нуля на горизонте;
-  прогноз разрыва — вероятность ≥ 30%. «За сколько дней» — как рано увидели.
-
-{to_markdown(summary[summary.companies == "all"])}
-
-![WAPE по горизонту](wape_by_horizon.png)
-
-## По отраслям (WAPE 30 дней)
-
-{by_industry(df)}
-
-Хуже всего прогнозируются отрасли с редкими крупными B2B-платежами и сильной
-сезонностью (сельское хозяйство, строительство, детские центры): там одна
-оплата клиента сопоставима с месячным оборотом.
-
-![Пример прогноза](fan_chart.png)
-"""
-    (REPORTS / "quality.md").write_text(md)
-    print(f"report: {REPORTS / 'quality.md'}")
+    meta = json.loads(args.results.with_suffix(".metadata.json").read_text())
+    if "scenario" not in summary:
+        summary["scenario"] = "standard"
+    if "scenario" in df:
+        df = df[df.scenario == "standard"]
+    s = summary[(summary.companies == "all") & (summary.scenario == "standard")]
+    args.out.parent.mkdir(parents=True, exist_ok=True)
+    figures = args.out.parent
+    prefix = args.out.stem
+    dates = sorted(str(d) for d in df.as_of.unique())
+    lines = ["# Проверка прогноза денежных потоков", "",
+        f"Протокол: **{meta['protocol']}**; CV по компаниям: {meta['cv']}; "
+        f"{df.company_id.nunique()} компаний; {df[['company_id', 'as_of']].drop_duplicates().shape[0]} точек старта на модель. "
+        f"Даты: {', '.join(dates)}. Горизонт {meta['horizon']} дней, {meta['paths']} путей, seed {meta['seed']}.", "",
+        "Обучение использует только прошлое относительно даты прогноза. "
+        "В development с CV каждая оцениваемая компания исключена из обучения своего fold; "
+        "в audit фиксированные аудит-компании исключены из всех обучений. "
+        "Обычный development без CV оценивает знакомые компании и не заменяет проверку обобщения.", "",
+        "Все исходные компании ранее исследовались при разработке. Это внутренняя проверка на синтетических выписках, "
+        "а не независимый внешний тест и не гарантия качества на настоящем бизнесе.", "",
+        "## Остаток и неопределённость", "",
+        "Модель прогнозирует бизнес-потоки без own_transfer/owner_loan, включая регулярные зарплату, налоги и аренду. "
+        "Основная цель — начальный остаток плюс эти потоки. Account — наблюдаемый остаток счёта, "
+        "который дополнительно меняют переводы владельца. Эти цели нельзя смешивать.", "",
+        "WAPE 7/14/30 — ошибка в конкретный день горизонта. Path WAPE — ошибка по всем дням. "
+        "Числа являются долями (0.25 = 25%). Покрытие p10–p90 должно быть около 0.80; "
+        "слишком широкий интервал тоже нежелателен, поэтому рядом pinball loss. "
+        "Relative MAE и win rate сравнивают account MAE с naive на каждой той же точке старта.", "",
+        metric_table(s, {"model":"Модель", "runs":"N", "biz_wape_7":"Business WAPE 7", "biz_wape_14":"14", "biz_wape_30":"30",
+                        "business_path_wape":"Business path WAPE", "biz_coverage":"Покрытие", "biz_pinball":"Pinball",
+                        "wape_30":"Account WAPE 30", "rel_mae_gmean":"Relative MAE", "win_rate":"Win rate"}), "",
+        "## Кассовые разрывы", "",
+        f"Предупреждение совпадает с Go risk.FindGaps: первый день, где P(остаток < 0) ≥ {meta['gap_threshold']}. "
+        "Вероятность события на всём горизонте считается отдельно: доля путей хотя бы с одним отрицательным остатком. "
+        "Brier/ECE ниже относятся к вероятности события на горизонте. Date MAE — ошибка даты среди верно найденных событий, "
+        "а не заблаговременность. Shortfall MAE — ошибка медианной нехватки по всем фактическим бизнес-разрывам, в рублях.", "",
+        metric_table(s, {"model":"Модель", "gap_events":"Событий", "gap_alerts":"Сигналов", "gap_false_alerts":"Ложных",
+                        "gap_precision":"Precision", "gap_recall":"Recall", "gap_brier":"Brier", "gap_ece":"ECE",
+                        "gap_date_mae_days":"Date MAE, дни", "gap_shortfall_mae":"Shortfall MAE, ₽"}), "",
+        "Account-показатели ниже диагностические: бизнес-сценарий не моделирует будущую финансовую помощь владельца.", "",
+        metric_table(s, {"model":"Модель", "account_gap_events":"Account событий", "account_gap_precision":"Precision",
+                        "account_gap_recall":"Recall", "account_gap_brier":"Brier", "opening_negative_runs":"Уже ниже нуля",
+                        "new_gap_events":"Новых business событий", "new_gap_recall":"Recall новых",
+                        "daily_gap_brier":"Daily Brier", "daily_gap_ece":"Daily ECE"})]
+    for suffix, title, cols in [
+        ("segments", "Сегменты доступной истории", {"segment":"Сегмент", "model":"Модель", "runs":"N", "business_path_wape":"Path WAPE",
+            "biz_coverage":"Покрытие", "gap_precision":"Precision", "gap_recall":"Recall", "low_confidence_share":"Low confidence"}),
+        ("calibration", "Калибровка вероятности события на горизонте", {"model":"Модель", "lower":"От", "upper":"До", "n":"N",
+            "mean_prediction":"Прогноз", "business_frequency":"Business факт", "account_frequency":"Account факт"})]:
+        path = args.results.with_suffix(f".{suffix}.csv")
+        if path.exists():
+            t = pd.read_csv(path)
+            lines += ["", f"## {title}", "", metric_table(t, cols)]
+    stress = summary[(summary.companies == "all") & (summary.scenario != "standard")]
+    if len(stress):
+        lines += ["", "## Контролируемое ухудшение входа", "",
+            "Будущий факт неизменен. short — только последние N дней; gap_14 — скрытые 14 дней перед последней неделей; "
+            "missing_30pct — детерминированно скрытые 30% дней. Это стресс-проверка, а не новый независимый датасет.", "",
+            metric_table(stress, {"scenario":"Сценарий", "model":"Модель", "runs":"N", "business_path_wape":"Path WAPE",
+                                 "biz_coverage":"Покрытие", "gap_precision":"Precision", "gap_recall":"Recall",
+                                 "low_confidence_share":"Low confidence"})]
+    if len(df):
+        wape_by_horizon(df, figures / f"{prefix}_wape.png", column="adjusted")
+        lines += ["", f"![Business WAPE по горизонту]({prefix}_wape.png)"]
+        if args.flows.exists():
+            flows = pd.read_csv(args.flows, usecols=["company_id", "date", "balance"], parse_dates=["date"])
+            company, as_of = pick_demo(df, args.best)
+            fan_chart(df, flows, args.best, company, as_of, figures / f"{prefix}_example.png")
+            lines += ["", "Пример выбран по медианной ошибке модели, а не по удачно предсказанному разрыву.", "",
+                      f"![Типичный пример]({prefix}_example.png)"]
+    lines += ["", "## Воспроизводимость", "", f"Вход: `{meta['flows_sha256']}`.",
+              f"Код на старте: `{meta.get('source_sha256_at_start', 'не записан в раннем прогоне')}`.",
+              f"Код менялся во время прогона: `{meta.get('source_changed_during_run', 'unknown')}`.",
+              f"Полные результаты и настройки: `{args.results.name}`, `{args.results.with_suffix('.metadata.json').name}`."]
+    args.out.write_text("\n".join(lines) + "\n")
+    print(f"report: {args.out}")
 
 
 if __name__ == "__main__":

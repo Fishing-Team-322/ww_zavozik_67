@@ -76,3 +76,21 @@ def test_nonneg_preserves_net():
 def test_ets_shapes():
     p = forecasters.get("ets").forecast(company(120, 2), 14, 50, np.random.default_rng(0))
     assert p.inflow.shape == (50, 14) and (p.inflow >= 0).all()
+
+
+def test_spread_calibration_uses_one_time_cutoff_and_separate_companies(monkeypatch):
+    histories = [company(400, i, industry=f'identity-{i}') for i in range(10)]
+    histories.append(company(150, 20, industry='ended_early'))
+    model = GBMGlobal()
+    calls = []
+    monkeypatch.setattr(model, '_train', lambda rows: calls.append(rows) or {})
+    calibration = {}
+    def capture(rows, earliest_origin=None):
+        calibration.update(rows=rows, cutoff=earliest_origin)
+        return 1., {'1.00': .8}
+    monkeypatch.setattr(model, '_calibrate', capture)
+    model.fit(histories)
+    assert len(calls) == 2
+    assert all(h.dates[-1] <= calibration['cutoff'] for h in calls[0])
+    assert not {h.industry for h in calls[0]} & {h.industry for h in calibration['rows']}
+    assert len(calls[1]) == len(histories)

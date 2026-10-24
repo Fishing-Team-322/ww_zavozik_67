@@ -35,21 +35,22 @@ class SeasonalNaive(Forecaster):
         # Пулы по дню недели только из рабочих дней (по производственному
         # календарю); в нерабочий день прогноз — ноль, рабочая суббота берёт
         # любой рабочий день.
-        work_hist = cal.is_workday(np.array(history.dates[start:], dtype="datetime64[D]"))
+        calendar_only = cal.uses_workday_calendar(history)
+        work_hist = cal.forecast_day_mask(history, np.array(history.dates[start:], dtype="datetime64[D]"))
         pools: dict[int, list[int]] = {wd: [] for wd in range(7)}
         for j, i in enumerate(range(start, len(history.dates))):
             if not history.missing[i] and work_hist[j]:
                 pools[history.dates[i].weekday()].append(i)
-        any_work = [i for wd in range(5) for i in pools[wd]]
+        any_work = [i for wd in range(7) for i in pools[wd]]
         valid = sum(len(p) for p in pools.values())
 
         last = history.dates[-1]
         targets = [last + timedelta(days=d + 1) for d in range(horizon)]
-        work_target = cal.is_workday(np.array(targets, dtype="datetime64[D]"))
+        work_target = cal.forecast_day_mask(history, np.array(targets, dtype="datetime64[D]"))
         for d, day in enumerate(targets):
             if not work_target[d]:
                 continue
-            pool = pools[day.weekday()] if day.weekday() < 5 else any_work
+            pool = pools[day.weekday()] if not calendar_only or day.weekday() < 5 else any_work
             pool = pool or any_work
             if not pool:
                 continue

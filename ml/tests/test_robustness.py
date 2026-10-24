@@ -63,7 +63,7 @@ def test_models_never_fail(gbm, model_name, case, horizon):
     assert np.isfinite(p.inflow).all() and np.isfinite(p.outflow).all()
     assert (p.inflow >= 0).all() and (p.outflow >= 0).all()
     last = np.datetime64(h.dates[-1], "D")
-    off = ~cal.is_workday(last + np.arange(1, horizon + 1))
+    off = ~cal.forecast_day_mask(h, last + np.arange(1, horizon + 1))
     assert (p.inflow[:, off] == 0).all() and (p.outflow[:, off] == 0).all()
 
 
@@ -75,3 +75,34 @@ def test_short_history_is_low_confidence(gbm):
 def test_calendar_outside_range_keeps_weekdays():
     d = np.array(["2041-03-02", "2041-03-04", "1998-06-06"], dtype="datetime64[D]")  # вс, вт, сб
     assert cal.is_workday(d).tolist() == [False, True, False]
+
+
+def test_weekend_activity_is_not_silently_deleted():
+    h = bare(100)
+    h.inflow[:] = 100
+    h.outflow[:] = 40
+    assert not cal.uses_workday_calendar(h)
+    p = forecasters.get('seasonal_naive').forecast(h, 14, 20, np.random.default_rng(1))
+    np.testing.assert_allclose(p.inflow, 100)
+    np.testing.assert_allclose(p.outflow, 40)
+
+
+def test_calendar_policy_does_not_read_future():
+    h = bare(100)
+    h.inflow[:] = 0
+    h.outflow[:] = 0
+    h.inflow[-1] = 100  # 10 April 2025 Thursday: find a weekend instead
+    h.inflow[-1] = 0
+    i = next(i for i in range(80,100) if not cal.is_workday([h.dates[i]])[0])
+    h.inflow[i] = 100
+    assert cal.uses_workday_calendar(h.head(i))
+    assert not cal.uses_workday_calendar(h.head(i+1))
+
+
+def test_auto_routes_outside_training_support_to_local_model(gbm):
+    from zavozik_ml.forecasters.base import select_model
+    h = bare(200)  # all calendar days active, unlike the training source
+    assert select_model('auto', h).name == 'seasonal_naive'
+    assert select_model('gbm_global', h).name == 'gbm_global'  # explicit selection remains explicit
+    only_out = forecasters.History(h.dates, np.zeros(200), h.outflow, h.missing)
+    assert select_model('auto', only_out).name == 'seasonal_naive'
