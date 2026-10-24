@@ -2,7 +2,7 @@ name: ci
 
 on:
   push:
-    branches: [main]
+    branches: [main, max-back]
   pull_request:
 
 jobs:
@@ -17,6 +17,19 @@ jobs:
 
   go:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: zavozik_test
+          POSTGRES_USER: zavozik_test
+          POSTGRES_PASSWORD: test-only-password
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U zavozik_test -d zavozik_test"
+          --health-interval 3s --health-timeout 3s --health-retries 20
+    env:
+      TEST_DATABASE_URL: postgres://zavozik_test:test-only-password@localhost:5432/zavozik_test?sslmode=disable
     defaults:
       run:
         working-directory: backend
@@ -27,6 +40,7 @@ jobs:
           go-version-file: backend/go.mod
           cache-dependency-path: backend/go.sum
       - run: test -z "$(gofmt -l cmd internal)"
+      - run: go generate ./internal/httpapi && bash ./scripts/gen-unimplemented.sh && git diff --exit-code -- internal/httpapi/api.gen.go internal/httpapi/unimplemented.gen.go
       - run: go vet ./...
       - run: go test -race ./...
 

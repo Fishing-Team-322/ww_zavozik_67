@@ -1,0 +1,15 @@
+{
+  "data_sha256": "11d905783e726fbfe3317a037fa44ee940617dbcc05ffa1f489c09589ae25c7b",
+  "source_sha256": "c8bf8e2eae5e2c55314e91d1688a04d971a698007aeb20a0a72ae1937831c0ed",
+  "model_versions": {
+    "seasonal_naive": "seasonal_naive:code-c8bf8e2eae5e",
+    "ets": "ets:code-c8bf8e2eae5e",
+    "gbm_global": "gbm_global:503ccda143d5e549:code-c8bf8e2eae5e",
+    "ensemble": "ensemble-50-50:gbm_global:503ccda143d5e549:code-c8bf8e2eae5e:seasonal_naive:code-c8bf8e2eae5e"
+  },
+  "target": "daily ATM withdrawals, not account balance",
+  "fit_external": false,
+  "paths": 400,
+  "seed": 20261024,
+  "windows": "last two disjoint 30-day windows per series"
+}

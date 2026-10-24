@@ -1,7 +1,5 @@
-// Package store — доступ к Postgres. Владелец: Бэк 3.
+// Package store implements account and company persistence using pgx/Postgres.
 //
-// Схема — backend/migrations (goose). Запросы — sqlc: SQL в
-// store/queries/*.sql, сгенерированный код рядом.
-//
-// TODO(Бэк 3): sqlc.yaml, запросы, репозитории, River для очереди задач.
+// Schema: backend/migrations (goose). All values in queries are bound parameters.
+// Financial imports, forecast persistence and River jobs remain separate work.
 package store

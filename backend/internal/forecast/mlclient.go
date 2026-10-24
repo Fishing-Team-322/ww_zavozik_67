@@ -3,6 +3,7 @@ package forecast
 import (
 	"context"
 	"fmt"
+	"math"
 	"time"
 
 	"google.golang.org/grpc"
@@ -18,7 +19,9 @@ type MLClient struct {
 	c    forecastv1.ForecasterServiceClient
 }
 
-// maxRecvBytes — потолок входящего сообщения, как в ml/zavozik_ml/serving/server.py:
+const BusinessFlowScope = "business_without_internal_transfers"
+
+// maxRecvBytes — потолок gRPC-сообщения, как в ml/zavozik_ml/serving/server.py:
 // 5000 путей × 366 дней не влезают в дефолтные 4 МиБ gRPC.
 const maxRecvBytes = 64 << 20
 
@@ -27,7 +30,7 @@ const maxRecvBytes = 64 << 20
 func DialML(addr string) (*MLClient, error) {
 	conn, err := grpc.NewClient(addr,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(maxRecvBytes)),
+		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(maxRecvBytes), grpc.MaxCallSendMsgSize(maxRecvBytes)),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("ml: dial %s: %w", addr, err)
@@ -50,6 +53,9 @@ func (m *MLClient) Models(ctx context.Context) ([]ModelInfo, error) {
 }
 
 func (m *MLClient) Forecast(ctx context.Context, req StochasticRequest) (StochasticForecast, error) {
+	if err := validateRequest(req); err != nil {
+		return StochasticForecast{}, err
+	}
 	pb := &forecastv1.ForecastRequest{
 		Model:       req.Model,
 		CompanyId:   req.CompanyID,
@@ -58,6 +64,7 @@ func (m *MLClient) Forecast(ctx context.Context, req StochasticRequest) (Stochas
 		HorizonDays: int32(req.Horizon),
 		NPaths:      int32(req.NPaths),
 		Seed:        req.Seed,
+		FlowScope:   req.FlowScope,
 	}
 	for i, f := range req.History {
 		pb.History[i] = &forecastv1.DailyFlow{
@@ -65,6 +72,13 @@ func (m *MLClient) Forecast(ctx context.Context, req StochasticRequest) (Stochas
 			Inflow:  f.Inflow.Float(),
 			Outflow: f.Outflow.Float(),
 			Missing: f.Missing,
+		}
+		if len(f.ByCategory) > 0 {
+			m := make(map[string]float64, len(f.ByCategory))
+			for c, v := range f.ByCategory {
+				m[string(c)] = v.Float()
+			}
+			pb.History[i].ByCategory = m
 		}
 	}
 	resp, err := m.c.Forecast(ctx, pb)
@@ -78,14 +92,36 @@ func (m *MLClient) Forecast(ctx context.Context, req StochasticRequest) (Stochas
 		Inflow:        make([][]float64, len(resp.GetPaths())),
 		Outflow:       make([][]float64, len(resp.GetPaths())),
 		LowConfidence: resp.GetLowConfidence(),
+		ModelVersion:  resp.GetModelVersion(),
+		FlowScope:     resp.GetFlowScope(),
+		Warnings:      resp.GetWarnings(),
+		FallbackUsed:  resp.GetFallbackUsed(),
+	}
+	if len(out.Dates) != req.Horizon || len(out.Inflow) != req.NPaths {
+		return StochasticForecast{}, fmt.Errorf("ml: invalid response dimensions")
+	}
+	if out.FlowScope != "" && out.FlowScope != BusinessFlowScope {
+		return StochasticForecast{}, fmt.Errorf("ml: unsupported response flow scope %q", out.FlowScope)
 	}
 	for i, s := range resp.GetDates() {
 		if out.Dates[i], err = time.Parse(domain.DateLayout, s); err != nil {
 			return StochasticForecast{}, fmt.Errorf("ml: bad date %q: %w", s, err)
 		}
+		if len(req.History) > 0 && !out.Dates[i].Equal(domain.Day(req.History[len(req.History)-1].Date).AddDate(0, 0, i+1)) {
+			return StochasticForecast{}, fmt.Errorf("ml: unexpected forecast date")
+		}
 	}
 	for p, path := range resp.GetPaths() {
 		out.Inflow[p], out.Outflow[p] = path.GetInflow(), path.GetOutflow()
+		if len(out.Inflow[p]) != req.Horizon || len(out.Outflow[p]) != req.Horizon {
+			return StochasticForecast{}, fmt.Errorf("ml: invalid path length")
+		}
+		for i, v := range out.Inflow[p] {
+			w := out.Outflow[p][i]
+			if math.IsNaN(v) || math.IsInf(v, 0) || math.IsNaN(w) || math.IsInf(w, 0) || v < 0 || w < 0 {
+				return StochasticForecast{}, fmt.Errorf("ml: invalid path value")
+			}
+		}
 	}
 	return out, nil
 }
