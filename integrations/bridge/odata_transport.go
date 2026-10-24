@@ -41,6 +41,9 @@ func odataHTTP(root string) *http.Client {
 		if e != nil || parsed == nil || !strings.EqualFold(host, parsed.Hostname()) {
 			return nil, errors.New("OData destination rejected")
 		}
+		expectedPort := parsed.Port()
+		if expectedPort == "" { if parsed.Scheme == "https" { expectedPort = "443" } else { expectedPort = "80" } }
+		if port != expectedPort { return nil, errors.New("OData destination rejected") }
 		ips, e := net.DefaultResolver.LookupIPAddr(ctx, host)
 		if e != nil || len(ips) == 0 {
 			return nil, errors.New("OData address unavailable")

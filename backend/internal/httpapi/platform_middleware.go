@@ -41,6 +41,9 @@ type limiter struct {
 }
 
 func (l *limiter) allow(key string) bool {
+	return l.allowLimit(key, 30)
+}
+func (l *limiter) allowLimit(key string, maximum int) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	now := time.Now()
@@ -60,7 +63,14 @@ func (l *limiter) allow(key string) bool {
 	}
 	a.count++
 	l.entries[key] = a
-	return a.count <= 30
+	return a.count <= maximum
+}
+
+func authRateBudget(path, ip string) (string, int) {
+	if path == "/v1/auth/refresh" || path == "/v1/auth/logout" {
+		return "session:" + ip, 120
+	}
+	return "credentials:" + ip, 30
 }
 func (s *Server) withPlatform(next http.Handler) http.Handler {
 	limits := &limiter{entries: map[string]attempt{}}
@@ -117,7 +127,8 @@ func (s *Server) withPlatform(next http.Handler) http.Handler {
 				return
 			}
 			ip := s.clientIP(r)
-			if !limits.allow(ip) {
+			key, budget := authRateBudget(r.URL.Path, ip)
+			if !limits.allowLimit(key, budget) {
 				w.Header().Set("Retry-After", "60")
 				writeError(w, 429, "rate_limited", "Слишком много попыток. Подождите минуту")
 				return

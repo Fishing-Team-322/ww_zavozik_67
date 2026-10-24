@@ -22,3 +22,29 @@ func TestProxyClientAddressCannotBeSpoofed(t *testing.T) {
 		}
 	}
 }
+
+func TestSessionTrafficKeepsCredentialRateBudgetIsolated(t *testing.T) {
+	l := &limiter{entries: map[string]attempt{}}
+	session, limit := authRateBudget("/v1/auth/refresh", "198.51.100.9")
+	for i := 0; i < limit; i++ {
+		if !l.allowLimit(session, limit) {
+			t.Fatal("session budget exhausted early")
+		}
+	}
+	if l.allowLimit(session, limit) {
+		t.Fatal("session traffic is unbounded")
+	}
+	login, limit := authRateBudget("/v1/auth/login", "198.51.100.9")
+	for i := 0; i < 30; i++ {
+		if !l.allowLimit(login, limit) {
+			t.Fatal("refresh consumed password attempts")
+		}
+	}
+	if l.allowLimit(login, limit) {
+		t.Fatal("password attempt budget weakened")
+	}
+	other, limit := authRateBudget("/v1/auth/login", "198.51.100.10")
+	if !l.allowLimit(other, limit) {
+		t.Fatal("another client blocked")
+	}
+}
