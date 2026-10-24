@@ -5,6 +5,13 @@ cashflow_dataset_participants
 # ML
 ml/.venv/
 ml/data/
+# V2 release metadata is tracked; large local neural weights are not.
+ml/models/classifiers/encoder-v*/encoder/
+ml/models/classifiers/encoder-v*/*.onnx
+ml/models/classifiers/encoder-v*/*.onnx.data
+ml/models/classifiers/encoder-v*/*.safetensors
+ml/models/classifiers/encoder-v*/tokenizer.json
+ml/models/classifiers/discovery-v*/encoder/
 __pycache__/
 *.egg-info/
 .pytest_cache/
@@ -23,3 +30,6 @@ backend/backtest.csv
 /docs/FULL_PLATFORM_COMPLETION_REPORT.md
 /docs/FULL_PLATFORM_E2E_REPORT.md
 /docs/MAIN_FRONTEND_VALIDATION.md
+
+# Локальные прогоны обучения трансформера (веса и логи)
+ml/runs/

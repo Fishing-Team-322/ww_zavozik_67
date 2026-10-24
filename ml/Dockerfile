@@ -6,7 +6,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends libgomp1 && rm 
 COPY pyproject.toml ./
 COPY requirements.lock ./
 COPY zavozik_ml ./zavozik_ml
-RUN pip install --no-cache-dir -c requirements.lock .
+# Optional neural runtimes; the default v1/forecast image is unchanged.
+ARG ML_EXTRA=""
+RUN case "$ML_EXTRA" in ""|encoder|encoder-torch|discovery) ;; *) exit 1 ;; esac \
+    && if [ "$ML_EXTRA" = encoder-torch ] || [ "$ML_EXTRA" = discovery ]; then \
+         pip install --no-cache-dir 'torch>=2.5' --index-url https://download.pytorch.org/whl/cpu; \
+       fi \
+    && if [ -n "$ML_EXTRA" ]; then \
+         pip install --no-cache-dir -c requirements.lock ".[${ML_EXTRA}]"; \
+       else pip install --no-cache-dir -c requirements.lock .; fi
 COPY gen ./gen
 COPY artifacts ./artifacts
 ENV ML_ARTIFACTS=/app/artifacts

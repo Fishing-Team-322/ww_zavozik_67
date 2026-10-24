@@ -1,0 +1,281 @@
+{
+  "protocol": "company_purged_template_families_v3",
+  "data_manifest_sha256": "348227be9e04a473f7ad741199f1c09f7936b6d8128e2eb540be4b339aed31c7",
+  "source_sha256": "28d7a2ebc6d4d65f31f93e59e24659a04c76990d20833337b9351316fd445472",
+  "preparation_files_sha256": {
+    "zavozik_ml/classify_v2/data.py": "e0144a4d40bd17ed5a5fdc62943e964f645d96e9aa7718992d92dec61cd91d6c",
+    "zavozik_ml/classify_v2/splitting.py": "82fb0ab66dcdf0b6581b25ade40af80f2c07070f53c90e06fb9c4226234affd1",
+    "zavozik_ml/classify_v2/text.py": "9f42200fec033681645df01041afb2f336f964eaafdae89add81eb34706c9012",
+    "zavozik_ml/classify_v2/weak_labels.py": "2a8e594800e846f6b1f885d7f436838fccc26e1a384afc5624a29b6e6a8178b9",
+    "zavozik_ml/classify_v2/taxonomy.py": "a4374b5fbbb34a0992f8c15b9d64aa7adc807f0dc063bcb5619d6d957ea4e0d0",
+    "zavozik_ml/classify_v2/taxonomy.json": "3c1b3c98ae2bbbbf54b8384c03da3efc9407b2a6708124dcd479c2b06245e4c5",
+    "zavozik_ml/classify/labels.py": "96e2d5076a412285e3764c983443be03ba1e24f6de2989170781ae0a637fab77",
+    "zavozik_ml/classify/augment.py": "a6ee2f19726cd0e6e6d3db636bd9f0f0f69e0f0a09ff746805fce28a55865947",
+    "zavozik_ml/classify/text.py": "606f035ff81b2172525a959adb7d146449a115cf146c66e699b174c15470b358"
+  },
+  "template_registry_sha256": "ff9113d7b88d4e38e748b256413f345c25b5b08e23166ed3e4548d659713fc10",
+  "company_counts": {
+    "train": 90,
+    "calibration": 30,
+    "test": 30
+  },
+  "purging": {
+    "protocol": "company_purged_template_families_v3",
+    "partitions": {
+      "train": {
+        "source_rows": 126135,
+        "retained_rows": 105803,
+        "purged_rows": 20332,
+        "retained_families": 128
+      },
+      "calibration": {
+        "source_rows": 46137,
+        "retained_rows": 2251,
+        "purged_rows": 43886,
+        "retained_families": 36
+      },
+      "test": {
+        "source_rows": 50148,
+        "retained_rows": 5561,
+        "purged_rows": 44587,
+        "retained_families": 39
+      }
+    },
+    "family_count": 203,
+    "canonical_text_count": 792,
+    "policy": "Fixed company split plus deterministic weak-label-stratified family ownership; purge non-owner occurrences"
+  },
+  "post_augmentation_audit": {
+    "passed": true,
+    "protocol": "company_purged_template_families_v3",
+    "pairwise_intersections": {
+      "train__calibration": {
+        "families": 0,
+        "templates": 0,
+        "normalized_inputs": 0,
+        "dedupe_keys": 0,
+        "companies": 0,
+        "near_template_pairs": 0
+      },
+      "train__test": {
+        "families": 0,
+        "templates": 0,
+        "normalized_inputs": 0,
+        "dedupe_keys": 0,
+        "companies": 0,
+        "near_template_pairs": 0
+      },
+      "calibration__test": {
+        "families": 0,
+        "templates": 0,
+        "normalized_inputs": 0,
+        "dedupe_keys": 0,
+        "companies": 0,
+        "near_template_pairs": 0
+      }
+    },
+    "calibration_test_augmented_rows": 0
+  },
+  "effective_token_input_audit": {
+    "scope": "Input-only pre-fit audit, no model predictions",
+    "max_length": 128,
+    "data_manifest_sha256": "348227be9e04a473f7ad741199f1c09f7936b6d8128e2eb540be4b339aed31c7",
+    "models": {
+      "cointegrated/rubert-tiny2": {
+        "base_revision": "e8ed3b0c8bbf4fb6984c3de043bf7d2f4e5969ae",
+        "text_prefix": "",
+        "tokenizer_sha256": "45cc9f974145661db6bc020795839d1dc371adc19a9c78b910393209b4fe5efc",
+        "pairwise_token_input_intersections": {
+          "train__calibration": 0,
+          "train__test": 0,
+          "calibration__test": 0
+        },
+        "unique_token_inputs": {
+          "train": 47700,
+          "calibration": 211,
+          "test": 643
+        }
+      },
+      "intfloat/multilingual-e5-small": {
+        "base_revision": "614241f622f53c4eeff9890bdc4f31cfecc418b3",
+        "text_prefix": "query: ",
+        "tokenizer_sha256": "0b44a9d7b51c3c62626640cda0e2c2f70fdacdc25bbbd68038369d14ebdf4c39",
+        "pairwise_token_input_intersections": {
+          "train__calibration": 0,
+          "train__test": 0,
+          "calibration__test": 0
+        },
+        "unique_token_inputs": {
+          "train": 47700,
+          "calibration": 211,
+          "test": 643
+        }
+      }
+    },
+    "passed": true
+  },
+  "datasets": {
+    "train": {
+      "rows": 56502,
+      "sha256": "a38b7c76aa962271ac30c98af8dcbe0d1e84d7883cfda350925543e5ed7fcba5",
+      "template_families": 4544,
+      "unique_inputs": 47700,
+      "categories": {
+        "revenue_b2b": 13717,
+        "refund": 1817,
+        "loan_payment": 1910,
+        "other": 1299,
+        "revenue_sbp": 1328,
+        "revenue_acquiring": 1336,
+        "revenue_cash": 1283,
+        "own_transfer": 1889,
+        "revenue_marketplace": 1148,
+        "owner_loan": 1529,
+        "services": 2919,
+        "salary": 1448,
+        "bank_fee": 1275,
+        "leasing": 1184,
+        "rent": 1381,
+        "supplier": 15661,
+        "utilities": 1793,
+        "marketing": 1327,
+        "enforcement": 1150,
+        "tax": 1108
+      },
+      "channels": {
+        "unknown": 21086,
+        "bank_transfer": 24435,
+        "sbp": 4616,
+        "card_acquiring": 642,
+        "marketplace_payout": 199,
+        "internal_bank": 329,
+        "digital_ruble": 4318,
+        "cash": 877
+      }
+    },
+    "calibration": {
+      "rows": 211,
+      "sha256": "4f58d13423c18f836d4c39cbe853f87a4a2a20d33403c842a35278a09354587f",
+      "template_families": 36,
+      "unique_inputs": 211,
+      "categories": {
+        "owner_loan": 2,
+        "refund": 16,
+        "other": 2,
+        "revenue_b2b": 55,
+        "own_transfer": 2,
+        "tax": 2,
+        "rent": 6,
+        "services": 14,
+        "supplier": 102,
+        "utilities": 4,
+        "salary": 4,
+        "loan_payment": 2
+      },
+      "channels": {
+        "unknown": 26,
+        "bank_transfer": 185
+      }
+    },
+    "calibration_full": {
+      "rows": 2251,
+      "sha256": "e1171c402d77ff8f4ad7e37261e79703ee1d2fc3093f14f539de516b8f453a0c",
+      "template_families": 36,
+      "unique_inputs": 362,
+      "categories": {
+        "supplier": 1088,
+        "rent": 407,
+        "revenue_b2b": 241,
+        "utilities": 128,
+        "tax": 133,
+        "refund": 16,
+        "salary": 73,
+        "owner_loan": 3,
+        "other": 3,
+        "services": 117,
+        "loan_payment": 8,
+        "own_transfer": 34
+      },
+      "channels": {
+        "bank_transfer": 1961,
+        "unknown": 290
+      }
+    },
+    "test": {
+      "rows": 5561,
+      "sha256": "273afddb5ccb3a58872dfeac34ff9a05995ef2789d306b91460c3525167ba9a5",
+      "template_families": 39,
+      "unique_inputs": 643,
+      "categories": {
+        "salary": 552,
+        "supplier": 1050,
+        "revenue_b2b": 934,
+        "tax": 660,
+        "owner_loan": 31,
+        "services": 79,
+        "utilities": 186,
+        "leasing": 29,
+        "own_transfer": 79,
+        "revenue_cash": 1647,
+        "rent": 185,
+        "loan_payment": 25,
+        "refund": 2,
+        "other": 79,
+        "revenue_marketplace": 23
+      },
+      "channels": {
+        "unknown": 1657,
+        "bank_transfer": 2262,
+        "cash": 1642
+      }
+    }
+  },
+  "train_real_parents": 105803,
+  "train_real_families": 128,
+  "coverage": {
+    "calibration": {
+      "missing_categories": [
+        "revenue_acquiring",
+        "revenue_sbp",
+        "revenue_cash",
+        "revenue_marketplace",
+        "leasing",
+        "bank_fee",
+        "marketing",
+        "enforcement"
+      ],
+      "missing_channels": [
+        "card_acquiring",
+        "sbp",
+        "cash",
+        "digital_ruble",
+        "marketplace_payout",
+        "internal_bank"
+      ]
+    },
+    "test": {
+      "missing_categories": [
+        "revenue_acquiring",
+        "revenue_sbp",
+        "bank_fee",
+        "marketing",
+        "enforcement"
+      ],
+      "missing_channels": [
+        "card_acquiring",
+        "sbp",
+        "digital_ruble",
+        "marketplace_payout",
+        "internal_bank"
+      ]
+    }
+  },
+  "hidden_experiment_protocol": {
+    "categories": [
+      "rent",
+      "utilities"
+    ],
+    "reason": "Leasing/enforcement do not have calibration coverage after purging. Freeze rent/utilities from split support only, before any new model predictions. Separate company AND template families for discovery/test."
+  },
+  "scope": "Pre-fit input audit and support counts only; no model predictions or test-driven selection."
+}

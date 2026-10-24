@@ -1,0 +1,61 @@
+syntax = "proto3";
+
+package categorize.v2;
+
+option go_package = "github.com/Fishing-Team-322/ww_zavozik_67/backend/gen/categorize/v2;categorizev2";
+
+// Multi-output operation encoder. Stateless; embeddings are float32 and
+// comparable only within the same model_version. Category membership can
+// change with taxonomy_version. This service never creates categories.
+service CategorizerService {
+  rpc Classify(ClassifyRequest) returns (ClassifyResponse);
+}
+
+message Operation {
+  string id = 1;
+  // "in" or "out". Amount is finite and nonnegative.
+  string direction = 2;
+  double amount = 3;
+  // "org", "person", "none" or "bad". Do not send the INN itself.
+  string counterparty_type = 4;
+  string counterparty_name = 5;
+  string payment_purpose = 6;
+}
+
+message ClassifyRequest {
+  repeated Operation operations = 1;
+}
+
+message Attributes {
+  // Taxonomy-level properties, not predictions of the transaction direction.
+  string flow = 1; // "business" or "owner"
+  string direction = 2; // "in", "out" or "both"
+  bool mandatory = 3;
+  bool regular_hint = 4;
+}
+
+message Classification {
+  string id = 1;
+  repeated float embedding = 2;
+  string category = 3;
+  // Complete distribution over the artifact's taxonomy, sums to one.
+  map<string, float> category_probs = 4;
+  string channel = 5;
+  map<string, float> channel_probs = 6;
+  repeated string tags = 7;
+  // Independent sigmoid probabilities; these do not sum to one.
+  map<string, float> tag_probs = 8;
+  Attributes attributes = 9;
+  float novelty = 10;
+  bool is_novel = 11;
+  string taxonomy_version = 12;
+  string model_version = 13;
+}
+
+message ClassifyResponse {
+  // Exactly the input order and length; IDs are echoed, not deduplicated.
+  repeated Classification results = 1;
+  string model_version = 2;
+  string taxonomy_version = 3;
+  uint32 embedding_dim = 4;
+}

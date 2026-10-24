@@ -1,0 +1,32 @@
+{
+  "format_version": 1,
+  "model_version": "discovery-v1-dbedf812a8a62d450b9f",
+  "encoder_version": "e5-small-614241f622f53c4eeff9890bdc4f31cfecc418b3-mean128-purpose_only_structural_query_v1",
+  "taxonomy_version": "discovered-v1-ca0d2cfcb5ea99563cb8",
+  "hierarchy_version": "hierarchy-v1-f8740ce139bd8a49bb48",
+  "status": "research_semantic_quality_not_independently_verified",
+  "files_sha256": {
+    "README.md": "1fd4a97bcfbfdb7a4a8d906fd8d68a4185c890500a6e02d5bf82dd87a7769c63",
+    "encoder/README.md": "0038de97aee16258cecbad7ffda4b4febd6953e747a00e0ddbc8e6ed241e9c1c",
+    "encoder/base_source.json": "8c627e21162d4d421fef3df681792a685d575d73e0fb0a3c1fbece1ee6ae859a",
+    "encoder/config.json": "69137736cab8b8903a07fe8afaafdda25aac55415a12a55d1bffa9f581abf959",
+    "encoder/model.safetensors": "1a55775f53449dac10a2bcbc312469fac40b96d53198c407081a831f81c98477",
+    "encoder/sentencepiece.bpe.model": "cfc8146abe2a0488e9e2a0c56de7952f7c11ab059eca145a0a727afce0db2865",
+    "encoder/special_tokens_map.json": "d05497f1da52c5e09554c0cd874037a083e1dc1b9cfd48034d1c717f1afc07a7",
+    "encoder/tokenizer.json": "0b44a9d7b51c3c62626640cda0e2c2f70fdacdc25bbbd68038369d14ebdf4c39",
+    "encoder/tokenizer_config.json": "a1d6bc8734a6f635dc158508bef000f8e2e5a759c7d92f984b2c86e5ff53425b",
+    "fit_source/__init__.py": "1f6e9e606376272a2424cdda3dcc9a8c306ce178418e48c67b0a69ad67ddcd57",
+    "fit_source/core.py": "70a256702b5abd08492d84dafccaa04582f11a2d50ebf5139bea5d8a00f1eb39",
+    "fit_source/corpus.py": "d2252a57b12d241882579a4be505ddba3323e03092aa064ef7fc2c19856ac438",
+    "fit_source/encoder.py": "831a387dd9bb0ee5711c716fc59f8cf26f38fa3c7ba4d834f3e857aea4577bb1",
+    "fit_source/experiment.py": "c694b6492c64ead7c07d76de9e03cb362304b86fe61928188f9ef72c13554d0d",
+    "fit_source/review.py": "102e849eadc503d20b6641708331631fd0496509a7c4c46718f78c34c573373a",
+    "fit_source/server.py": "a33347d79229f69e2765593cd40ccaaeb95f2df6c3d022533857d1f700c1dca6",
+    "hierarchy.json": "1ac934b831fc4fcdb749c7f91daeb72e6c0c989d9fdb7ba73fd8b0ebf3c65837",
+    "hierarchy_source/hierarchy.py": "a3508db8e15cb109d07f6a2937d0160b80ea375bff5e83e2211e9627d2bedd96",
+    "inventory/centers.npy": "2b39c8dc68baea81c0a84b060944293368494d65acb8356e99431f81cdb97b06",
+    "inventory/manifest.json": "8064598e2a2b184ff80c26d4c60e09525a68f6b3fc53cd0e77c622a70d686f12",
+    "inventory/taxonomy.json": "95cb0bb6acca07caa93c427ee9ca50a50291240f637c0b14775ff3516b0a8706",
+    "protocol.json": "904d82d375e664fb6f79b1483ee446d5585f85545b31f3987579962bd286a41f"
+  }
+}

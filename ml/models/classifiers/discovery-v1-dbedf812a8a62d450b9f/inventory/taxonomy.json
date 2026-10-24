@@ -1,0 +1,403 @@
+{
+  "format_version": 1,
+  "encoder_version": "e5-small-614241f622f53c4eeff9890bdc4f31cfecc418b3-mean128-purpose_only_structural_query_v1",
+  "embedding_dim": 384,
+  "settings": {
+    "min_cluster_size": 3,
+    "min_samples": 2,
+    "min_companies": 2,
+    "margin": 0.01,
+    "radius_quantile": 0.95,
+    "min_radius": 0.005,
+    "max_radius": 0.2
+  },
+  "categories": [
+    {
+      "id": "auto_9e62786d809f26ee",
+      "title": "выдача кредита · проведение · работ",
+      "direction": "in",
+      "title_status": "auto_extractive",
+      "attributes_status": "unknown_requires_separate_evidence",
+      "independent_families": 3,
+      "companies": 5,
+      "support_families": [
+        "family-09d77c300f3cd0dca075",
+        "family-1b013b24210baf3c9aef",
+        "family-f6019132c5fcedc76882"
+      ],
+      "radius": 0.13064873218536377,
+      "representative_ids": [
+        "C003-000125",
+        "C003-000009",
+        "C003-000148"
+      ]
+    },
+    {
+      "id": "auto_6d1408e7d9aad6bd",
+      "title": "возврат · неверно указаны · реквизиты получателя",
+      "direction": "in",
+      "title_status": "auto_extractive",
+      "attributes_status": "unknown_requires_separate_evidence",
+      "independent_families": 3,
+      "companies": 7,
+      "support_families": [
+        "family-5966734abe454547ee9c",
+        "family-9803df19fb52377ca62f",
+        "family-c859b3e9888972f9d12e"
+      ],
+      "radius": 0.11194486916065216,
+      "representative_ids": [
+        "C121-000119",
+        "C137-000910",
+        "C139-000394"
+      ]
+    },
+    {
+      "id": "auto_8829730632744bdf",
+      "title": "окончательный расчет · поставки · пшеницу класса",
+      "direction": "in",
+      "title_status": "auto_extractive",
+      "attributes_status": "unknown_requires_separate_evidence",
+      "independent_families": 6,
+      "companies": 13,
+      "support_families": [
+        "family-7f7ffbdb1dbe897fabc0",
+        "family-87dd6e0346ef7a218ff9",
+        "family-94ab20ea502b7746a364",
+        "family-d85dc422762213ce43c5",
+        "family-e223873140e8d1561cf3",
+        "family-e2caa56f32ca1845e3d5"
+      ],
+      "radius": 0.09837374091148376,
+      "representative_ids": [
+        "C005-000251",
+        "C003-000069",
+        "C003-000260",
+        "C003-000225",
+        "C003-000158"
+      ]
+    },
+    {
+      "id": "auto_43978c31982be6c8",
+      "title": "доплата · услуги · частичная",
+      "direction": "in",
+      "title_status": "auto_extractive",
+      "attributes_status": "unknown_requires_separate_evidence",
+      "independent_families": 21,
+      "companies": 36,
+      "support_families": [
+        "family-059828ffce5fbd072b3e",
+        "family-0746591b8313fb62989f",
+        "family-10d3fb42ff6ce2c44fbd",
+        "family-15bf23f46867a33224a9",
+        "family-29bf07092830b5e403fd",
+        "family-3a699bd25d1198481bb0",
+        "family-468b1947f510b342a21f",
+        "family-4808731ac6f3831c4480",
+        "family-71fd418e735fc7b7b41d",
+        "family-734b55aeb3b0c6bd884a",
+        "family-7b5b39ae7e2443f562a8",
+        "family-9747ac10e203fcd99863",
+        "family-9b717e0f106bc26ede60",
+        "family-a460aba5b92f87f4258a",
+        "family-ac1b4c48b847b7b0e818",
+        "family-c29620263551c37ba2e4",
+        "family-db3898ef59e974113d7b",
+        "family-eb237c211a660da6a907",
+        "family-edf47b5bf0f6ea103554",
+        "family-fb731d8778165d964d72",
+        "family-fe2246d87d61a974d243"
+      ],
+      "radius": 0.07328498363494873,
+      "representative_ids": [
+        "C022-000025",
+        "C022-000341",
+        "C047-000053",
+        "C006-000380",
+        "C006-000011"
+      ]
+    },
+    {
+      "id": "auto_0073cd110163dc1e",
+      "title": "разовый заказ · выполненные работы · изготовление мебели",
+      "direction": "in",
+      "title_status": "auto_extractive",
+      "attributes_status": "unknown_requires_separate_evidence",
+      "independent_families": 6,
+      "companies": 11,
+      "support_families": [
+        "family-0de914419a4bac783e85",
+        "family-4d322eb5d706094ae29d",
+        "family-64fa2da13f4ee5dc462c",
+        "family-cd9a5714018cbc0fc7ab",
+        "family-e897b43fd4e437c1ad3c",
+        "family-f297727fb79e969250cc"
+      ],
+      "radius": 0.09424418210983276,
+      "representative_ids": [
+        "C088-000046",
+        "C099-000043",
+        "C011-001521",
+        "C097-000206",
+        "C088-000042"
+      ]
+    },
+    {
+      "id": "auto_929bba68d067b6d7",
+      "title": "перевод · собственных · банк",
+      "direction": "out",
+      "title_status": "auto_extractive",
+      "attributes_status": "unknown_requires_separate_evidence",
+      "independent_families": 5,
+      "companies": 43,
+      "support_families": [
+        "family-336e28d2244f5da6edb0",
+        "family-94a2db43e1a3935fe1f7",
+        "family-a2815c515e3e1a60df0f",
+        "family-a7d3d3b493255e40a8ff",
+        "family-e8f5d3b4d7bc20973e82"
+      ],
+      "radius": 0.12273707240819931,
+      "representative_ids": [
+        "C004-000578",
+        "C001-000025",
+        "C004-000009",
+        "C004-000663",
+        "C093-000403"
+      ]
+    },
+    {
+      "id": "auto_f9b34a8d7901c09c",
+      "title": "аванс · заработной · сотрудника",
+      "direction": "out",
+      "title_status": "auto_extractive",
+      "attributes_status": "unknown_requires_separate_evidence",
+      "independent_families": 5,
+      "companies": 90,
+      "support_families": [
+        "family-2261fdf8e59272fdc517",
+        "family-22d8ec8d2e2179df9a31",
+        "family-323010e25fc363480bc6",
+        "family-8676631b002d9f8b84d0",
+        "family-9552c8979f980f6dcfff"
+      ],
+      "radius": 0.09757798910140991,
+      "representative_ids": [
+        "C012-000094",
+        "C001-000038",
+        "C012-000013",
+        "C053-000675",
+        "C003-000019"
+      ]
+    },
+    {
+      "id": "auto_01b8d8917bea8e41",
+      "title": "погашение · долг проценты · кредитной линии",
+      "direction": "out",
+      "title_status": "auto_extractive",
+      "attributes_status": "unknown_requires_separate_evidence",
+      "independent_families": 4,
+      "companies": 14,
+      "support_families": [
+        "family-1c26ac81f12c55d34b03",
+        "family-3c877aae5eaa0bc6b60c",
+        "family-d6eff45fac236f6d1ba3",
+        "family-f75b651125a274c1ada0"
+      ],
+      "radius": 0.08258242905139923,
+      "representative_ids": [
+        "C003-000030",
+        "C001-000033",
+        "C003-000292",
+        "C003-000002"
+      ]
+    },
+    {
+      "id": "auto_af0f5f994d44f23c",
+      "title": "купли продажи · окончательный расчет · автомобиль",
+      "direction": "out",
+      "title_status": "auto_extractive",
+      "attributes_status": "unknown_requires_separate_evidence",
+      "independent_families": 3,
+      "companies": 13,
+      "support_families": [
+        "family-32ebb61f997a4e01c718",
+        "family-9b5a98e1c8adf35b1068",
+        "family-ed2829a1852e6942e392"
+      ],
+      "radius": 0.07908646017313004,
+      "representative_ids": [
+        "C052-000299",
+        "C041-001068",
+        "C052-000280"
+      ]
+    },
+    {
+      "id": "auto_3bb485f74ec65a46",
+      "title": "метизы · бетон · поставки",
+      "direction": "out",
+      "title_status": "auto_extractive",
+      "attributes_status": "unknown_requires_separate_evidence",
+      "independent_families": 5,
+      "companies": 9,
+      "support_families": [
+        "family-5582c771be3db486f567",
+        "family-abec8937572f7d8de9e8",
+        "family-bc586a2ae6983b596e29",
+        "family-d61f032ba3e5216190cd",
+        "family-ec45736f294258ad30f9"
+      ],
+      "radius": 0.07515690475702286,
+      "representative_ids": [
+        "C106-000055",
+        "C106-000310",
+        "C076-000091",
+        "C091-000016",
+        "C134-000022"
+      ]
+    },
+    {
+      "id": "auto_55ff6828df483bb4",
+      "title": "автохимию · автомобиль · шины шиномонтаж",
+      "direction": "out",
+      "title_status": "auto_extractive",
+      "attributes_status": "unknown_requires_separate_evidence",
+      "independent_families": 6,
+      "companies": 15,
+      "support_families": [
+        "family-8e9b46234202ef613618",
+        "family-9d37eab240188fa437e1",
+        "family-a27b3c406b47f8325e3f",
+        "family-b3c6321e8b4b4d1da12c",
+        "family-bd6b716b3c325c04c144",
+        "family-e94dd173e20a3ca57efd"
+      ],
+      "radius": 0.06706306338310242,
+      "representative_ids": [
+        "C050-000187",
+        "C050-000035",
+        "C050-000111",
+        "C005-000162",
+        "C040-000495"
+      ]
+    },
+    {
+      "id": "auto_eb3a20d1a6c394ea",
+      "title": "постельное белье · поставки · мебельную фурнитуру",
+      "direction": "out",
+      "title_status": "auto_extractive",
+      "attributes_status": "unknown_requires_separate_evidence",
+      "independent_families": 3,
+      "companies": 8,
+      "support_families": [
+        "family-85aaf31dee907aa36f38",
+        "family-a3780912cc9aec63aa28",
+        "family-a535852391c847fa7988"
+      ],
+      "radius": 0.08157534897327423,
+      "representative_ids": [
+        "C053-000554",
+        "C019-000018",
+        "C123-000890"
+      ]
+    },
+    {
+      "id": "auto_3e70dbd3f0fa84b3",
+      "title": "лкм",
+      "direction": "out",
+      "title_status": "auto_extractive",
+      "attributes_status": "unknown_requires_separate_evidence",
+      "independent_families": 3,
+      "companies": 2,
+      "support_families": [
+        "family-329d6f0d399ac8e5e0ca",
+        "family-424a089efdc8fea5ac64",
+        "family-93333a15f963d06b42d4"
+      ],
+      "radius": 0.017969125881791115,
+      "representative_ids": [
+        "C076-000314",
+        "C076-000758",
+        "C076-000583"
+      ]
+    },
+    {
+      "id": "auto_aefa9f9221e71e48",
+      "title": "лдсп кромку · под разовый · заказ",
+      "direction": "out",
+      "title_status": "auto_extractive",
+      "attributes_status": "unknown_requires_separate_evidence",
+      "independent_families": 4,
+      "companies": 7,
+      "support_families": [
+        "family-5aa0a9a8a96c383e1d51",
+        "family-5d384f78b37f1624675c",
+        "family-7fc9c75dc8a2adfa9fef",
+        "family-b175e2db2f836358808d"
+      ],
+      "radius": 0.03928980231285095,
+      "representative_ids": [
+        "C076-000086",
+        "C076-000043",
+        "C123-000219",
+        "C097-000210"
+      ]
+    },
+    {
+      "id": "auto_2a448e30ac1f059e",
+      "title": "товары · под разовый · поставки",
+      "direction": "out",
+      "title_status": "auto_extractive",
+      "attributes_status": "unknown_requires_separate_evidence",
+      "independent_families": 7,
+      "companies": 78,
+      "support_families": [
+        "family-231f9f950c65f4d34832",
+        "family-29bf07092830b5e403fd",
+        "family-a56f497f89a2b30593e3",
+        "family-b0c9505a04fea5faf93b",
+        "family-bad7ae9c0cdf42228dea",
+        "family-c84b08059564f0b64611",
+        "family-e897b43fd4e437c1ad3c"
+      ],
+      "radius": 0.07372939586639404,
+      "representative_ids": [
+        "C014-000142",
+        "C019-000374",
+        "C128-000121",
+        "C085-001191",
+        "C031-000009"
+      ]
+    },
+    {
+      "id": "auto_5cc6630e6818ca2f",
+      "title": "бакалею · поставки",
+      "direction": "out",
+      "title_status": "auto_extractive",
+      "attributes_status": "unknown_requires_separate_evidence",
+      "independent_families": 5,
+      "companies": 7,
+      "support_families": [
+        "family-b0bbd74674a06fb45708",
+        "family-b292b9dd75508b2b7d02",
+        "family-d5fe1d6d0b4bbe10f4c7",
+        "family-e07a4ee32ec333237e58",
+        "family-f50f5aa61f47112fdc6e"
+      ],
+      "radius": 0.028286468237638474,
+      "representative_ids": [
+        "C084-000019",
+        "C084-000198",
+        "C031-000320",
+        "C030-000107",
+        "C084-000219"
+      ]
+    }
+  ],
+  "parent_taxonomy_version": null,
+  "category_source": "fully_automatic_unsupervised_train_only",
+  "probability_calibration": "none",
+  "seed_categories": [],
+  "fixed_category_count": null,
+  "taxonomy_version": "discovered-v1-ca0d2cfcb5ea99563cb8"
+}

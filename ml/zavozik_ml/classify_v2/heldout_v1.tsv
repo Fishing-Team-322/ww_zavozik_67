@@ -1,0 +1,183 @@
+category	channel	tags	direction	counterparty_name	payment_purpose
+revenue_acquiring	card_acquiring		in	АО Платежный шлюз	Возмещение карточных покупок посетителей через интернет-эквайринг
+revenue_acquiring	card_acquiring	partial_payment	in	Банк Урал	Частичная выплата торговцу по карточному эквайрингу
+revenue_acquiring	card_acquiring	recurring_like	in	Банк Содружество	Карточная торговая выручка по POS-терминалам за октябрь
+revenue_acquiring	card_acquiring		in	АО Робокасса	Перевод мерчанту по карточным транзакциям эквайринга
+revenue_acquiring	digital_ruble		in	Расчетный центр	Возмещение по торговому эквайрингу, расчет цифровыми рублями
+revenue_acquiring	card_acquiring		in		Зачислние торгового эквайринга за покупки по картам
+revenue_acquiring	card_acquiring	with_document	in	Банк Восток	Выручка по интернет-эквайрингу по договору № Э-72 от 14.09.2026
+revenue_acquiring	card_acquiring	final_payment	in	Платежный шлюз	Окончательный расчет за торговый эквайринг банковских карт
+revenue_sbp	sbp		in	Банк	Розничные продажи физическим лицам, оплата по C2B-QR
+revenue_sbp	sbp		in		Зачисления магазина за покупки граждан через систему быстрых платежей
+revenue_sbp	digital_ruble		in	Банк	Выручка торговой точки по QR от физлиц в цифровых рублях
+revenue_sbp	sbp	recurring_like	in	Банк	Розничная выручка СБП за октябрь
+revenue_sbp	sbp	partial_payment	in	Расчетный центр	Частичная выплата розничной выручки по СБП
+revenue_sbp	sbp		in		Зачисл. розничных оплат покупателей СБП
+revenue_sbp	sbp	final_payment	in	Банк	Окончательный расчет по розничным покупкам через QR-коды
+revenue_sbp	sbp	with_document	in	Банк	Выручка по розничным операциям СБП по договору № QR-91 от 12.08.2026
+revenue_cash	cash		in	Банк	Сдача торговой наличной выручки кассиром через cash-in
+revenue_cash	cash		in	Инкассация	Внесение наличной выручки из кассы торговой точки
+revenue_cash	cash	recurring_like	in	Банк	Инкассация торговой выручки за октябрь
+revenue_cash	cash		in		Самоинкассация наличной выручки магазина
+revenue_cash	cash		in	Банк	Прием наличных от кассира, выручка от покупателей
+revenue_cash	cash	partial_payment	in	Банк	Частичное внесение наличной торговой выручки
+revenue_cash	cash		in		Взнос наличн. выручки в банкомате
+revenue_cash	cash	with_document	in	Инкассаторская служба	Инкассация наличной выручки по договору № И-43 от 10.09.2026
+revenue_b2b	bank_transfer	prepayment,with_document	in	ООО Вереск	Предоплата заказчика по счету № 810 от 01.09.2026 за изготовленные детали
+revenue_b2b	sbp	partial_payment	in	ООО Северная мастерская	Частичная оплата от организации за монтаж через B2B-СБП
+revenue_b2b	digital_ruble	final_payment	in	АО Производство	Окончательный расчет покупателя за поставку станков цифровыми рублями
+revenue_b2b	unknown		in	ООО Заказчик	Вознаграждение от заказчика за выполненные инженерные работы
+revenue_b2b	bank_transfer	with_document	in		Оплата от клиента за продукцию по УПД № 113 от 20.08.2026
+revenue_b2b	bank_transfer	prepayment	in	ООО Вертикаль	Аванс от покупателя за партию изделий, перевод по реквизитам
+revenue_b2b	unknown		in	ИП Мельников	Оплта заказчиком работ по реконструкции
+revenue_b2b	bank_transfer	partial_payment,with_document	in	ООО Парус	Частичная оплата выполненного заказа по акту № 20 от 03.10.2026
+revenue_marketplace	marketplace_payout		in	ООО Вайлдберриз	Перечисление продавцу Wildberries за реализованные заказы
+revenue_marketplace	marketplace_payout		in	ООО Интернет Решения	Выплата Ozon продавцу по отчету о реализации
+revenue_marketplace	digital_ruble		in	ООО Яндекс Маркет	Расчет маркетплейса за проданный товар в цифровых рублях
+revenue_marketplace	marketplace_payout	partial_payment	in	Wildberries	Частичная выплата продавцу за продажи на Wildberries
+revenue_marketplace	marketplace_payout	recurring_like	in	Ozon	Выручка продавца на Ozon за октябрь
+revenue_marketplace	marketplace_payout		in		Выплата Яндекс Маркет за выкупленные покупателями товары
+revenue_marketplace	marketplace_payout	with_document	in	Ozon	Расчет с продавцом Ozon по договору № М-64 от 02.09.2026
+revenue_marketplace	marketplace_payout	final_payment	in	Wildberries	Окончательный расчет маркетплейса Wildberries за продажи
+supplier	digital_ruble	prepayment	out	ООО Поставка	Предоплата за комплект токарных резцов цифровыми рублями
+supplier	sbp	partial_payment	out	ООО Металл	Частичная оплата стального проката через СБП
+supplier	bank_transfer	final_payment,with_document	out	ООО Сырье	Окончательный расчет за партию гранулята по счету № 64 от 19.09.2026
+supplier	cash		out	ИП Лесной	Оплата наличными поставщику за упаковочный картон
+supplier	unknown		out		Закупка сменных фильтров для производственного оборудования
+supplier	bank_transfer	with_document	out	ООО Восход	Опл. за крепеж по УПД № 91 от 11.09.2026
+supplier	digital_ruble		out		Закупка этикеток и ленты, платеж с кошелька ЦР
+supplier	bank_transfer	prepayment	out	ООО Нефтебаза	Аванс за дизельное топливо, перевод по реквизитам
+salary	digital_ruble	recurring_like	out	Реестр сотрудников	Оплата труда за октябрь на кошельки цифрового рубля
+salary	bank_transfer	prepayment,recurring_like	out	Работники	Аванс по зарплате за октябрь, перечисление по реквизитам
+salary	unknown	final_payment	out	Сотрудник	Окончательный расчет работнику при увольнении
+salary	cash		out	Работники	Выдача зарплаты сотрудникам наличными
+salary	unknown		out		Компенсация неиспользованного отпуска сотруднику
+salary	bank_transfer	recurring_like,with_document	out	Реестр сотрудников	Заработная плата за сентябрь по договору № ЗП-12 от 01.02.2026
+salary	digital_ruble		out	Иванова Л.А.	Отпускные работнику, перечисление в цифровой форме рубля
+salary	unknown	recurring_like	out		З/п сотрудникам за октябрь
+tax	bank_transfer	budget_payment,recurring_like	out	Казначейство России	Единый налоговый платеж за октябрь, перевод по реквизитам
+tax	digital_ruble	budget_payment	out	ФНС	Страховые взносы на ЕНС цифровыми рублями
+tax	bank_transfer	budget_payment,with_document	out	Казначейство	Налог на имущество по требованию № Н-34 от 20.09.2026
+tax	unknown	budget_payment	out	Госорган	Госпошлина за выдачу разрешения
+tax	sbp	budget_payment	out	Казначейство	Перечисление транспортного налога через СБП
+tax	unknown	budget_payment,refund	in	Казначейство России	Возврат переплаты транспортного налога из бюджета
+tax	unknown	budget_payment	out		НДФЛ с доходов работников
+tax	digital_ruble	budget_payment,recurring_like	out	ФНС	Налог по УСН за октябрь, оплата ЦР
+rent	bank_transfer	recurring_like,with_document	out	ИП Домовой	Аренда помещения за октябрь по договору № А-601 от 01.01.2026
+rent	digital_ruble	prepayment	out	ООО Девелопер	Предоплата аренды производственного бокса цифровыми рублями
+rent	sbp	partial_payment	out	ООО Недвижимость	Частичная оплата аренды через QR-код
+rent	unknown		out		Плата за пользование складским помещением
+rent	cash	recurring_like	out	ИП Арендодатель	Арендная плата наличными за октябрь
+rent	bank_transfer	with_document	out	ООО Бизнес-Парк	Обеспечительный платеж по договору аренды № 47 от 03.08.2026
+rent	unknown	recurring_like	out		Субаренда офиса за сентябрь
+rent	digital_ruble	final_payment	out	ИП Собственник	Окончательный расчет за аренду оборудования через кошелек цифрового рубля
+utilities	digital_ruble	recurring_like	out	Горводоканал	Водоснабжение и отведение стоков за октябрь, платеж цифровым рублем
+utilities	bank_transfer	with_document	out	Энергосбыт	За потребленную электроэнергию по счету № 314 от 01.10.2026
+utilities	sbp		out	Интернет-провайдер	Оплата доступа в интернет через СБП
+utilities	unknown		out		Отопление производственного здания
+utilities	bank_transfer	prepayment,recurring_like	out	Телеком	Предоплата услуг связи за октябрь, перевод по реквизитам
+utilities	digital_ruble		out	Регоператор	Вывоз твердых коммунальных отходов, оплата ЦР
+utilities	unknown	recurring_like	out		Эл.энергия за октябрь
+utilities	bank_transfer	partial_payment,with_document	out	Газовая компания	Частичная оплата газоснабжения по договору № Г-77 от 11.01.2026
+loan_payment	internal_bank	recurring_like	out	Банк	Списание банком ежемесячного платежа по кредиту
+loan_payment	digital_ruble		out	Банк	Погашение задолженности по овердрафту цифровыми рублями
+loan_payment	bank_transfer	with_document	out	Банк	Погашение основного долга по кредитному договору № К-12 от 07.02.2026
+loan_payment	unknown		out		Уплата процентов по банковскому кредиту
+loan_payment	internal_bank		in	Банк	Зачисление банком транша кредитной линии
+loan_payment	sbp	partial_payment	out	Банк	Частичное погашение кредита через СБП
+loan_payment	internal_bank	final_payment	out	Банк	Окончательный расчет по кредиту, списание банком
+loan_payment	digital_ruble		out		Погаш. банковского кредита с кошелька цифрового рубля
+leasing	bank_transfer	recurring_like,with_document	out	АО Лизинговая компания	Лизинговый взнос за октябрь по договору № Л-82 от 08.02.2026
+leasing	digital_ruble	prepayment	out	Лизинг	Аванс по договору лизинга погрузчика цифровыми рублями
+leasing	sbp	partial_payment	out	Лизинг	Частичная оплата лизингового платежа через СБП
+leasing	unknown		out		Выкупная стоимость предмета лизинга
+leasing	bank_transfer	with_document	out	АО Финансовая аренда	Платеж за оборудование по договору лизинга № Ф-73 от 01.09.2026
+leasing	digital_ruble	recurring_like	out	Лизинг	Ежемесячный лизинговый платеж с кошелька ЦР
+leasing	unknown		out		Лиз. платеж за автомобиль
+leasing	bank_transfer	final_payment	out	Лизинговая компания	Окончательный расчет по лизингу, перевод по реквизитам
+bank_fee	internal_bank		out	Банк	Комиссия за ведение расчетного счета
+bank_fee	digital_ruble		out	Банк	Плата за перевод цифровых рублей
+bank_fee	internal_bank	recurring_like	out	Банк	Комиссия банка за пакет РКО за октябрь
+bank_fee	internal_bank		out		Вознаграждение банку за валютный контроль
+bank_fee	internal_bank	with_document	out	Банк	Комиссия за перевод по договору № Б-99 от 10.02.2026
+bank_fee	internal_bank		out	Банк	Плата за обслуживание корпоративной карты
+bank_fee	digital_ruble	recurring_like	out	Банк	Комиссия за обслуживание кошелька цифрового рубля за октябрь
+bank_fee	internal_bank		out		Комис. банка за выдачу наличных
+marketing	digital_ruble	prepayment	out	Рекламное агентство	Предоплата запуска рекламной кампании цифровыми рублями
+marketing	bank_transfer	with_document	out	ООО Продвижение	Размещение наружной рекламы по счету № 72 от 15.09.2026
+marketing	sbp		out	ИП Дизайнер	Оплата рекламного продвижения через QR-код
+marketing	unknown		out	Яндекс	Пополнение рекламного кабинета Директа
+marketing	unknown		out		Таргетированная реклама в социальной сети
+marketing	bank_transfer	partial_payment,with_document	out	Агентство	Частичная оплата рекламных услуг по акту № 57 от 10.09.2026
+marketing	digital_ruble	recurring_like	out	Агентство	Рекламное размещение за октябрь, оплата ЦР
+marketing	unknown	final_payment	out		Окончательный расчет за продвижение магазина
+services	bank_transfer	with_document	out	ООО Подрядчик	Наладка вентиляционного оборудования по акту № 81 от 14.09.2026
+services	digital_ruble	prepayment	out	ООО Консалтинг	Предоплата юридического сопровождения цифровыми рублями
+services	sbp	partial_payment	out	ИП Мастер	Частичная оплата ремонта автомобиля через СБП
+services	unknown		out		Лабораторные исследования образцов продукции
+services	bank_transfer	recurring_like	out	ООО Облако	Ежемесячная подписка на программное обеспечение, перевод по реквизитам
+services	digital_ruble		out	Курьерская служба	Доставка грузов на кошелек цифрового рубля
+services	unknown	final_payment	out		Окончательный расчет за клининговые работы
+services	bank_transfer	with_document	out	ООО Логистика	Опл. транспортных услуг по счету № 901 от 22.09.2026
+own_transfer	digital_ruble	owner_money	out	Собственная организация	Перевод собственных средств на собственный кошелек цифрового рубля
+own_transfer	bank_transfer	owner_money	in	Собственная организация	Перевод между своими расчетными счетами по реквизитам
+own_transfer	sbp	owner_money	out	ИП Владелец	Вывод собственных средств на личный счет предпринимателя через СБП
+own_transfer	unknown	owner_money	out	Участник	Выплата дивидендов участнику организации
+own_transfer	bank_transfer	owner_money	in	Собственная организация	Перечисление остатка в связи с закрытием счета, перевод по реквизитам
+own_transfer	digital_ruble	owner_money	in		Возврат остатка с собственного кошелька ЦР на свой счет
+own_transfer	cash	owner_money	out	ИП Владелец	Снятие наличных собственных средств предпринимателя
+own_transfer	unknown	owner_money	out		Перевод собств. средств на личную карту ИП
+owner_loan	digital_ruble	owner_money	in	Учредитель	Беспроцентный заем учредителя цифровыми рублями
+owner_loan	bank_transfer	owner_money,with_document	out	Учредитель	Возврат займа учредителю по договору № У-53 от 02.07.2026
+owner_loan	sbp	owner_money	in	Участник	Финансирование оборотных средств займом участника через СБП
+owner_loan	unknown	owner_money	in		Взнос учредителя в уставный капитал
+owner_loan	bank_transfer	owner_money,partial_payment	out	Участник	Частичный возврат займа участнику, перевод по реквизитам
+owner_loan	digital_ruble	owner_money,final_payment	out	Учредитель	Окончательный расчет по займу учредителя на кошелек цифрового рубля
+owner_loan	cash	owner_money	in	Учредитель	Внесение наличных средств по займу учредителя
+owner_loan	unknown	owner_money	in		Беспроцентный займ участника на пополнение оборотных средств
+refund	digital_ruble	refund	out	Покупатель	Возврат покупателю за отмененный заказ цифровыми рублями
+refund	bank_transfer	refund,with_document	in	ООО Поставщик	Возврат излишней оплаты по счету № 75 от 23.09.2026
+refund	sbp	refund,partial_payment	out	Покупатель	Частичный возврат оплаты за товар через СБП
+refund	unknown	refund	in		Возврат ошибочно зачисленных денежных средств
+refund	cash	refund	out	Покупатель	Возврат наличными покупателю за бракованный товар
+refund	bank_transfer	refund,prepayment	in	ООО Контрагент	Возврат предоплаты за непоставленный товар, перевод по реквизитам
+refund	digital_ruble	refund	in		Возвр. ошибочного платежа с кошелька ЦР
+refund	unknown	refund	out	ООО Клиент	Возмещение покупателю переплаты за продукцию
+enforcement	bank_transfer	enforcement,with_document	out	ФССП	Взыскание по исполнительному листу № ФС-75 от 09.09.2026
+enforcement	digital_ruble	enforcement	out	ФССП	Списание по исполнительному производству цифровыми рублями
+enforcement	unknown	enforcement	out		Удержание по судебному приказу
+enforcement	internal_bank	enforcement	out	Банк	Принудительное списание банком по инкассовому поручению
+enforcement	bank_transfer	enforcement,with_document	out	Судебный пристав	Взыскание по постановлению пристава № ИП-53 от 12.09.2026
+enforcement	digital_ruble	enforcement	out		Исполнение судебного приказа с кошелька цифрового рубля
+enforcement	unknown	enforcement	out	ФССП	Списание по исп. листу
+enforcement	bank_transfer	enforcement	out	ФССП	Перечисление взыскания по исполнительному документу по реквизитам
+other	unknown		in		
+other	unknown		out	Банк	
+other	unknown		in		??? ### 000
+other	unknown		out	Неизвестно	Платеж согласно распоряжению
+other	bank_transfer		in	Фонд поддержки	Грант на развитие бизнеса, перевод по реквизитам
+other	unknown		in	Страховая компания	Страховое возмещение по имущественному полису
+other	digital_ruble		out		Перевод цифровыми рублями
+other	sbp		in		Перевод через СБП
+other	cash		in	Банк	Внесение наличных, источник не указан
+other	digital_ruble		in		ЦР
+other	unknown		out		Без назначения платежа
+other	unknown		out		🙂
+supplier	digital_ruble	prepayment,with_document	out		Предоплата за партию кабеля по счету № К-84 от 05.10.2026, цифровой рубль
+salary	digital_ruble	recurring_like	out		Перечисление оплаты труда за ноябрь через платформу цифрового рубля
+own_transfer	digital_ruble	owner_money	out		Собственные средства организации на свой счет ЦР
+owner_loan	digital_ruble	owner_money	out	Учредитель	Возврат беспроцентного займа учредителю цифровыми рублями
+tax	unknown	budget_payment	out		Пени по налогу на прибыль
+services	unknown		out		Оплта бухгалтерского сопровождения
+supplier	unknown		out		Покупка запасных частей для грузовика
+rent	unknown	recurring_like	out		Ежемесячная плата за наем помещения
+revenue_b2b	sbp	with_document	in	ООО Покупатель	Оплата организации за изделия по счету № 452 от 01.10.2026 через B2B-QR
+marketing	unknown		out		Расходы на рекламную кампанию
+utilities	unknown		out		Оплата тепловой энергии
+leasing	unknown	recurring_like	out		Ежемесячный взнос по финансовой аренде автомобиля
+bank_fee	internal_bank		out		Банковская комиссия за обслуживание счета
+enforcement	unknown	enforcement	out		Взыскание судебным приставом задолженности
+refund	unknown	refund	in		Возврат денег за отмененную поставку
+loan_payment	unknown		out		Возврат основного долга банку по кредиту
+revenue_cash	cash		in		Взнос выручки из наличной кассы магазина
+revenue_marketplace	marketplace_payout		in	Ozon	Поступление продавцу за реализованные через Ozon товары
