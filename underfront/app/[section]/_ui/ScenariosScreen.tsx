@@ -86,7 +86,7 @@ export function ScenariosScreen() {
           compare.refresh();
         }}
       />
-      <div className="grid items-start gap-4 xl:grid-cols-[330px_minmax(0,1fr)]">
+      <div className="grid min-w-0 grid-cols-1 items-start gap-4 xl:grid-cols-[330px_minmax(0,1fr)]">
         <div className="space-y-4">
           <ScenarioControls
             value={params}
@@ -153,7 +153,7 @@ export function ScenariosScreen() {
             </p>
           )}
         </div>
-        <SectionCard className="p-5">
+        <SectionCard className="min-w-0 p-5">
           <h2 className="mb-4 text-lg font-semibold">
             Базовый и негативный прогноз
           </h2>

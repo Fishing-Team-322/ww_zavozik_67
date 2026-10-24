@@ -57,7 +57,7 @@ export type ForecastDay = {
   p90?: number;
 };
 
-export type HistoryDay = { date: string; actual: number };
+export type HistoryDay = { date: string; actual: number | null };
 export type OverdueReceipt = { title: string; counterparty: string; amount: number; dueDate: string };
 
 export type CashEvent = {
@@ -75,6 +75,7 @@ export type CashEvent = {
 export type PulsOverviewData = {
   company?: string;
   currentBalance: number;
+  safeToSpend?: number;
   forecast: ForecastDay[];
   history?: HistoryDay[];
   events: CashEvent[];
@@ -88,6 +89,8 @@ export type PulsOverviewData = {
 
 export type PulsOverviewProps = {
   data?: PulsOverviewData | null;
+  horizon?: 30 | 60 | 90;
+  onChangeHorizon?: (value: 30 | 60 | 90) => void;
   onAddSource?: () => void;
   onOpenForecast?: () => void;
   onOpenCalendar?: () => void;
@@ -227,7 +230,7 @@ export function KpiStrip({ data, selected }: { data: PulsOverviewData; selected:
   const period = data.forecast.slice(0, 31);
   const stats = getForecastStats(period, selected);
   const minimumDay = period.find(p => (p[selected] ?? p.base) === stats.minimum);
-  const spendable = Math.max(0, Math.min(data.currentBalance, stats.minimum - (data.reserve ?? 0)));
+  const spendable = data.safeToSpend ?? Math.max(0, Math.min(data.currentBalance, stats.minimum - (data.reserve ?? 0)));
   const change = stats.last - data.currentBalance;
   const reserveGap = stats.minimum - (data.reserve ?? 0);
   const items = [
@@ -367,7 +370,7 @@ export function ForecastChart({ data, selected, horizon, onChangeHorizon, onChan
           <Area type="linear" dataKey="corridor" fill="var(--accent-soft)" stroke="none" isAnimationActive={false} tooltipType="none"/>
           <Area type="linear" dataKey="p50" fill={`url(#${reactId}-base)`} stroke="none" isAnimationActive={false} tooltipType="none"/>
           {selected !== "base" && <Area type="linear" dataKey="selectedValue" fill={`url(#${reactId}-alt)`} stroke="none" isAnimationActive={false} tooltipType="none"/>}
-          <Line type="linear" name="Факт" dataKey="actual" connectNulls stroke="var(--puls-text-muted)" strokeWidth={1.7} dot={false} isAnimationActive={false}/>
+          <Line type="linear" name="Факт" dataKey="actual" connectNulls={false} stroke="var(--puls-text-muted)" strokeWidth={1.7} dot={false} isAnimationActive={false}/>
           <Line type="linear" name="p10" dataKey="p10" stroke="var(--puls-chart-primary)" strokeOpacity={0.48} strokeDasharray="2 4" dot={false} isAnimationActive={false}/>
           <Line type="linear" name="p90" dataKey="p90" stroke="var(--puls-chart-primary)" strokeOpacity={0.48} strokeDasharray="2 4" dot={false} isAnimationActive={false}/>
           <Line type="linear" name="Базовый p50" dataKey="p50" stroke="var(--puls-chart-primary)" strokeWidth={2.1} dot={false} activeDot={{ r: 4, fill: "var(--puls-chart-primary)", stroke: "var(--puls-bg)", strokeWidth: 2 }} isAnimationActive={false}/>
@@ -528,15 +531,17 @@ export function ScenarioComparison({ data, selected, onChangeScenario, onOpenSce
 export function PulsEmptyState({ onAddSource }: { onAddSource?: () => void }) {
   return <section className="mt-5 flex min-h-[360px] flex-col items-center justify-center rounded-xl border border-dashed border-[color:var(--puls-border)] p-7 text-center">
     <div className="flex size-[58px] items-center justify-center rounded-xl bg-[color:var(--puls-good-bg)] text-[color:var(--puls-good-text)]"><Activity size={27}/></div>
-    <h2 className="mt-4 text-[20px] font-semibold tracking-tight text-[color:var(--puls-text)]">Загрузите операции, чтобы увидеть прогноз</h2>
-    <p className="mt-2 max-w-[440px] text-[13px] leading-relaxed text-[color:var(--puls-text-secondary)]">Здесь появятся финансовые показатели, прогноз на 30 дней, календарь платежей и сравнение сценариев.</p>
+    <h2 className="mt-4 text-[20px] font-semibold tracking-tight text-[color:var(--puls-text)]">Для прогноза нужны операции и остаток на счёте</h2>
+    <p className="mt-2 max-w-[440px] text-[13px] leading-relaxed text-[color:var(--puls-text-secondary)]">Если операции уже загружены, добавьте выписку с остатком на последнюю дату. После этого здесь появится прогноз на 30 дней и финансовые показатели.</p>
     {onAddSource && <button type="button" onClick={onAddSource} className="mt-4 inline-flex cursor-pointer items-center gap-1.5 rounded-md bg-[#147d5c] px-3.5 py-2.5 text-[12px] font-semibold text-white hover:bg-[#106f52] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600"><Plus size={15}/>Добавить источник данных</button>}
   </section>;
 }
 
-export default function PulsOverview({ data = PULS_DEMO_DATA, onAddSource, onOpenForecast, onOpenCalendar, onOpenScenarios, onOpenGap }: PulsOverviewProps) {
+export default function PulsOverview({ data = PULS_DEMO_DATA, horizon: controlledHorizon, onChangeHorizon, onAddSource, onOpenForecast, onOpenCalendar, onOpenScenarios, onOpenGap }: PulsOverviewProps) {
   const [requested, setRequested] = useState<ScenarioKey>("base");
-  const [horizon, setHorizon] = useState<30 | 60 | 90>(30);
+  const [localHorizon, setLocalHorizon] = useState<30 | 60 | 90>(30);
+  const horizon = controlledHorizon ?? localHorizon;
+  const setHorizon = (value: 30 | 60 | 90) => { setLocalHorizon(value); onChangeHorizon?.(value); };
   const prepared = useMemo(() => data && data.forecast.length > 0 ? data : null, [data]);
   const selected = prepared && scenarioSupported(prepared, requested) ? requested : "base";
   return <div className="puls-overview min-w-0 w-full bg-[color:var(--puls-bg)] pb-10 text-[color:var(--puls-text)] tabular-nums">

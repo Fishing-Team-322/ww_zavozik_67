@@ -19,6 +19,8 @@ function testMessage(result: SourceTest) {
     : result.message || "Подключение требует настройки маппинга.";
 }
 
+const sourceStatus = (status: string) => ({ pending: "Ожидает проверки", ok: "Подключено", error: "Ошибка", mapping_required: "Нужна настройка" })[status] ?? status;
+
 export function OneCConnection({ companyId, companyINN, sources, onChanged }: Props) {
   const [address, setAddress] = useState("");
   const [inn, setInn] = useState(companyINN || "");
@@ -181,7 +183,7 @@ export function OneCConnection({ companyId, companyINN, sources, onChanged }: Pr
           <div>
             <p className="font-medium">{source.title}</p>
             <p className="text-[color:var(--text-secondary)]">
-              {source.status === "ok" ? "Подключено" : source.error || source.status}
+              {source.status === "ok" ? "Подключено" : source.error || sourceStatus(source.status)}
               {source.last_synced_at ? ` · обновлено ${new Date(source.last_synced_at).toLocaleString("ru-RU")}` : ""}
             </p>
           </div>

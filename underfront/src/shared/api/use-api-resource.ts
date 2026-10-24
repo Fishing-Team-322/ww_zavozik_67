@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { api, message } from "./client";
 
 /** Scope changes and canceled requests cannot expose another company's previous response. */
@@ -61,5 +61,6 @@ export function useApiResource<T>(
     path && state.key === key
       ? state
       : { data: null, error: null, loading: !!path };
-  return { ...current, refresh: () => setVersion((value) => value + 1) };
+  const refresh = useCallback(() => setVersion(value => value + 1), []);
+  return { ...current, refresh };
 }

@@ -51,7 +51,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    void refreshProfile().catch(() => {});
+    const timer = window.setTimeout(() => { void refreshProfile().catch(() => {}); }, 0);
+    return () => window.clearTimeout(timer);
   }, [refreshProfile]);
 
   useEffect(() => onAuthLost(() => {

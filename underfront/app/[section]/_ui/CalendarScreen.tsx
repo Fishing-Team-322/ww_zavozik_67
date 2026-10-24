@@ -78,13 +78,14 @@ export function CalendarScreen() {
     setError(null);
   }
   return (
-    <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_330px]">
-      <SectionCard className="p-5">
-        <div className="mb-4 flex items-center justify-between gap-4">
+    <div className="grid min-w-0 grid-cols-1 items-start gap-4 xl:grid-cols-[minmax(0,1fr)_330px]">
+      <SectionCard className="min-w-0 p-5">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-4">
           <h2 className="text-lg font-semibold">Платёжный календарь</h2>
           <Input
             type="month"
             aria-label="Месяц календаря"
+            containerClassName="w-full sm:w-auto"
             value={month}
             onChange={(event) => {
               if (event.target.value) setMonth(event.target.value);
@@ -96,8 +97,8 @@ export function CalendarScreen() {
           error={calendar.error}
           retry={calendar.refresh}
         />
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
+        <div className="max-w-full overflow-x-auto">
+          <table className="w-full min-w-[600px] text-left text-sm">
             <thead>
               <tr className="border-b border-[color:var(--border)]">
                 <th className="p-3">Дата</th>
@@ -182,7 +183,7 @@ export function CalendarScreen() {
           </table>
         </div>
       </SectionCard>
-      <SectionCard className="space-y-4 p-5">
+      <SectionCard className="min-w-0 space-y-4 p-5">
         <h2 className="text-lg font-semibold">
           {editing ? "Изменить событие" : "Добавить событие"}
         </h2>

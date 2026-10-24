@@ -291,14 +291,15 @@ func (s *Service) sourceAction(ctx context.Context, op, uid, id string) (Result,
 			_, e = s.lookup(ctx, *company.INN)
 		}
 		if e != nil {
-			if kind == "onec_odata" {
-				_, _ = s.DB.Pool.Exec(ctx, "UPDATE sources SET status='error',error='Не удалось проверить подключение' WHERE id=$1 AND company_id=$2", id, cid)
-			}
+			_, _ = s.DB.Pool.Exec(ctx, "UPDATE sources SET status='error',error='Не удалось проверить подключение' WHERE id=$1 AND company_id=$2", id, cid)
 			var configured *platform.Error
 			if errors.As(e, &configured) && configured.Status == 503 {
 				return Result{}, e
 			}
 			return Result{}, platform.Fail(502, "source_test_failed", "Проверка источника не прошла. Проверьте доступ и настройки")
+		}
+		if _, e = s.DB.Pool.Exec(ctx, "UPDATE sources SET status='ok',error=NULL WHERE id=$1 AND company_id=$2", id, cid); e != nil {
+			return Result{}, e
 		}
 		return ok(Doc{"ok": true, "message": "Соединение проверено"})
 	}

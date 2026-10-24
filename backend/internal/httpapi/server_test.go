@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"log/slog"
@@ -10,6 +11,18 @@ import (
 
 	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/forecast"
 )
+
+func TestCancelledRequestsAreNotInternalServerErrors(t *testing.T) {
+	for _, tc := range []struct {
+		err    error
+		status int
+	}{{context.Canceled, 499}, {context.DeadlineExceeded, 504}} {
+		w := httptest.NewRecorder()
+		if !writeContextError(w, tc.err) || w.Code != tc.status {
+			t.Fatalf("context error: status %d, want %d", w.Code, tc.status)
+		}
+	}
+}
 
 func testServer() *Server {
 	return &Server{Fallback: forecast.SeasonalNaive{}, Log: slog.New(slog.NewTextHandler(io.Discard, nil))}

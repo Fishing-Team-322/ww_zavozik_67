@@ -57,12 +57,10 @@ export function BarChart({
     return Math.min(Math.floor(data.length / 2), data.length - 1);
   }, [data.length, defaultActiveIndex]);
 
-  const [selectedIndex, setSelectedIndex] = React.useState(safeDefaultIndex);
+  const [selection, setSelection] = React.useState({ defaultIndex: safeDefaultIndex, index: safeDefaultIndex });
+  const selectedIndex = selection.defaultIndex === safeDefaultIndex ? Math.min(selection.index, Math.max(0, data.length - 1)) : safeDefaultIndex;
+  const setSelectedIndex = (index: number) => setSelection({ defaultIndex: safeDefaultIndex, index });
   const [hoveredIndex, setHoveredIndex] = React.useState<number | null>(null);
-
-  React.useEffect(() => {
-    setSelectedIndex(safeDefaultIndex);
-  }, [safeDefaultIndex]);
 
   const selectedEntry = data[selectedIndex];
   const selectedLabel =

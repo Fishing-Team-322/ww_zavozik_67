@@ -1,5 +1,12 @@
 import type { Forecast, Gap, Schemas } from "@/src/shared/api";
 
+export function fallbackNotice(warnings: string[]) {
+  if (warnings.includes("out_of_domain_naive_fallback")) return "Для этой истории используется упрощённый прогноз: характер операций отличается от данных обучения.";
+  if (warnings.includes("short_history_naive_fallback")) return "История пока короткая. Используется упрощённый прогноз.";
+  if (warnings.includes("ml_service_fallback") || warnings.includes("global_model_unavailable")) return "Основная модель временно недоступна. Используется упрощённый прогноз.";
+  return "Используется упрощённый прогноз. Проверьте предупреждения о качестве данных.";
+}
+
 export type ChartDay = {
   date: string;
   actual?: number | null;

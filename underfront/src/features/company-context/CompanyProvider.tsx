@@ -20,17 +20,19 @@ const storageKey = "puls-selected-company-id";
 export function CompanyProvider({ children }: { children: ReactNode }) {
   const { user, status: authStatus, error, refreshProfile } = useAuth();
   const [savedId, setSavedId] = useState<string | null>(null);
-  const companies = user?.companies ?? [];
+  const companies = useMemo(() => user?.companies ?? [], [user]);
   const companyId = companies.find(item => item.id === savedId)?.id ?? companies[0]?.id ?? null;
   const selectedCompany = companies.find(item => item.id === companyId) ?? null;
 
   useEffect(() => {
-    try { setSavedId(localStorage.getItem(storageKey)); } catch { setSavedId(null); }
+    const timer = window.setTimeout(() => {
+      try { setSavedId(localStorage.getItem(storageKey)); } catch { setSavedId(null); }
+    }, 0);
     const onStorage = (event: StorageEvent) => {
       if (event.key === storageKey) setSavedId(event.newValue);
     };
     window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
+    return () => { window.clearTimeout(timer); window.removeEventListener("storage", onStorage); };
   }, []);
 
   useEffect(() => {

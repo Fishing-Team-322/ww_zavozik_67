@@ -49,6 +49,9 @@ func (a reply) write(w http.ResponseWriter) error {
 	return nil
 }
 func (s *Server) platformError(w http.ResponseWriter, err error) {
+	if writeContextError(w, err) {
+		return
+	}
 	var e *platform.Error
 	if errors.As(err, &e) {
 		if e.Status == 401 {
