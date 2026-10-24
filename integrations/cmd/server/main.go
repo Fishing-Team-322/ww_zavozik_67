@@ -13,6 +13,8 @@ import (
 	"github.com/Fishing-Team-322/ww_zavozik_67/integrations/internal/httpapi"
 	"github.com/Fishing-Team-322/ww_zavozik_67/integrations/internal/providers/dadata"
 	"github.com/Fishing-Team-322/ww_zavozik_67/integrations/internal/providers/onecodata"
+	"github.com/Fishing-Team-322/ww_zavozik_67/integrations/internal/providers/ozon"
+	"github.com/Fishing-Team-322/ww_zavozik_67/integrations/internal/providers/wb"
 	"github.com/Fishing-Team-322/ww_zavozik_67/integrations/internal/scheduler"
 	"github.com/Fishing-Team-322/ww_zavozik_67/integrations/internal/service"
 	"github.com/Fishing-Team-322/ww_zavozik_67/integrations/internal/store"
@@ -53,6 +55,12 @@ func main() {
 	}
 	if token := os.Getenv("DADATA_API_TOKEN"); token != "" {
 		api.DaDataClient = &dadata.Client{Token: token, Cache: dadata.NewCache(24 * time.Hour)}
+	}
+	if token := os.Getenv("WB_API_TOKEN"); token != "" {
+		api.WBClient = &wb.Client{Token: token}
+	}
+	if id, key := os.Getenv("OZON_CLIENT_ID"), os.Getenv("OZON_API_KEY"); id != "" && key != "" {
+		api.OzonClient = &ozon.Client{ClientID: id, APIKey: key}
 	}
 	if api.SyncToken == "" {
 		log.Fatal("missing sync token")
