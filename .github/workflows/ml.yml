@@ -1,0 +1,43 @@
+name: ml-contract
+
+on:
+  push:
+    branches: [ml]
+  pull_request:
+    paths:
+      - 'ml/**'
+      - 'proto/**'
+      - 'backend/internal/categorize/**'
+      - 'backend/internal/forecast/**'
+      - 'backend/internal/ingest/**'
+      - 'backend/internal/dataset/**'
+      - 'backend/cmd/mlcheck/**'
+      - '.github/workflows/ml.yml'
+
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -c ml/requirements.lock -e 'ml[dev]'
+      - run: python -m pytest ml/tests -q
+      - run: cd backend && go test -race ./... && go vet ./...
+      - run: docker build -t zavozik-ml:ci ml
+      - run: docker run -d --name ml-ci -p 127.0.0.1:50071:50051 zavozik-ml:ci
+      - name: Wait for gRPC readiness
+        run: |
+          PYTHONPATH=ml/gen python - <<'PY'
+          import grpc
+          channel = grpc.insecure_channel('127.0.0.1:50071')
+          grpc.channel_ready_future(channel).result(timeout=60)
+          PY
+      - run: cd backend && go run ./cmd/mlcheck -ml 127.0.0.1:50071
+      - if: always()
+        run: docker logs ml-ci; docker rm -f ml-ci
