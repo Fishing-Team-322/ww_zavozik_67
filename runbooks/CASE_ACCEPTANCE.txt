@@ -1,0 +1,265 @@
+PULS: case acceptance and demo
+
+Local synthetic acceptance
+--------------------------
+Start PostgreSQL, migrations, Python ML, Go API, Go worker and the Next frontend.
+Use a dedicated empty test database. Do not point acceptance at production data.
+
+  python scripts/acceptance-smoke.py --require-ml --state /tmp/case-private-state.json --output acceptance-results/financial-path.json
+
+The default API origin is http://localhost:8080. Override with --api-url for a
+native test instance. Only loopback targets are accepted. The script creates its
+own synthetic account and company. It never imports user data or contacts real
+external providers. The state file contains temporary synthetic credentials and
+must remain private. The JSON report contains no credentials.
+
+After restarting the services, preserving the PostgreSQL volume:
+
+  python scripts/acceptance-smoke.py --require-ml --verify-restart --state /tmp/case-private-state.json --output acceptance-results/persistence.json
+
+Complete container acceptance runs in GitHub Actions against compose.yaml:
+PostgreSQL, migrate, trained ML, API, worker, frontend, HTTP acceptance, browser
+tests, then restart and persistence verification. INTEGRATION_SANDBOX=true uses
+synthetic WB/Ozon/Sheets/DaData responses and is clearly displayed in the UI.
+Tests requiring LIVE_ONEC_URL, LIVE_FNS_PDF or external provider credentials are
+opt-in and are not evidence of live connectivity when skipped.
+
+Before deployment
+-----------------
+Copy .env.example to .env and configure fresh JWT_SECRET, POSTGRES_PASSWORD and
+DATA_ENCRYPTION_KEY. Keep the encryption key identical on API and worker. For
+public deployment set HTTPS PUBLIC_URL/FRONTEND_URL and COOKIE_SECURE=true.
+SMTP and Google/Yandex OAuth need operator credentials and matching callback URLs.
+Never enable INTEGRATION_SANDBOX on a public production origin.
+
+To validate an available educational 1C base later:
+  TEST_DATABASE_URL=<isolated-test-db> LIVE_ONEC_CONFIG=<private-config-path> go test ./internal/httpapi -run TestLiveOneCBackendFacts -count=1 -v
+Run from backend/. The test reads a local, operator-approved configuration.
+Without this configuration it skips and must not be described as a live pass.
+The synthetic adapter/obligation tests still run in the normal backend suite.
+
+Tax planning
+------------
+GET  /v1/companies/{id}/taxes?year=2026&months=12
+POST /v1/companies/{id}/taxes/preview
+POST /v1/companies/{id}/taxes
+POST /v1/taxes/{taxId}/cancel
+
+Input: request_id UUID for creation, kind, period, year, amount in RUB, title,
+source_ref describing the confirmed amount, confirmed boolean, additional boolean.
+Supported statutory rules: usn_advance (q1, h1, 9m), usn_annual (year), vat (q1..q4).
+VAT schedules three installments whose sum equals the confirmed liability.
+enp/contributions/other require an explicitly confirmed due_date. Individual tax
+deferrals use other. The production-calendar snapshot must cover statutory dates.
+
+The service schedules a confirmed liability. It does not infer taxable income
+from all bank credits, prepare a declaration, submit a payment or determine
+individual tax relief. ENP is a payment method and must not duplicate the same
+USN/VAT obligation. Only one active USN/VAT liability per company, tax and period
+is allowed. Reusing request_id with a different body returns 409. To correct an
+obligation, cancel the remaining installments and create the replacement.
+
+additional=false: the plan appears in the calendar and plan/fact, while ordinary
+tax flows remain covered by the business-flow model. additional=true: add the
+confirmed extra liability once. Received installments survive cancellation.
+Obligations, installments, revision and recompute job commit together.
+
+Verified general date-rule sources, accessed 2026-10-24:
+https://www.nalog.gov.ru/rn61/taxation/taxes/usn/
+https://www.nalog.gov.ru/rn77/taxation/taxes/nds/
+https://www.nalog.gov.ru/rn33/ens/
+
+Plan/fact and updates
+--------------------
+GET /v1/companies/{id}/updates returns the data revision, latest persisted forecast
+revision, pending job count and last job outcome. The client polls every five
+seconds while visible and refreshes financial screens when the state changes.
+Forecast reads do not change this fingerprint by themselves.
+
+Plan/fact supports daily and weekly charts. Unknown facts and incomplete weeks
+remain null and appear as gaps. Negative net deviation is highlighted. A worker
+reconciles unambiguous payments, marks overdue plans only on covered statement
+dates, saves a new forecast and creates a deduplicated missed-payment alert.
+An unambiguous one-off receipt can match up to 31 days late. Multiple possible
+matches stay unresolved for user review. Resolved overdue alerts become read.
+The forecast-change block compares the last two saved 30-day data revisions;
+it reflects all changes and does not claim one missed payment caused everything.
+
+Architecture for the defense
+----------------------------
+Next.js UI uses the authenticated Go HTTP API. Go owns accounts, tenants,
+normalization, tax/event rules, plan/fact, scenarios and risk calculations.
+PostgreSQL stores facts, plans, revisions and the durable job queue. The Go worker
+imports data, reconciles plans and recomputes forecasts. Python gRPC produces
+stochastic cash-flow paths from the trained LightGBM/seasonal-naive ensemble.
+Go composes explicit additional events once and calculates balances/gap risk.
+
+Cached ML paths can be reused when only plans change. A new statement changes
+the history key and triggers model inference. This is reuse of unchanged paths,
+not online model training or partial retraining. TrxGPT training/evaluation code
+is separate and is not the currently serving forecast model.
+
+Quality evidence
+----------------
+ml/reports/metrics/final_audit.summary.csv remains available to the API. In its
+auto/all cohort: 86 origins, WAPE at 7/14/30 days about 14.84/28.67/48.80 percent.
+Seasonal-naive 30-day WAPE is about 57.43 percent. The report contains nine gap
+events, four new gaps and many false warnings. It is an internal synthetic audit,
+not proof of the same quality on real business accounts. Preserve this caveat.
+
+Live external acceptance remains SKIPPED until the team provides approved test
+access. Demo reports from marketplaces and dated FNS risk signals are not bank
+cash facts. The defense must distinguish synthetic demonstrations from real
+connections. No new claim about independently validated TrxGPT quality is made.
+
+Financial regression fixes
+-------------------------
+Migration 00007 creates operation_settlements and backfills existing bank matches.
+A consumed bank operation remains reserved after editing or deleting a document.
+The migration also restores known counterparty INNs on older calendar projections.
+When both sides have an INN, reconciliation compares it instead of their names;
+name matching remains the compatibility fallback when an INN is missing.
+
+Unpaid additional expenses whose scheduled date is on/before the statement date
+are conservatively carried to the first forecast day. Their original calendar
+date is retained. A visible notice explains this assumption. Received/cancelled
+plans are excluded; overdue income is not invented, and ordinary baseline
+expenses are not added a second time.
+
+Scenarios cannot move paid/cancelled events or move a payment into observed history.
+Resolved gap warnings become read and link to the current forecast. A recurring
+risk on the same date reopens its warning without creating a duplicate.
+Temporary refresh transport/5xx errors preserve the local session for retry;
+an explicit authentication rejection still ends the session.
+
+Regression coverage: financial_regressions_test.go, forecast_events_test.go and
+session-recovery.test.ts. Run the normal backend/frontend suites and full CI.
+
+Scenario and document composition
+---------------------------------
+Scenario steps run in order against private plan state. Repeated delays add up,
+repeated fixed-cost factors multiply, and moving the same baseline plan updates
+its existing offset instead of inserting another cancellation. Revenue factors
+preserve owner financing and do not scale expense reversals. Plan markers show
+the resulting scenario dates and amounts. Scenario expenses must be after the
+last statement date; old unmatched receipts cannot block future client delays.
+
+Editing an already-paid invoice preserves its actual paid_amount. Marking an
+unpaid invoice as paid is still an explicit supported transition.
+Bank-settled contract installments update the source schedule and retain their
+bank references across edits. Metadata/stale-form saves cannot reopen them or
+rewrite their paid terms. Contract receipts can reconcile up to 31 days late,
+using the same unambiguous matching rules as one-off invoices.
+
+CSV/XLSX repeat imports compare reused IDs with the stored economic fact.
+Conflicts are reported as operation_conflict, not silently counted as duplicates,
+and do not overwrite historical facts. Matching repeats may fill a previously
+unknown closing balance, including an explicit zero.
+Payment matching, import-ID conflicts and settled contract terms compare amounts
+in rounded integer kopecks: a one-kopeck difference is not a full payment/duplicate.
+
+Planning integrity
+------------------
+Plan-fact uses the full invoice amount throughout partial/full payment, while
+calendar and forecast projections retain the unpaid balance. Document payment
+metadata never creates bank cash facts. Unexpected business payments exclude
+internal transfers and rows explicitly marked as duplicates.
+
+Recurring patterns require both active=true and confirmed=true before projection.
+Editing an individual recurring event marks a user override, preserving its date,
+amount and state across later pattern edits. Revoking confirmation removes unpaid
+automatic occurrences, including overdue ones, while preserving bank matches and
+explicit user overrides.
+
+Apply embedded migration 00008 with the normal migrate command before starting
+the new API/worker. It removes older unconfirmed automatic expected/missed events
+and queues affected companies for recomputation. Paid history and marked user
+overrides are preserved. Stop older API/workers before migration so they cannot
+regenerate the obsolete projections. No integration credentials are required.
+
+Regression coverage: planning_integrity_regressions_test.go (plan-fact in both
+directions, confirmation and bank matching, internal/duplicate exclusions,
+per-occurrence edits, revoked overdue schedules, migration preservation).
+
+Source removal and import integrity
+-----------------------------------
+Removing a source with keep_data=false reverses its bank-backed settlements in
+the same transaction as deleting the operations. It restores invoice balances
+and contract installments, clears obsolete calendar bank references, and retains
+manual payments and settlements from other sources. Cancelled tax liabilities
+remain cancelled. keep_data=true retains all facts and settlement state.
+
+Sync imports recheck that the source still exists and is enabled under the
+company write lock, after the network fetch. An in-flight Sheets/bank import
+cannot recreate a deleted source or commit after disabling it.
+
+Rejected CSV/XLSX rows no longer consume anonymous occurrence numbers. Invalid
+balances therefore cannot turn the following valid equal row into a new payment
+on repeat import. This does not infer identity across differently formatted
+anonymous files or automatically repair duplicates created by older versions.
+Use stable operation IDs when available.
+
+XLSX uploads publish the API source kind excel. Apply embedded migration 00009
+through the normal migrate command before running the updated API/worker; it
+normalizes legacy sources, operation metadata and import reports without
+changing financial facts, operation IDs or bank settlement references.
+
+Regression coverage: source_deletion_regressions_test.go and the import identity
+suite, including interrupted sync, legacy bank references, multiple payment
+sources, cancelled taxes, rejected rows and legacy Excel normalization.
+
+Scenario probability and counterparty calculations
+--------------------------------------------------
+Moving an additional plan from outside the visible forecast horizon introduces
+its expected flow and per-path uncertainty together. A 0% plan stays impossible;
+a 50% receipt or expense stays uncertain. The event/path draw is shared with
+ordinary forecasts and is stable across date moves.
+
+A scenario's selected counterparty_id takes precedence over its display name,
+so another legal entity with the same name is not delayed by that step.
+Counterparty monthly business totals exclude internal and duplicate operations,
+matching the turnover summary. Issued/received invoices establish client/supplier
+roles even before the first bank payment, so unpaid relationships appear under
+the corresponding filters.
+
+Regression coverage: scenario composition unit tests (no database required),
+counterparty_calculation_regressions_test.go, scenario_probability_regressions_test.go
+(API quantiles for incoming/outgoing plans at probabilities 0%, 50% and 100%).
+
+Gap recommendation snapshots and preview validation
+---------------------------------------------------
+Gap action IDs identify the data revision and forecast output, including the
+horizon. A 90-day funding recommendation cannot reuse a 30-day persisted amount.
+Applying an unapplied recommendation checks its revision under the company lock;
+after financial changes, refresh the forecast and select a new recommendation.
+Previously applied actions remain idempotent on retry. Legacy unapplied actions
+without snapshot metadata require refresh as well; no schema migration is needed.
+
+Forecast preview combines changes to existing plans with newly supplied events.
+Both arrays are validated without discarding null/non-object elements; malformed
+entries return 400. The combined limit is 100 changes, and previews do not modify
+the actual plans.
+
+Regression coverage: action_snapshot_regressions_test.go (stale actions, refreshed
+actions, horizon-specific funding, idempotent retry, combined previews and nulls).
+
+Text parsing and operation filters
+----------------------------------
+The rules parser consumes complete numeric literals. Unsupported decimal/group
+separators and multiple explicit payment amounts require clarification instead
+of accepting a numeric suffix. Scientific notation is read as a whole number,
+and ordinary amounts, thousands/millions and Unicode grouping spaces remain
+supported. A phrase containing both incoming and outgoing intents is rejected.
+
+Bare day-of-month expressions resolve to the nearest actual occurrence of that
+day, skipping months without it. Named leap days stay February 29; explicit years
+on named dates are honored. Calendar rollover never silently changes the day.
+Parser and product text limits count Unicode characters rather than UTF-8 bytes,
+so a valid parsed title can also be saved.
+
+Operation filters reject unknown direction/category/source values with 400.
+The source filter uses the same default as the public operation view, so an
+operation displayed as upload is included by source=upload.
+
+Regression coverage: parser_regressions_test.go (database-free, including fixed
+calendar dates) and operation_filter_regressions_test.go. No schema migration.

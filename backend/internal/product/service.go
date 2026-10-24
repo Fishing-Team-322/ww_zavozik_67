@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/categorize"
 	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/domain"
@@ -198,10 +199,7 @@ func view(kind string, d Doc) Doc {
 		copyKeys("id amount direction purpose category category_method is_internal")
 		out["date"] = date(d["op_date"])
 		out["counterparty"] = cpRef(cid, d)
-		out["source"] = d["source"]
-		if out["source"] == nil {
-			out["source"] = "upload"
-		}
+		out["source"] = operationSource(d)
 		if out["purpose"] == nil {
 			out["purpose"] = ""
 		}
@@ -300,11 +298,17 @@ func (s *Service) Execute(ctx context.Context, op string, p platform.Principal, 
 		return s.crud(ctx, uid, cid, desc, r, body)
 	}
 	switch op {
+	case "previewTax", "createTax", "cancelTax":
+		return s.taxAction(ctx, op, uid, cid, r, body)
+	case "getTaxes":
+		return s.taxes(ctx, uid, cid, r)
+	case "getCompanyUpdates":
+		return s.updates(ctx, uid, cid)
 	case "listCategories":
 		return ok(Categories())
 	case "listOperations", "summarizeOperations", "exportOperations", "recategorizeOperations":
 		return s.operations(ctx, op, uid, cid, r, body)
-	case "getForecast", "getDashboard", "getForecastDay", "getGap", "previewForecast", "simulateGap", "getCalendar", "getForecastAccuracy", "getRetro", "getPlanFact", "getMissedPlanFact", "getTaxes":
+	case "getForecast", "getDashboard", "getForecastDay", "getGap", "previewForecast", "simulateGap", "getCalendar", "getForecastAccuracy", "getRetro", "getPlanFact", "getMissedPlanFact":
 		return s.financial(ctx, op, uid, cid, r, body)
 	case "listCounterparties", "getCounterparty", "getConcentration":
 		return s.counterparties(ctx, op, uid, cid, r)
@@ -412,6 +416,15 @@ func (s *Service) crud(ctx context.Context, uid, cid string, desc [3]string, r *
 	if e := validateResource(kind, body, create); e != nil {
 		return Result{}, e
 	}
+	// "Mark paid" is an explicit transition, not a standing instruction to
+	// manufacture another payment whenever an already-paid invoice is edited.
+	if kind == "invoice" && text(body, "status") == "paid" && (create || text(d, "status") != "paid") {
+		amount := d["amount"]
+		if value, exists := body["amount"]; exists {
+			amount = value
+		}
+		body["paid_amount"] = amount
+	}
 	if kind == "source" && !create {
 		if patch, yes := body["config"].(map[string]any); yes {
 			_, previous, err := s.sourceConfig(ctx, uid, id)
@@ -430,6 +443,10 @@ func (s *Service) crud(ctx context.Context, uid, cid string, desc [3]string, r *
 	}
 	for k, v := range body {
 		d[k] = v
+	}
+	if !create && kind == "event" && text(d, "source_kind") == "recurring" && len(body) > 0 {
+		// An individual installment edited by the user survives pattern edits.
+		d["user_override"] = true
 	}
 	d["id"], d["company_id"] = id, cid
 	if e := s.prepare(ctx, uid, cid, kind, d, create); e != nil {
@@ -531,7 +548,7 @@ func validateResource(kind string, b Doc, create bool) error {
 			}
 		default:
 			s, ok := v.(string)
-			if !ok || len(s) > 1024 || strings.TrimSpace(s) == "" {
+			if !ok || utf8.RuneCountInString(s) > 1024 || strings.TrimSpace(s) == "" {
 				return bad("Некорректное поле: " + k)
 			}
 		}
@@ -618,9 +635,6 @@ func (s *Service) prepare(ctx context.Context, uid, cid, kind string, d Doc, cre
 		}
 		if !in(text(d, "direction"), "issued received") {
 			return bad("Направление счёта: issued или received")
-		}
-		if text(d, "status") == "paid" {
-			d["paid_amount"] = d["amount"]
 		}
 		switch {
 		case number(d, "paid_amount") >= number(d, "amount"):

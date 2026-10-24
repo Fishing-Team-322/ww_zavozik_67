@@ -30,7 +30,25 @@ func Categories() []Doc {
 	}
 	return out
 }
+
+func operationSource(d Doc) string {
+	if source := text(d, "source"); source != "" {
+		return source
+	}
+	return "upload"
+}
+
 func (s *Service) operationRows(ctx context.Context, uid, cid string, r *http.Request) ([]Doc, error) {
+	q := r.URL.Query()
+	if v := q.Get("direction"); v != "" && !in(v, "in out") {
+		return nil, bad("Неизвестное направление операции")
+	}
+	if v := q.Get("category"); v != "" && !knownCategory(v) {
+		return nil, bad("Неизвестная категория операции")
+	}
+	if v := q.Get("source"); v != "" && !in(v, "upload onec_bank_file excel gsheets onec_odata fns manual wb ozon") {
+		return nil, bad("Неизвестный тип источника")
+	}
 	rows, e := s.DB.ProductList(ctx, uid, cid, "operation")
 	if e != nil {
 		return nil, e
@@ -40,7 +58,6 @@ func (s *Service) operationRows(ctx context.Context, uid, cid string, r *http.Re
 		return nil, e
 	}
 	rows = filterDates(rows, from, to, "op_date")
-	q := r.URL.Query()
 	out := []Doc{}
 	for _, d := range rows {
 		if flag(d, "is_duplicate") {
@@ -52,7 +69,7 @@ func (s *Service) operationRows(ctx context.Context, uid, cid string, r *http.Re
 		if v := q.Get("category"); v != "" && text(d, "category") != v {
 			continue
 		}
-		if v := q.Get("source"); v != "" && text(d, "source") != v {
+		if v := q.Get("source"); v != "" && operationSource(d) != v {
 			continue
 		}
 		if v := q.Get("counterparty_id"); v != "" && cpRef(cid, d)["id"] != v {
@@ -256,6 +273,7 @@ func (s *Service) counterparties(ctx context.Context, op, uid, cid string, r *ht
 		}
 	}
 	delays := map[string][]float64{}
+	invoiceRoles := map[string]map[string]bool{}
 	for _, d := range invoices {
 		ref := cpRef(cid, d)
 		id, _ := ref["id"].(string)
@@ -266,6 +284,14 @@ func (s *Service) counterparties(ctx context.Context, op, uid, cid string, r *ht
 			}
 			g = Doc{"id": id, "name": ref["name"], "inn": d["counterparty_inn"], "roles": []string{}, "turnover_in_12m": float64(0), "turnover_out_12m": float64(0), "revenue_share": float64(0), "operations_count": 0, "first_at": d["issued_at"], "last_at": d["issued_at"], "avg_payment_delay_days": nil, "delay_stability": nil, "discipline_score": nil, "overdue_amount": float64(0), "fns_status": nil}
 			groups[id] = g
+		}
+		if invoiceRoles[id] == nil {
+			invoiceRoles[id] = map[string]bool{}
+		}
+		if text(d, "direction") == "issued" {
+			invoiceRoles[id]["client"] = true
+		} else if text(d, "direction") == "received" {
+			invoiceRoles[id]["supplier"] = true
 		}
 		if text(d, "direction") == "issued" && text(d, "status") == "paid" && text(d, "paid_at") != "" {
 			paid, pe := day(date(d["paid_at"]))
@@ -321,10 +347,10 @@ func (s *Service) counterparties(ctx context.Context, op, uid, cid string, r *ht
 			g["discipline_basis"] = "percent_of_matched_issued_invoices_paid_by_due_date"
 		}
 		roles := []string{}
-		if number(g, "turnover_in_12m") > 0 {
+		if number(g, "turnover_in_12m") > 0 || invoiceRoles[text(g, "id")]["client"] {
 			roles = append(roles, "client")
 		}
-		if number(g, "turnover_out_12m") > 0 {
+		if number(g, "turnover_out_12m") > 0 || invoiceRoles[text(g, "id")]["supplier"] {
 			roles = append(roles, "supplier")
 		}
 		g["roles"] = roles
@@ -366,7 +392,7 @@ func (s *Service) counterparties(ctx context.Context, op, uid, cid string, r *ht
 		}
 		monthly := map[string]Doc{}
 		for _, d := range rows {
-			if cpRef(cid, d)["id"] != id {
+			if flag(d, "is_duplicate") || flag(d, "is_internal") || cpRef(cid, d)["id"] != id {
 				continue
 			}
 			m := date(d["op_date"])[:7]
@@ -461,7 +487,7 @@ func (s *Service) projectRecurring(ctx context.Context, uid, cid string) error {
 		exists[text(d, "id")] = true
 	}
 	for _, p := range patterns {
-		if !flag(p, "active") {
+		if !flag(p, "active") || !flag(p, "confirmed") {
 			continue
 		}
 		start, e := day(date(p["next_date"]))
@@ -474,7 +500,7 @@ func (s *Service) projectRecurring(ctx context.Context, uid, cid string) error {
 			count++
 			id := idFor(cid, "recurring:"+text(p, "id")+":"+start.Format(domain.DateLayout))
 			if !exists[id] {
-				d := Doc{"id": id, "date": start.Format(domain.DateLayout), "title": p["title"], "amount": p["amount"], "direction": p["direction"], "category": p["category"], "counterparty_name": p["counterparty_name"], "probability": float64(1), "status": "expected", "source": "recurring", "recurring_id": p["id"], "origin": p["origin"], "additional": text(p, "origin") == "manual", "occurrence_key": id}
+				d := Doc{"id": id, "date": start.Format(domain.DateLayout), "title": p["title"], "amount": p["amount"], "direction": p["direction"], "category": p["category"], "counterparty_name": p["counterparty_name"], "counterparty_inn": p["counterparty_inn"], "probability": float64(1), "status": "expected", "source": "recurring", "recurring_id": p["id"], "origin": p["origin"], "additional": text(p, "origin") == "manual", "occurrence_key": id}
 				if _, e = s.DB.ProductSave(ctx, uid, cid, "event", id, d, true); e != nil {
 					return e
 				}

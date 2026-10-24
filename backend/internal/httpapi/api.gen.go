@@ -33,26 +33,26 @@ const (
 
 // Defines values for Category.
 const (
-	BankFee            Category = "bank_fee"
-	Enforcement        Category = "enforcement"
-	Leasing            Category = "leasing"
-	LoanPayment        Category = "loan_payment"
-	Marketing          Category = "marketing"
-	Other              Category = "other"
-	OwnTransfer        Category = "own_transfer"
-	OwnerLoan          Category = "owner_loan"
-	Refund             Category = "refund"
-	Rent               Category = "rent"
-	RevenueAcquiring   Category = "revenue_acquiring"
-	RevenueB2b         Category = "revenue_b2b"
-	RevenueCash        Category = "revenue_cash"
-	RevenueMarketplace Category = "revenue_marketplace"
-	RevenueSbp         Category = "revenue_sbp"
-	Salary             Category = "salary"
-	Services           Category = "services"
-	Supplier           Category = "supplier"
-	Tax                Category = "tax"
-	Utilities          Category = "utilities"
+	CategoryBankFee            Category = "bank_fee"
+	CategoryEnforcement        Category = "enforcement"
+	CategoryLeasing            Category = "leasing"
+	CategoryLoanPayment        Category = "loan_payment"
+	CategoryMarketing          Category = "marketing"
+	CategoryOther              Category = "other"
+	CategoryOwnTransfer        Category = "own_transfer"
+	CategoryOwnerLoan          Category = "owner_loan"
+	CategoryRefund             Category = "refund"
+	CategoryRent               Category = "rent"
+	CategoryRevenueAcquiring   Category = "revenue_acquiring"
+	CategoryRevenueB2b         Category = "revenue_b2b"
+	CategoryRevenueCash        Category = "revenue_cash"
+	CategoryRevenueMarketplace Category = "revenue_marketplace"
+	CategoryRevenueSbp         Category = "revenue_sbp"
+	CategorySalary             Category = "salary"
+	CategoryServices           Category = "services"
+	CategorySupplier           Category = "supplier"
+	CategoryTax                Category = "tax"
+	CategoryUtilities          Category = "utilities"
 )
 
 // Defines values for CompanyDefaultHorizon.
@@ -255,6 +255,36 @@ const (
 	Mock SourceDataMode = "mock"
 )
 
+// Defines values for TaxDraftStatus.
+const (
+	TaxDraftStatusActive    TaxDraftStatus = "active"
+	TaxDraftStatusCancelled TaxDraftStatus = "cancelled"
+)
+
+// Defines values for TaxKind.
+const (
+	TaxKindContributions TaxKind = "contributions"
+	TaxKindEnp           TaxKind = "enp"
+	TaxKindOther         TaxKind = "other"
+	TaxKindUsnAdvance    TaxKind = "usn_advance"
+	TaxKindUsnAnnual     TaxKind = "usn_annual"
+	TaxKindVat           TaxKind = "vat"
+)
+
+// Defines values for TaxObligationStatus.
+const (
+	TaxObligationStatusActive    TaxObligationStatus = "active"
+	TaxObligationStatusCancelled TaxObligationStatus = "cancelled"
+)
+
+// Defines values for TaxPaymentStatus.
+const (
+	TaxPaymentStatusCancelled TaxPaymentStatus = "cancelled"
+	TaxPaymentStatusExpected  TaxPaymentStatus = "expected"
+	TaxPaymentStatusMissed    TaxPaymentStatus = "missed"
+	TaxPaymentStatusReceived  TaxPaymentStatus = "received"
+)
+
 // Defines values for TaxRegime.
 const (
 	Eshn    TaxRegime = "eshn"
@@ -288,8 +318,8 @@ const (
 
 // Defines values for UpdateInvoiceInputDirection.
 const (
-	Issued   UpdateInvoiceInputDirection = "issued"
-	Received UpdateInvoiceInputDirection = "received"
+	UpdateInvoiceInputDirectionIssued   UpdateInvoiceInputDirection = "issued"
+	UpdateInvoiceInputDirectionReceived UpdateInvoiceInputDirection = "received"
 )
 
 // Defines values for UpdateInvoiceInputStatus.
@@ -538,6 +568,16 @@ type CompanyState struct {
 type CompanyStateWrite struct {
 	Data            map[string]interface{} `json:"data"`
 	ExpectedVersion int64                  `json:"expected_version"`
+}
+
+// CompanyUpdates defines model for CompanyUpdates.
+type CompanyUpdates struct {
+	DataAsOf          *time.Time `json:"data_as_of"`
+	DataRevision      int        `json:"data_revision"`
+	ForecastRevision  *int       `json:"forecast_revision"`
+	LastJobError      *string    `json:"last_job_error"`
+	LastJobFinishedAt *time.Time `json:"last_job_finished_at"`
+	PendingJobs       int        `json:"pending_jobs"`
 }
 
 // Contract defines model for Contract.
@@ -1021,9 +1061,10 @@ type ParseEventInput struct {
 
 // PlanFactPoint defines model for PlanFactPoint.
 type PlanFactPoint struct {
-	Deviation float32            `json:"deviation"`
-	FactIn    float32            `json:"fact_in"`
-	FactOut   float32            `json:"fact_out"`
+	Deviation *float32           `json:"deviation"`
+	FactIn    *float32           `json:"fact_in"`
+	FactOut   *float32           `json:"fact_out"`
+	Observed  bool               `json:"observed"`
 	Period    openapi_types.Date `json:"period"`
 	PlanIn    float32            `json:"plan_in"`
 	PlanOut   float32            `json:"plan_out"`
@@ -1290,6 +1331,104 @@ type Source struct {
 
 // SourceDataMode defines model for Source.DataMode.
 type SourceDataMode string
+
+// TaxCalendarRule defines model for TaxCalendarRule.
+type TaxCalendarRule struct {
+	Dates     []openapi_types.Date `json:"dates"`
+	Kind      TaxKind              `json:"kind"`
+	Period    string               `json:"period"`
+	SourceUrl string               `json:"source_url"`
+	Year      int                  `json:"year"`
+}
+
+// TaxDraft defines model for TaxDraft.
+type TaxDraft struct {
+	Additional       bool           `json:"additional"`
+	Amount           float64        `json:"amount"`
+	CalculationBasis string         `json:"calculation_basis"`
+	Confirmed        bool           `json:"confirmed"`
+	DateRule         string         `json:"date_rule"`
+	Kind             TaxKind        `json:"kind"`
+	Payments         []TaxPayment   `json:"payments"`
+	Period           string         `json:"period"`
+	SourceRef        string         `json:"source_ref"`
+	SourceUrl        string         `json:"source_url"`
+	Status           TaxDraftStatus `json:"status"`
+	Title            string         `json:"title"`
+	Year             int            `json:"year"`
+}
+
+// TaxDraftStatus defines model for TaxDraft.Status.
+type TaxDraftStatus string
+
+// TaxInput defines model for TaxInput.
+type TaxInput struct {
+	Additional bool                `json:"additional"`
+	Amount     float64             `json:"amount"`
+	Confirmed  bool                `json:"confirmed"`
+	DueDate    *openapi_types.Date `json:"due_date,omitempty"`
+	Kind       TaxKind             `json:"kind"`
+	Period     string              `json:"period"`
+	RequestId  *openapi_types.UUID `json:"request_id,omitempty"`
+	SourceRef  string              `json:"source_ref"`
+	Title      string              `json:"title"`
+	Year       int                 `json:"year"`
+}
+
+// TaxKind defines model for TaxKind.
+type TaxKind string
+
+// TaxObligation defines model for TaxObligation.
+type TaxObligation struct {
+	Additional       bool                `json:"additional"`
+	Amount           float64             `json:"amount"`
+	CalculationBasis string              `json:"calculation_basis"`
+	Confirmed        bool                `json:"confirmed"`
+	CreatedAt        time.Time           `json:"created_at"`
+	DateRule         string              `json:"date_rule"`
+	Id               openapi_types.UUID  `json:"id"`
+	Kind             TaxKind             `json:"kind"`
+	PaidAmount       float64             `json:"paid_amount"`
+	Payments         []TaxPayment        `json:"payments"`
+	Period           string              `json:"period"`
+	SourceRef        string              `json:"source_ref"`
+	SourceUrl        string              `json:"source_url"`
+	Status           TaxObligationStatus `json:"status"`
+	Title            string              `json:"title"`
+	Year             int                 `json:"year"`
+}
+
+// TaxObligationStatus defines model for TaxObligation.Status.
+type TaxObligationStatus string
+
+// TaxOverview defines model for TaxOverview.
+type TaxOverview struct {
+	CalculationBasis string            `json:"calculation_basis"`
+	Calendar         []TaxCalendarRule `json:"calendar"`
+	Items            []struct {
+		AmountEstimate float64            `json:"amount_estimate"`
+		Date           openapi_types.Date `json:"date"`
+		EventId        openapi_types.UUID `json:"event_id"`
+		HowCalculated  string             `json:"how_calculated"`
+		Title          string             `json:"title"`
+	} `json:"items"`
+	Notice         string          `json:"notice"`
+	Obligations    []TaxObligation `json:"obligations"`
+	RegimeDetected *string         `json:"regime_detected"`
+	TaxRegime      TaxRegime       `json:"tax_regime"`
+	Year           int             `json:"year"`
+}
+
+// TaxPayment defines model for TaxPayment.
+type TaxPayment struct {
+	Amount  float64             `json:"amount"`
+	Date    openapi_types.Date  `json:"date"`
+	EventId *openapi_types.UUID `json:"event_id,omitempty"`
+	Status  TaxPaymentStatus    `json:"status"`
+}
+
+// TaxPaymentStatus defines model for TaxPayment.Status.
+type TaxPaymentStatus string
 
 // TaxRegime defines model for TaxRegime.
 type TaxRegime string
@@ -1628,6 +1767,7 @@ type CompareScenarioParams struct {
 // GetTaxesParams defines parameters for GetTaxes.
 type GetTaxesParams struct {
 	Months *int `form:"months,omitempty" json:"months,omitempty"`
+	Year   *int `form:"year,omitempty" json:"year,omitempty"`
 }
 
 // UploadStatementMultipartBody defines parameters for UploadStatement.
@@ -1724,6 +1864,12 @@ type CreateSourceJSONRequestBody = CreateSourceInput
 
 // PutCompanyStateJSONRequestBody defines body for PutCompanyState for application/json ContentType.
 type PutCompanyStateJSONRequestBody = CompanyStateWrite
+
+// CreateTaxJSONRequestBody defines body for CreateTax for application/json ContentType.
+type CreateTaxJSONRequestBody = TaxInput
+
+// PreviewTaxJSONRequestBody defines body for PreviewTax for application/json ContentType.
+type PreviewTaxJSONRequestBody = TaxInput
 
 // UploadStatementMultipartRequestBody defines body for UploadStatement for multipart/form-data ContentType.
 type UploadStatementMultipartRequestBody UploadStatementMultipartBody
@@ -2010,6 +2156,15 @@ type ServerInterface interface {
 	// (GET /v1/companies/{companyId}/taxes)
 	GetTaxes(w http.ResponseWriter, r *http.Request, companyId openapi_types.UUID, params GetTaxesParams)
 
+	// (POST /v1/companies/{companyId}/taxes)
+	CreateTax(w http.ResponseWriter, r *http.Request, companyId openapi_types.UUID)
+
+	// (POST /v1/companies/{companyId}/taxes/preview)
+	PreviewTax(w http.ResponseWriter, r *http.Request, companyId openapi_types.UUID)
+
+	// (GET /v1/companies/{companyId}/updates)
+	GetCompanyUpdates(w http.ResponseWriter, r *http.Request, companyId openapi_types.UUID)
+
 	// (POST /v1/companies/{companyId}/uploads)
 	UploadStatement(w http.ResponseWriter, r *http.Request, companyId openapi_types.UUID)
 
@@ -2102,6 +2257,9 @@ type ServerInterface interface {
 
 	// (POST /v1/sources/{sourceId}/test)
 	TestSource(w http.ResponseWriter, r *http.Request, sourceId openapi_types.UUID)
+
+	// (POST /v1/taxes/{taxId}/cancel)
+	CancelTax(w http.ResponseWriter, r *http.Request, taxId openapi_types.UUID)
 
 	// (POST /v1/uploads/{uploadId}/mapping)
 	MapUpload(w http.ResponseWriter, r *http.Request, uploadId openapi_types.UUID)
@@ -5052,8 +5210,109 @@ func (siw *ServerInterfaceWrapper) GetTaxes(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	// ------------- Optional query parameter "year" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "year", r.URL.Query(), &params.Year)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "year", Err: err})
+		return
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetTaxes(w, r, companyId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateTax operation middleware
+func (siw *ServerInterfaceWrapper) CreateTax(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "companyId" -------------
+	var companyId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "companyId", r.PathValue("companyId"), &companyId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "companyId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateTax(w, r, companyId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PreviewTax operation middleware
+func (siw *ServerInterfaceWrapper) PreviewTax(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "companyId" -------------
+	var companyId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "companyId", r.PathValue("companyId"), &companyId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "companyId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PreviewTax(w, r, companyId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetCompanyUpdates operation middleware
+func (siw *ServerInterfaceWrapper) GetCompanyUpdates(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "companyId" -------------
+	var companyId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "companyId", r.PathValue("companyId"), &companyId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "companyId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetCompanyUpdates(w, r, companyId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -5966,6 +6225,37 @@ func (siw *ServerInterfaceWrapper) TestSource(w http.ResponseWriter, r *http.Req
 	handler.ServeHTTP(w, r)
 }
 
+// CancelTax operation middleware
+func (siw *ServerInterfaceWrapper) CancelTax(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "taxId" -------------
+	var taxId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "taxId", r.PathValue("taxId"), &taxId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "taxId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CancelTax(w, r, taxId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // MapUpload operation middleware
 func (siw *ServerInterfaceWrapper) MapUpload(w http.ResponseWriter, r *http.Request) {
 
@@ -6230,6 +6520,9 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc("GET "+options.BaseURL+"/v1/companies/{companyId}/state", wrapper.GetCompanyState)
 	m.HandleFunc("PUT "+options.BaseURL+"/v1/companies/{companyId}/state", wrapper.PutCompanyState)
 	m.HandleFunc("GET "+options.BaseURL+"/v1/companies/{companyId}/taxes", wrapper.GetTaxes)
+	m.HandleFunc("POST "+options.BaseURL+"/v1/companies/{companyId}/taxes", wrapper.CreateTax)
+	m.HandleFunc("POST "+options.BaseURL+"/v1/companies/{companyId}/taxes/preview", wrapper.PreviewTax)
+	m.HandleFunc("GET "+options.BaseURL+"/v1/companies/{companyId}/updates", wrapper.GetCompanyUpdates)
 	m.HandleFunc("POST "+options.BaseURL+"/v1/companies/{companyId}/uploads", wrapper.UploadStatement)
 	m.HandleFunc("DELETE "+options.BaseURL+"/v1/contracts/{contractId}", wrapper.DeleteContract)
 	m.HandleFunc("PATCH "+options.BaseURL+"/v1/contracts/{contractId}", wrapper.UpdateContract)
@@ -6261,6 +6554,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc("POST "+options.BaseURL+"/v1/sources/{sourceId}/sheet-preview", wrapper.PreviewSheetSource)
 	m.HandleFunc("POST "+options.BaseURL+"/v1/sources/{sourceId}/sync", wrapper.SyncSource)
 	m.HandleFunc("POST "+options.BaseURL+"/v1/sources/{sourceId}/test", wrapper.TestSource)
+	m.HandleFunc("POST "+options.BaseURL+"/v1/taxes/{taxId}/cancel", wrapper.CancelTax)
 	m.HandleFunc("POST "+options.BaseURL+"/v1/uploads/{uploadId}/mapping", wrapper.MapUpload)
 	m.HandleFunc("GET "+options.BaseURL+"/v1/uploads/{uploadId}/preview", wrapper.PreviewUpload)
 
@@ -8700,7 +8994,7 @@ type GetTaxesResponseObject interface {
 	VisitGetTaxesResponse(w http.ResponseWriter) error
 }
 
-type GetTaxes200JSONResponse Object
+type GetTaxes200JSONResponse TaxOverview
 
 func (response GetTaxes200JSONResponse) VisitGetTaxesResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
@@ -8715,6 +9009,95 @@ type GetTaxesdefaultJSONResponse struct {
 }
 
 func (response GetTaxesdefaultJSONResponse) VisitGetTaxesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+
+	return json.NewEncoder(w).Encode(response.Body)
+}
+
+type CreateTaxRequestObject struct {
+	CompanyId openapi_types.UUID `json:"companyId"`
+	Body      *CreateTaxJSONRequestBody
+}
+
+type CreateTaxResponseObject interface {
+	VisitCreateTaxResponse(w http.ResponseWriter) error
+}
+
+type CreateTax201JSONResponse TaxObligation
+
+func (response CreateTax201JSONResponse) VisitCreateTaxResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateTaxdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response CreateTaxdefaultJSONResponse) VisitCreateTaxResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+
+	return json.NewEncoder(w).Encode(response.Body)
+}
+
+type PreviewTaxRequestObject struct {
+	CompanyId openapi_types.UUID `json:"companyId"`
+	Body      *PreviewTaxJSONRequestBody
+}
+
+type PreviewTaxResponseObject interface {
+	VisitPreviewTaxResponse(w http.ResponseWriter) error
+}
+
+type PreviewTax200JSONResponse TaxDraft
+
+func (response PreviewTax200JSONResponse) VisitPreviewTaxResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PreviewTaxdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response PreviewTaxdefaultJSONResponse) VisitPreviewTaxResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+
+	return json.NewEncoder(w).Encode(response.Body)
+}
+
+type GetCompanyUpdatesRequestObject struct {
+	CompanyId openapi_types.UUID `json:"companyId"`
+}
+
+type GetCompanyUpdatesResponseObject interface {
+	VisitGetCompanyUpdatesResponse(w http.ResponseWriter) error
+}
+
+type GetCompanyUpdates200JSONResponse CompanyUpdates
+
+func (response GetCompanyUpdates200JSONResponse) VisitGetCompanyUpdatesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetCompanyUpdatesdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response GetCompanyUpdatesdefaultJSONResponse) VisitGetCompanyUpdatesResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(response.StatusCode)
 
@@ -9637,6 +10020,34 @@ func (response TestSourcedefaultJSONResponse) VisitTestSourceResponse(w http.Res
 	return json.NewEncoder(w).Encode(response.Body)
 }
 
+type CancelTaxRequestObject struct {
+	TaxId openapi_types.UUID `json:"taxId"`
+}
+
+type CancelTaxResponseObject interface {
+	VisitCancelTaxResponse(w http.ResponseWriter) error
+}
+
+type CancelTax204Response struct {
+}
+
+func (response CancelTax204Response) VisitCancelTaxResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type CancelTaxdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response CancelTaxdefaultJSONResponse) VisitCancelTaxResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+
+	return json.NewEncoder(w).Encode(response.Body)
+}
+
 type MapUploadRequestObject struct {
 	UploadId openapi_types.UUID `json:"uploadId"`
 	Body     *MapUploadJSONRequestBody
@@ -9945,6 +10356,15 @@ type StrictServerInterface interface {
 	// (GET /v1/companies/{companyId}/taxes)
 	GetTaxes(ctx context.Context, request GetTaxesRequestObject) (GetTaxesResponseObject, error)
 
+	// (POST /v1/companies/{companyId}/taxes)
+	CreateTax(ctx context.Context, request CreateTaxRequestObject) (CreateTaxResponseObject, error)
+
+	// (POST /v1/companies/{companyId}/taxes/preview)
+	PreviewTax(ctx context.Context, request PreviewTaxRequestObject) (PreviewTaxResponseObject, error)
+
+	// (GET /v1/companies/{companyId}/updates)
+	GetCompanyUpdates(ctx context.Context, request GetCompanyUpdatesRequestObject) (GetCompanyUpdatesResponseObject, error)
+
 	// (POST /v1/companies/{companyId}/uploads)
 	UploadStatement(ctx context.Context, request UploadStatementRequestObject) (UploadStatementResponseObject, error)
 
@@ -10037,6 +10457,9 @@ type StrictServerInterface interface {
 
 	// (POST /v1/sources/{sourceId}/test)
 	TestSource(ctx context.Context, request TestSourceRequestObject) (TestSourceResponseObject, error)
+
+	// (POST /v1/taxes/{taxId}/cancel)
+	CancelTax(ctx context.Context, request CancelTaxRequestObject) (CancelTaxResponseObject, error)
 
 	// (POST /v1/uploads/{uploadId}/mapping)
 	MapUpload(ctx context.Context, request MapUploadRequestObject) (MapUploadResponseObject, error)
@@ -12370,6 +12793,98 @@ func (sh *strictHandler) GetTaxes(w http.ResponseWriter, r *http.Request, compan
 	}
 }
 
+// CreateTax operation middleware
+func (sh *strictHandler) CreateTax(w http.ResponseWriter, r *http.Request, companyId openapi_types.UUID) {
+	var request CreateTaxRequestObject
+
+	request.CompanyId = companyId
+
+	var body CreateTaxJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateTax(ctx, request.(CreateTaxRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateTax")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateTaxResponseObject); ok {
+		if err := validResponse.VisitCreateTaxResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PreviewTax operation middleware
+func (sh *strictHandler) PreviewTax(w http.ResponseWriter, r *http.Request, companyId openapi_types.UUID) {
+	var request PreviewTaxRequestObject
+
+	request.CompanyId = companyId
+
+	var body PreviewTaxJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PreviewTax(ctx, request.(PreviewTaxRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PreviewTax")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PreviewTaxResponseObject); ok {
+		if err := validResponse.VisitPreviewTaxResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetCompanyUpdates operation middleware
+func (sh *strictHandler) GetCompanyUpdates(w http.ResponseWriter, r *http.Request, companyId openapi_types.UUID) {
+	var request GetCompanyUpdatesRequestObject
+
+	request.CompanyId = companyId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetCompanyUpdates(ctx, request.(GetCompanyUpdatesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetCompanyUpdates")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetCompanyUpdatesResponseObject); ok {
+		if err := validResponse.VisitGetCompanyUpdatesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // UploadStatement operation middleware
 func (sh *strictHandler) UploadStatement(w http.ResponseWriter, r *http.Request, companyId openapi_types.UUID) {
 	var request UploadStatementRequestObject
@@ -13235,6 +13750,32 @@ func (sh *strictHandler) TestSource(w http.ResponseWriter, r *http.Request, sour
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(TestSourceResponseObject); ok {
 		if err := validResponse.VisitTestSourceResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CancelTax operation middleware
+func (sh *strictHandler) CancelTax(w http.ResponseWriter, r *http.Request, taxId openapi_types.UUID) {
+	var request CancelTaxRequestObject
+
+	request.TaxId = taxId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CancelTax(ctx, request.(CancelTaxRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CancelTax")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CancelTaxResponseObject); ok {
+		if err := validResponse.VisitCancelTaxResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
