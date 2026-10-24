@@ -242,3 +242,24 @@ the actual plans.
 
 Regression coverage: action_snapshot_regressions_test.go (stale actions, refreshed
 actions, horizon-specific funding, idempotent retry, combined previews and nulls).
+
+Text parsing and operation filters
+----------------------------------
+The rules parser consumes complete numeric literals. Unsupported decimal/group
+separators and multiple explicit payment amounts require clarification instead
+of accepting a numeric suffix. Scientific notation is read as a whole number,
+and ordinary amounts, thousands/millions and Unicode grouping spaces remain
+supported. A phrase containing both incoming and outgoing intents is rejected.
+
+Bare day-of-month expressions resolve to the nearest actual occurrence of that
+day, skipping months without it. Named leap days stay February 29; explicit years
+on named dates are honored. Calendar rollover never silently changes the day.
+Parser and product text limits count Unicode characters rather than UTF-8 bytes,
+so a valid parsed title can also be saved.
+
+Operation filters reject unknown direction/category/source values with 400.
+The source filter uses the same default as the public operation view, so an
+operation displayed as upload is included by source=upload.
+
+Regression coverage: parser_regressions_test.go (database-free, including fixed
+calendar dates) and operation_filter_regressions_test.go. No schema migration.

@@ -30,7 +30,25 @@ func Categories() []Doc {
 	}
 	return out
 }
+
+func operationSource(d Doc) string {
+	if source := text(d, "source"); source != "" {
+		return source
+	}
+	return "upload"
+}
+
 func (s *Service) operationRows(ctx context.Context, uid, cid string, r *http.Request) ([]Doc, error) {
+	q := r.URL.Query()
+	if v := q.Get("direction"); v != "" && !in(v, "in out") {
+		return nil, bad("Неизвестное направление операции")
+	}
+	if v := q.Get("category"); v != "" && !knownCategory(v) {
+		return nil, bad("Неизвестная категория операции")
+	}
+	if v := q.Get("source"); v != "" && !in(v, "upload onec_bank_file excel gsheets onec_odata fns manual wb ozon") {
+		return nil, bad("Неизвестный тип источника")
+	}
 	rows, e := s.DB.ProductList(ctx, uid, cid, "operation")
 	if e != nil {
 		return nil, e
@@ -40,7 +58,6 @@ func (s *Service) operationRows(ctx context.Context, uid, cid string, r *http.Re
 		return nil, e
 	}
 	rows = filterDates(rows, from, to, "op_date")
-	q := r.URL.Query()
 	out := []Doc{}
 	for _, d := range rows {
 		if flag(d, "is_duplicate") {
@@ -52,7 +69,7 @@ func (s *Service) operationRows(ctx context.Context, uid, cid string, r *http.Re
 		if v := q.Get("category"); v != "" && text(d, "category") != v {
 			continue
 		}
-		if v := q.Get("source"); v != "" && text(d, "source") != v {
+		if v := q.Get("source"); v != "" && operationSource(d) != v {
 			continue
 		}
 		if v := q.Get("counterparty_id"); v != "" && cpRef(cid, d)["id"] != v {

@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/categorize"
 	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/domain"
@@ -198,10 +199,7 @@ func view(kind string, d Doc) Doc {
 		copyKeys("id amount direction purpose category category_method is_internal")
 		out["date"] = date(d["op_date"])
 		out["counterparty"] = cpRef(cid, d)
-		out["source"] = d["source"]
-		if out["source"] == nil {
-			out["source"] = "upload"
-		}
+		out["source"] = operationSource(d)
 		if out["purpose"] == nil {
 			out["purpose"] = ""
 		}
@@ -550,7 +548,7 @@ func validateResource(kind string, b Doc, create bool) error {
 			}
 		default:
 			s, ok := v.(string)
-			if !ok || len(s) > 1024 || strings.TrimSpace(s) == "" {
+			if !ok || utf8.RuneCountInString(s) > 1024 || strings.TrimSpace(s) == "" {
 				return bad("Некорректное поле: " + k)
 			}
 		}
