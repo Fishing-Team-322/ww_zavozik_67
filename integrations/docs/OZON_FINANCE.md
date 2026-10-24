@@ -1,0 +1,5 @@
+# Ozon Seller Finance
+
+[Ozon for dev](https://dev.ozon.ru/start/117-Kak-sozdat-finansovyi-otchet/) описывает `POST /v3/finance/transaction/list`, фильтр даты, `page` и `page_size=1000`. [Ozon](https://dev.ozon.ru/news/105-Daidzhest-obnovlenii-Mart) ограничивает период одним месяцем. Для Seller API используются заголовки `Client-Id` и `Api-Key`, что также указано в [официальном FAQ](https://dev.ozon.ru/start/257-FAQ-spravochnik-oshibok-i-sposoby-ikh-resheniia). В локальном окружении этих ключей нет.
+
+Адаптер читает начисления постранично, сохраняет `operation_id`, тип, дату, итог `amount` и компоненты `accruals_for_sale`, `sale_commission`, `delivery_charge` в целых копейках. Компоненты не суммируются поверх итогового `amount`. Повторная строка с тем же ID внутри выборки отбрасывается; при постоянном хранении нужна версия/upsert по ID, чтобы принять исправление. Ни одна операция не записывается как банковский факт или гарантированная будущая выплата: момент реального зачисления устанавливается отдельной банковской сверкой. Offline тест покрывает две страницы, возврат, копейки, дубликат, заголовки и HTTP-ошибки. Live-вызов не выполнялся.
