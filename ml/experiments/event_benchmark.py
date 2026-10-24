@@ -274,13 +274,34 @@ def run(args):
                                      "Tiny already explored synthetic unseen cohort; descriptive paired scores, not external validation."],
                         total_seconds=time.monotonic() - started,
                         peak_rss_mib=peak_rss_mib(),
-                        versions=dict(python=platform.python_version(), numpy=np.__version__, pandas=pd.__version__, lightgbm=reference.lgb.__version__),
-                        sha256={str(p): reference.file_hash(p) for p in [args.flows, args.transactions, args.events, args.split, *sources]})
+                        versions=dict(python=platform.python_version(), numpy=np.__version__, pandas=pd.__version__,
+                                      lightgbm=reference.lgb.__version__, torch=_torch_version()),
+                        sha256={_portable(p): reference.file_hash(p) for p in [args.flows, args.transactions, args.events, args.split, *sources]})
         (args.out / "metadata.json").write_text(json.dumps(metadata, indent=2, default=lambda value: value.item() if isinstance(value, np.generic) else value.tolist() if isinstance(value, np.ndarray) else str(value)) + "\n")
         print(summary.to_string(index=False))
         print(f"total_seconds={metadata['total_seconds']:.2f} peak_rss_mib={metadata['peak_rss_mib']:.1f}")
     finally:
         gbm.PARAMS = old_gbm_params
+
+
+def _portable(path):
+    """Record hash keys relative to the repository so another checkout can verify them."""
+    path = Path(path).resolve()
+    try:
+        return path.relative_to(Path(__file__).resolve().parents[2]).as_posix()
+    except ValueError:
+        return path.as_posix()
+
+
+def _torch_version():
+    try:
+        import torch
+        info = {"version": torch.__version__, "cuda": torch.version.cuda, "device": None}
+        if torch.cuda.is_available():
+            info["device"] = torch.cuda.get_device_name(0)
+        return info
+    except ImportError:
+        return None
 
 
 def main():

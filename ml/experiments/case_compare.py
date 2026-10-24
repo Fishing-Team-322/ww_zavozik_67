@@ -117,7 +117,8 @@ def verify_count_replay(results, original):
     new = results[results.model == "count_bootstrap"].set_index(keys).sort_index()
     if not old.index.equals(new.index):
         raise ValueError("count reference origin set changed")
-    for key in ("flow_abs_error", "count_abs_error", "net_path_mae", "net_pinball", "net_coverage", "gap_brier"):
+    for key in ("flow_abs_error", "count_abs_error", "net_path_mae", "net_mae_7", "net_mae_14", "net_mae_30",
+                "net_pinball", "net_coverage", "net_width", "gap_brier"):
         if not np.allclose(old[key], new[key], rtol=1e-10, atol=1e-7, equal_nan=True):
             raise ValueError(f"count reference scores changed: {key}")
 

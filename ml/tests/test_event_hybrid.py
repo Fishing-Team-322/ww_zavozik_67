@@ -386,3 +386,13 @@ def test_sparse_stream_borrows_pooled_amount_priors_and_occurrence_rate():
     # Relative pooled amounts are all 1.0 for this fixture, so the sparse stream keeps its level.
     assert set(generated.amount) == {1234.0}
     assert 0.0 < paths.diagnostics["stream_probabilities"][0] < 1.0
+
+
+def test_quiet_complete_weeks_remain_available_as_donors():
+    h = mixed_history(days=120)
+    events = h.events
+    residual = events.iloc[:1]  # one event in the whole history
+    weeks, by_week = hybrid._residual_by_week(residual, h)
+    complete = hybrid._complete_weeks(h)
+    assert len(weeks) == len(complete) >= 3
+    assert sum(len(rows) == 0 for rows in by_week.values()) == len(complete) - 1

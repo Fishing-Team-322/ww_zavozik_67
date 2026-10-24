@@ -282,3 +282,11 @@ def test_options_are_validated_and_history_is_not_mutated():
     model.sample(hs[0], 5, 5, np.random.default_rng(0))
     for old, new in zip(before, hs):
         assert old.equals(new.events)
+
+
+def test_training_rows_respect_global_budget_below_fixed_per_company_floor():
+    # Previously a 60-row per-company floor silently exceeded a smaller budget.
+    for budget in (20, 21):
+        frame = fit([history(days=120, seed=1), history(days=120, seed=2)],
+                    max_training_rows=budget)
+        assert frame.fit_diagnostics_["training_rows"] <= budget

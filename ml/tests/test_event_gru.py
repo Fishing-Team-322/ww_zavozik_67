@@ -313,3 +313,11 @@ def test_fit_bounds_follow_options():
     assert big.count_cap <= gru._MAX_COUNT_BUCKET
     paths = big.sample(_prefix(train[0]), 3, 2, np.random.default_rng(1))
     assert paths.diagnostics["hidden_size"] == big.hidden_size
+
+
+def test_cuda_requested_without_cuda_fails_loudly():
+    import torch
+    if torch.cuda.is_available():
+        pytest.skip("this check requires a CUDA-free runtime")
+    with pytest.raises(ValueError, match="CUDA was requested"):
+        gru.Model(FitOptions(device="cuda"))

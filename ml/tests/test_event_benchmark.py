@@ -76,3 +76,23 @@ def test_reference_metrics_allow_absence_of_count_output():
     output = m.reference.metrics(c, 150, np.repeat(h.daily_amounts[151:181][None], 3, axis=0))
     assert "count_abs_error" not in output and "count_actual" not in output
     assert output["net_path_mae"] == 0
+
+
+def test_count_replay_rejects_changed_width_or_horizon_errors():
+    import csv, tempfile
+    from pathlib import Path
+    rows = [dict(cohort="unseen", company_id="A", origin="2026-04-30", model="count_bootstrap",
+                 flow_abs_error=1.0, count_abs_error=2.0, net_path_mae=3.0, net_mae_7=3.0,
+                 net_mae_14=3.0, net_mae_30=3.0, net_pinball=4.0, net_coverage=.5,
+                 net_width=5.0, gap_brier=.1)]
+    def replay(changed):
+        with tempfile.TemporaryDirectory() as tmp:
+            old = Path(tmp) / "origins.csv"
+            with old.open("w", newline="") as handle:
+                writer = csv.DictWriter(handle, fieldnames=rows[0]); writer.writeheader(); writer.writerows(rows)
+            frame = pd.DataFrame([dict(rows[0], **changed)])
+            m.verify_count_replay(frame, pd.read_csv(old))
+    replay({})
+    for key, value in (("net_width", 6.0), ("net_mae_30", 9.0), ("net_coverage", .9)):
+        with pytest.raises(ValueError, match="count reference scores changed"):
+            replay({key: value})
