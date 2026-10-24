@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/config"
 	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/forecast"
@@ -38,5 +39,5 @@ func New(db *store.Postgres, c config.Config, ml forecast.StochasticForecaster) 
 			hosts = append(hosts, h)
 		}
 	}
-	return &Service{DB: db, ML: ml, Fallback: forecast.SeasonalNaive{}, EncryptionKey: key, AllowedSourceHosts: hosts, DaDataToken: c.DaDataToken, ReportsDir: c.ModelReportsDir, TrainingURL: c.TrainingURL, TrainingToken: c.TrainingToken}, nil
+	return &Service{DB: db, ML: forecast.NewCachedForecaster(ml, time.Minute, 16), Fallback: forecast.SeasonalNaive{}, EncryptionKey: key, AllowedSourceHosts: hosts, DaDataToken: c.DaDataToken, ReportsDir: c.ModelReportsDir, TrainingURL: c.TrainingURL, TrainingToken: c.TrainingToken}, nil
 }

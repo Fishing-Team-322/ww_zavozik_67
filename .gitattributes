@@ -1,0 +1,2 @@
+# LightGBM text models contain byte offsets; CRLF conversion corrupts tree_sizes.
+ml/artifacts/**/*.txt text eol=lf
