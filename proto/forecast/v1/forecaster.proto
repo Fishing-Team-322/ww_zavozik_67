@@ -1,0 +1,83 @@
+syntax = "proto3";
+
+package forecast.v1;
+
+option go_package = "github.com/Fishing-Team-322/ww_zavozik_67/backend/gen/forecast/v1;forecastv1";
+
+// ForecasterService прогнозирует потоки бизнеса без own_transfer/owner_loan,
+// ВКЛЮЧАЯ регулярные зарплаты, налоги, аренду. Это условный сценарий без
+// собственных переводов и финансирования владельцем, не полный прогноз счёта.
+// Нельзя добавлять те же регулярные платежи поверх ответа второй раз.
+// Сервис без состояния: всю историю передаём в запросе.
+service ForecasterService {
+  rpc Forecast(ForecastRequest) returns (ForecastResponse);
+  rpc ListModels(ListModelsRequest) returns (ListModelsResponse);
+}
+
+// DailyFlow — потоки бизнеса за один календарный день. Все дни подряд.
+// Значения конечные, >=0. Пропущенные данные обозначаются missing, не NaN.
+message DailyFlow {
+  string date = 1; // YYYY-MM-DD
+  double inflow = 2; // >= 0
+  double outflow = 3; // >= 0
+  bool missing = 4; // в выписке пропуск: значения не использовать
+  // Сумма за день по категориям со знаком (+ приход, − расход), ключ — Category
+  // из api/openapi.yaml. Включает внутренние (own_transfer, owner_loan),
+  // которые не входят в inflow/outflow.
+  map<string, double> by_category = 5;
+}
+
+message ForecastRequest {
+  // "auto" | имя из ListModels.
+  string model = 1;
+  // Внутренний идентификатор компании, без ПДн. Только для логов и кэша.
+  string company_id = 2;
+  // Вид деятельности: для холодного старта при короткой истории.
+  string industry = 3;
+  repeated DailyFlow history = 4;
+  int32 horizon_days = 5;
+  int32 n_paths = 6;
+  // Для воспроизводимости путей. 0 — случайный.
+  int64 seed = 7;
+  // Пусто (совместимость) либо business_without_internal_transfers.
+  // residual_only не поддерживается обученными сейчас артефактами.
+  string flow_scope = 8;
+}
+
+// Path — одна траектория на horizon_days дней вперёд, начиная с дня после
+// последнего дня истории.
+message Path {
+  repeated double inflow = 1;
+  repeated double outflow = 2;
+}
+
+message NetQuantiles {
+  string date = 1;
+  double p10 = 2;
+  double p50 = 3;
+  double p90 = 4;
+}
+
+message ForecastResponse {
+  string model_used = 1;
+  repeated string dates = 2; // длина horizon_days
+  repeated Path paths = 3; // длина n_paths
+  repeated NetQuantiles net_quantiles = 4; // квантили чистого потока по дням
+  bool low_confidence = 5; // мало истории
+  string model_version = 6; // fingerprint артефакта/версии алгоритма
+  string flow_scope = 7;
+  repeated string warnings = 8; // машинные коды, без финансовых данных
+  bool fallback_used = 9;
+}
+
+message ListModelsRequest {}
+
+message ModelInfo {
+  string name = 1;
+  string description = 2;
+  bool is_default = 3; // что выбирается при model = "auto"
+}
+
+message ListModelsResponse {
+  repeated ModelInfo models = 1;
+}

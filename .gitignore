@@ -1,0 +1,16 @@
+cashflow_dataset_participants.zip
+cashflow_dataset_participants
+.DS_Store
+
+# ML
+ml/.venv/
+ml/data/
+__pycache__/
+*.egg-info/
+.pytest_cache/
+
+# Go
+backend/backtest.csv
+
+# env
+.env
