@@ -11,6 +11,7 @@ import pytest
 from zavozik_ml.classify_v2.model import sha256_file
 from zavozik_ml.category_discovery.corpus import write_rows
 from zavozik_ml.category_discovery.train_metric_heads import load_part
+from zavozik_ml.category_discovery.metric_evaluation import project
 
 
 def fixture(tmp_path):
@@ -53,6 +54,15 @@ def test_weak_targets_need_explicit_research_opt_in_and_actual_partition(tmp_pat
         load_part(corpus, cache, labels["train"], "train", True, 20)
 
 
+def test_serving_projection_preserves_shape_and_rejects_silent_dimension_changes():
+    x = np.eye(3, dtype=np.float32)
+    weights = {"coarse.weight":np.eye(3, dtype=np.float32), "coarse.bias":np.zeros(3, np.float32)}
+    assert np.array_equal(project(x, weights, "coarse"), x)
+    weights["coarse.weight"] = np.eye(2, dtype=np.float32)
+    with pytest.raises(ValueError, match="dimension"):
+        project(x, weights, "coarse")
+
+
 @pytest.mark.skipif(importlib.util.find_spec("torch") is None, reason="optional training runtime")
 def test_two_heads_can_learn_different_coarse_fine_relations_without_final_reads(tmp_path):
     corpus, cache, labels = fixture(tmp_path)
@@ -62,10 +72,15 @@ def test_two_heads_can_learn_different_coarse_fine_relations_without_final_reads
     code = """from pathlib import Path
 import json,sys
 from zavozik_ml.category_discovery.train_metric_heads import fit
+from zavozik_ml.category_discovery.metric_evaluation import evaluate
 c,cache,tr,ca,out=map(Path,sys.argv[1:])
 r=fit(c,cache,tr,ca,out,allow_weak=True,epochs=6,minimum_support=1)
 assert r['best_calibration_loss'] < r['baseline_centered_calibration_loss']
 assert r['final_test_read'] is False and r['full_encoder_fine_tuning'] is False
+report=evaluate(c,cache,ca,out.parent/'calibration',out,allow_weak=True)
+assert set(report['comparisons']) == {'original','centered','adapted'}
+assert report['semantic_accuracy'] is None and report['final_test_read'] is False
+assert report['label_provenance'] == {'local_model_weak':6}
 """
     result = subprocess.run([sys.executable, "-c", code, str(corpus), str(cache), str(labels["train"]),
                              str(labels["calibration"]), str(out)], capture_output=True, text=True, timeout=60)
