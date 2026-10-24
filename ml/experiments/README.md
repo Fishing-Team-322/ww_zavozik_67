@@ -142,3 +142,18 @@ supplemental origins. Дополнительно пробует прежний �
 runner: обратный порядок в этом окружении приводил к native segmentation fault.
 Программа загружает те же pinned Tiny-веса, не запускает новый fit и не читает
 frozen audit predictions. Результаты: `reports/chronos_supplemental.md`.
+
+## Влияние включения Hybrid на обучающие потоки
+
+```bash
+cd backend
+go run ./cmd/mlimpact -ml 127.0.0.1:50072 -out ../ml/data/hybrid_flow_impact.json
+cd ..
+ml/.venv/bin/python ml/experiments/hybrid_impact_report.py
+```
+
+Нужен явно выбранный тестовый сервер с классификатором. Команда не перезаписывает
+существующий JSON, исключает audit-компании и операции с даты audit_start,
+использует настоящий Go Hybrid и завершается ошибкой при недоступности ML.
+Измеряет сдвиг категорий и включения внутренних переводов, не accuracy и не
+качество нового forecast. Исходные операции, flows.csv и артефакты не меняет.
