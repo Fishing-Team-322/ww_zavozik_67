@@ -40,13 +40,14 @@ export function JobProgress({ initial, download = false, onFinished }: { initial
   const job = resource.data ?? initial;
   const action = useAction();
   const finished = job.status === "done" || job.status === "failed";
-  const refresh = useRef(resource.refresh); refresh.current = resource.refresh;
+  const refresh = resource.refresh;
   useEffect(() => {
     if (finished || resource.loading || resource.error) return;
-    const timer = setTimeout(() => refresh.current(), 1500);
+    const timer = setTimeout(refresh, 1500);
     return () => clearTimeout(timer);
-  }, [job, finished, resource.loading, resource.error]);
-  const finishCallback = useRef(onFinished); finishCallback.current = onFinished;
+  }, [job, finished, resource.loading, resource.error, refresh]);
+  const finishCallback = useRef(onFinished);
+  useEffect(() => { finishCallback.current = onFinished; }, [onFinished]);
   const notified = useRef(false);
   useEffect(() => { if (finished && !notified.current) { notified.current = true; api.invalidate(); finishCallback.current?.(job); } }, [finished, job]);
   return <div className="space-y-2 rounded-md border border-[color:var(--border)] p-4 text-sm"><p role="status">{statusLabel(job.status)} · {Math.round(job.progress * 100)}%</p>{job.error && <p role="alert">{job.error}</p>}{resource.error && <ErrorState description={resource.error} action={<Button onClick={resource.refresh}>Продолжить проверку</Button>} />}{download && job.status === "done" && <Button loading={action.busy} onClick={() => void action.run(async () => saveBlob(await api.download(`/v1/jobs/${job.id}/download`), "company-export.zip"), undefined, "Файл скачан.")}>Скачать архив</Button>}<ActionFeedback action={action} /></div>;

@@ -60,10 +60,10 @@ export class ApiClient {
       throw new ApiError(401, "session_changed", "Сессия завершена. Войдите снова.");
   }
   private serializeAuth<T>(action: () => Promise<T>): Promise<T> {
-    const pending = this.authQueue.catch(() => {}).then(() => {
+    const pending = this.authQueue.catch(() => {}).then(async () => {
       if (typeof navigator !== "undefined" && navigator.locks)
-        return navigator.locks.request(`puls-refresh:${this.origin}`, action);
-      return action();
+        return await navigator.locks.request<Promise<T>>(`puls-refresh:${this.origin}`, action);
+      return await action();
     });
     this.authQueue = pending;
     return pending;

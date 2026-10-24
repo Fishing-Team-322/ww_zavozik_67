@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 const apiOrigin = process.env.E2E_API_URL || 'http://localhost:8080';
 const password = 'E2e!A1b2C3d4'; // Synthetic account in the isolated E2E database only.
-const screenshots = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../docs/e2e-screenshots');
+const screenshots = process.env.E2E_SCREENSHOTS_DIR || path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../docs/e2e-screenshots');
 
 async function register(request) {
   const email = `e2e-${randomUUID()}@example.invalid`;
@@ -36,7 +36,7 @@ async function login(page, email) {
 }
 
 async function navigate(page, route) {
-  const groups = { '/overview': 'Workspace', '/transactions': 'Workspace', '/forecast': 'Analytics', '/scenarios': 'Analytics', '/risks': 'Analytics', '/calendar': 'Planning', '/sources': 'Planning' };
+  const groups = { '/overview': 'Компания', '/transactions': 'Компания', '/forecast': 'Аналитика', '/scenarios': 'Аналитика', '/risks': 'Аналитика', '/calendar': 'Планирование', '/sources': 'Планирование', '/counterparties': 'Компания', '/notifications': 'Компания', '/settings': 'Компания', '/documents': 'Планирование', '/recurring': 'Планирование', '/plan-fact': 'Аналитика', '/methodology': 'Аналитика' };
   const link = page.locator(`a[href="${route}"]`).first();
   if (!await link.isVisible()) await page.getByRole('button', { name: groups[route], exact: true }).click();
   await link.click();
@@ -145,13 +145,15 @@ test('live educational 1C imports once and keeps undated invoices out of calenda
   await expect(page.getByRole('table').getByRole('row').nth(1)).toContainText('24.10.2026');
   await navigate(page, '/calendar');
   await expect(page.getByRole('heading', { name: 'Платёжный календарь' })).toBeVisible();
-  await expect(page.getByRole('table')).not.toContainText('Счёт №0000-000006');
+  await expect(page.locator('main')).not.toContainText('Счёт №0000-000006');
   expect(pageErrors).toEqual([]);
   expect(http500).toEqual([]);
 });
 
 test('synthetic CSV drives dashboard, forecast and a persistent manual event', async ({ page, request }) => {
   const http500 = [];
+  const pageErrors = [];
+  page.on('pageerror', error => pageErrors.push(error.message));
   page.on('response', response => { if (response.status() === 500) http500.push(response.url()); });
   const user = await register(request);
   await login(page, user.email);
@@ -181,13 +183,13 @@ test('synthetic CSV drives dashboard, forecast and a persistent manual event', a
   await expect(page.getByRole('heading', { name: /Финансовый прогноз/ })).toBeVisible({ timeout: 60_000 });
   await page.screenshot({ path: path.join(screenshots, 'dashboard-synthetic.png') });
   const [dashboardResponse] = await Promise.all([
-    page.waitForResponse(response => response.url().includes('/dashboard?horizon=60')),
+    page.waitForResponse(response => response.url().includes('/forecast?horizon=60')),
     page.getByRole('tab', { name: '60 дн.', exact: true }).click(),
   ]);
   expect(dashboardResponse.status()).toBe(200);
   const dashboard = await dashboardResponse.json();
-  expect(dashboard.forecast.points).toHaveLength(60);
-  expect(dashboard.forecast.warnings).not.toContain('ml_service_fallback');
+  expect(dashboard.points).toHaveLength(60);
+  expect(dashboard.warnings).not.toContain('ml_service_fallback');
   await navigate(page, '/forecast');
   await expect(page.getByRole('heading', { name: 'Денежный остаток' })).toBeVisible();
   await page.getByRole('button', { name: 'Горизонт прогноза' }).click();
@@ -204,16 +206,21 @@ test('synthetic CSV drives dashboard, forecast and a persistent manual event', a
   const tomorrow = new Date(today);
   tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
   const eventDate = tomorrow.toISOString().slice(0, 10);
-  await page.getByRole('textbox', { name: 'Название платежа' }).fill('E2E manual payment');
-  await page.getByRole('textbox', { name: 'Дата платежа' }).fill(eventDate);
-  await page.getByRole('spinbutton', { name: 'Сумма, ₽' }).fill('200000');
-  await page.getByRole('button', { name: 'Сохранить событие' }).click();
-  await expect(page.getByRole('status').filter({ hasText: 'Событие сохранено' })).toBeVisible();
-  await page.getByRole('textbox', { name: 'Месяц календаря' }).fill(eventDate.slice(0, 7));
-  await expect(page.getByRole('row').filter({ hasText: 'E2E manual payment' })).toBeVisible();
+  await page.locator('main').getByRole('button', { name: '+ Событие', exact: true }).click();
+  const editor = page.getByRole('dialog');
+  await editor.getByRole('textbox', { name: 'Название', exact: true }).fill('E2E manual payment');
+  await editor.getByLabel('Дата', { exact: true }).fill(eventDate);
+  await editor.getByRole('spinbutton', { name: 'Сумма, ₽' }).fill('200000');
+  await editor.getByRole('button', { name: 'Сохранить событие' }).click();
+  await expect(editor).not.toBeVisible();
+  await page.getByLabel('Месяц', { exact: true }).fill(eventDate.slice(0, 7));
+  const selectEventDay = async () => page.locator('[aria-label="Месячный календарь платежей"]').getByRole('button', { name: new RegExp(`^${tomorrow.getUTCDate()} `) }).click();
+  await selectEventDay();
+  await expect(page.locator('main')).toContainText('E2E manual payment');
   await page.reload();
-  await page.getByRole('textbox', { name: 'Месяц календаря' }).fill(eventDate.slice(0, 7));
-  await expect(page.getByRole('row').filter({ hasText: 'E2E manual payment' })).toBeVisible();
+  await page.getByLabel('Месяц', { exact: true }).fill(eventDate.slice(0, 7));
+  await selectEventDay();
+  await expect(page.locator('main')).toContainText('E2E manual payment');
   for (const [route, heading] of [['/transactions', 'История операций'], ['/scenarios', 'Базовый и негативный прогноз']]) {
     await navigate(page, route);
     await expect(page.getByRole('heading', { name: heading })).toBeVisible();
@@ -227,9 +234,16 @@ test('synthetic CSV drives dashboard, forecast and a persistent manual event', a
   await expect(page.getByRole('status').filter({ hasText: 'Сценарий сохранён' })).toBeVisible();
   await navigate(page, '/risks');
   await page.getByRole('button', { name: 'Причины и действия' }).first().click();
-  await expect(page.getByRole('heading', { name: 'Что влияет на разрыв' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /Что влияет на разрыв/ })).toBeVisible();
   await expect(page.locator('main')).toContainText('E2E manual payment');
   await page.screenshot({ path: path.join(screenshots, 'risk-synthetic.png') });
+  for (const [route, heading] of [['/documents', 'Счета, договоры и налоги'], ['/recurring', 'Регулярные платежи'], ['/plan-fact', 'План и факт'], ['/counterparties', 'Контрагенты'], ['/notifications', 'Уведомления'], ['/settings', 'Настройки компании'], ['/methodology', 'Как мы считаем']]) {
+    await navigate(page, route);
+    await expect(page.getByRole('heading', { name: heading, exact: true })).toBeVisible();
+    await expect(page.getByText('Загружаем данные…', { exact: true })).not.toBeVisible();
+    await expect(page.locator('main').getByRole('alert')).toHaveCount(0);
+  }
+  await navigate(page, '/risks');
   await page.setViewportSize({ width: 375, height: 812 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
   for (const [route, heading] of [['/overview', /Финансовый прогноз/], ['/transactions', 'История операций'], ['/forecast', 'Денежный остаток'], ['/calendar', 'Платёжный календарь'], ['/scenarios', 'Базовый и негативный прогноз']]) {
@@ -244,5 +258,17 @@ test('synthetic CSV drives dashboard, forecast and a persistent manual event', a
   await expect(page.getByText(/Демонстрационная симуляция/)).toBeVisible();
   await page.goto('/development/components');
   await expect(page.getByRole('heading', { name: 'Кнопки', exact: true })).toBeVisible();
+  const secondTab = await page.context().newPage();
+  await secondTab.goto('/sources');
+  await expect(secondTab.getByRole('heading', { name: 'Источники данных' })).toBeVisible();
+  await page.goto('/sources');
+  await page.getByRole('button', { name: 'Профиль пользователя' }).click();
+  await page.getByRole('button', { name: 'Выйти', exact: true }).click();
+  await expect(page).toHaveURL(/\/login(?:\?|$)/);
+  await expect(secondTab).toHaveURL(/\/login(?:\?|$)/);
+  await secondTab.reload();
+  await expect(secondTab).toHaveURL(/\/login(?:\?|$)/);
+  await secondTab.close();
   expect(http500).toEqual([]);
+  expect(pageErrors).toEqual([]);
 });

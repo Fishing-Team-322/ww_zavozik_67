@@ -32,7 +32,7 @@ export function TransactionsScreen() {
     const timer = setTimeout(() => setSearch(query), 300);
     return () => clearTimeout(timer);
   }, [query]);
-  const filters = new URLSearchParams({ q: search, direction, category, from, to, source, counterparty_id: counterpartyId });
+  const filters = new URLSearchParams(Object.entries({ q: search, direction, category, from, to, source, counterparty_id: counterpartyId }).filter(([, value]) => value !== ""));
   const page = new URLSearchParams(filters);
   page.set("limit", "50");
   if (cursor) page.set("cursor", cursor);

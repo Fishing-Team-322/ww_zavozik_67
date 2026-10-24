@@ -27,7 +27,7 @@ export function NotificationsScreen() {
   const [cursor, setCursor] = useState(""); const [previous, setPrevious] = useState<string[]>([]);
   const [busy, setBusy] = useState(false); const [error, setError] = useState<string | null>(null);
   const base = `/v1/companies/${companyId}`;
-  const resource = useApiResource<Schemas["AlertPage"]>(companyId ? `${base}/alerts?${new URLSearchParams({ severity, kind, unread, cursor, limit: "30" })}` : null);
+  const resource = useApiResource<Schemas["AlertPage"]>(companyId ? `${base}/alerts?${new URLSearchParams(Object.entries({ severity, kind, unread, cursor, limit: "30" }).filter(([, value]) => value !== ""))}` : null);
   const reset = () => { setCursor(""); setPrevious([]); };
   async function read(id?: string, value = true) {
     setBusy(true); setError(null);
