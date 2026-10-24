@@ -31,6 +31,14 @@ func (i Importer) OneCOData(ctx context.Context, client onecodata.Client, cfg on
 	return i.finish(batch)
 }
 
+func (i Importer) OneCPlans(ctx context.Context, client onecodata.Client, cfg onecodata.PlanConfig) (contracts.ImportBatch, error) {
+	batch, err := client.FetchPlans(ctx, cfg)
+	if err != nil {
+		return batch, err
+	}
+	return i.finish(batch)
+}
+
 func (i Importer) finish(batch contracts.ImportBatch) (contracts.ImportBatch, error) {
 	var random [16]byte
 	if _, err := rand.Read(random[:]); err != nil {
