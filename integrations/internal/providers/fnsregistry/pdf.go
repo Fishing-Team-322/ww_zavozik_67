@@ -13,10 +13,14 @@ import (
 )
 
 var (
-	innPDF  = regexp.MustCompile(`(?m)(?:^|\s)ИНН\s*[:№]?\s*([0-9]{10}|[0-9]{12})\b`)
-	ogrnPDF = regexp.MustCompile(`(?m)(?:^|\s)ОГРН(ИП)?\s*[:№]?\s*([0-9]{13}|[0-9]{15})\b`)
-	datePDF = regexp.MustCompile(`\b([0-3]?[0-9])[. ]([01]?[0-9])[. ](20[0-9]{2})\b`)
-	namePDF = regexp.MustCompile(`(?mi)(?:Полное наименование юридического лица|Фамилия, имя, отчество индивидуального предпринимателя)[^\n]*\n\s*([^\n]{3,300})`)
+	innPDF             = regexp.MustCompile(`(?m)(?:^|\s)ИНН\s*[:№]?\s*([0-9]{10}|[0-9]{12})\b`)
+	ogrnPDF            = regexp.MustCompile(`(?m)(?:^|\s)ОГРН(ИП)?\s*[:№]?\s*([0-9]{13}|[0-9]{15})\b`)
+	datePDF            = regexp.MustCompile(`\b([0-3]?[0-9])[. ]([01]?[0-9])[. ](20[0-9]{2})\b`)
+	namePDF            = regexp.MustCompile(`(?mi)(?:Полное наименование юридического лица|Фамилия, имя, отчество индивидуального предпринимателя)[^\n]*\n\s*([^\n]{3,300})`)
+	legalHeaderNamePDF = regexp.MustCompile(`(?mi)Настоящая выписка содержит сведения о юридическом лице\s*\n\s*([^\n]{3,300})`)
+	spacedINNPDF       = regexp.MustCompile(`(?m)(?:^|\s)ИНН\s*[:№]?\s*((?:[0-9]\s*){10,12})`)
+	spacedOGRNPDF      = regexp.MustCompile(`(?m)(?:^|\s)ОГРН(ИП)?\s*[:№]?\s*((?:[0-9]\s*){13,15})`)
+	digitsPDF          = regexp.MustCompile(`[0-9]`)
 )
 
 // ParsePDF reads the PDF text layer. Scanned documents are rejected with a
@@ -63,15 +67,19 @@ func ParsePDF(reader io.ReaderAt, size int64, received time.Time) (rec Record, e
 	if legal == ip {
 		return rec, errors.New("unknown PDF registry type")
 	}
-	inn := innPDF.FindStringSubmatch(s)
-	ogrn := ogrnPDF.FindStringSubmatch(s)
-	name := namePDF.FindStringSubmatch(s)
 	header := s
 	if len(header) > 1500 {
 		header = header[:1500]
 	}
+	name := namePDF.FindStringSubmatch(s)
+	innValue, ogrnValue := pdfIdentifiers(header, legal)
+	if legal {
+		if headerName := legalHeaderNamePDF.FindStringSubmatch(s); len(headerName) > 1 {
+			name = headerName
+		}
+	}
 	date := datePDF.FindStringSubmatch(header)
-	if len(inn) == 0 || len(ogrn) == 0 || len(name) == 0 || len(date) == 0 {
+	if innValue == "" || ogrnValue == "" || len(name) == 0 || len(date) == 0 {
 		return rec, errors.New("PDF is missing required registry fields")
 	}
 	day, _ := strconv.Atoi(date[1])
@@ -80,7 +88,7 @@ func ParsePDF(reader io.ReaderAt, size int64, received time.Time) (rec Record, e
 	if err != nil {
 		return rec, errors.New("invalid PDF extract date")
 	}
-	rec = Record{INN: inn[1], OGRN: ogrn[2], Name: strings.TrimSpace(name[1]), ActualAt: actual.Format("2006-01-02"), ExtractedAt: actual.Format("2006-01-02"), RetrievedAt: received.UTC().Format(time.RFC3339), RegistrationStatus: "UNKNOWN", SourceFormat: "PDF", SignatureStatus: "NOT_VERIFIED"}
+	rec = Record{INN: innValue, OGRN: ogrnValue, Name: strings.TrimSpace(name[1]), ActualAt: actual.Format("2006-01-02"), ExtractedAt: actual.Format("2006-01-02"), RetrievedAt: received.UTC().Format(time.RFC3339), RegistrationStatus: "UNKNOWN", SourceFormat: "PDF", SignatureStatus: "NOT_VERIFIED"}
 	if legal {
 		rec.Source = "FNS_EGRUL"
 		rec.EntityType = "LEGAL_ENTITY"
@@ -95,4 +103,42 @@ func ParsePDF(reader io.ReaderAt, size int64, received time.Time) (rec Record, e
 		rec.RegistrationStatus = "TERMINATED"
 	}
 	return rec, nil
+}
+
+func pdfIdentifiers(header string, legal bool) (inn, ogrn string) {
+	innLength, ogrnLength := 12, 15
+	if legal {
+		innLength, ogrnLength = 10, 13
+	}
+	for _, match := range spacedINNPDF.FindAllStringSubmatch(header, -1) {
+		value := strings.Join(digitsPDF.FindAllString(match[1], -1), "")
+		if len(value) == innLength && validINN(value) {
+			inn = value
+			break
+		}
+	}
+	for _, match := range spacedOGRNPDF.FindAllStringSubmatch(header, -1) {
+		value := strings.Join(digitsPDF.FindAllString(match[2], -1), "")
+		if len(value) == ogrnLength && ValidIdentifier(value) {
+			ogrn = value
+			break
+		}
+	}
+	if inn == "" {
+		for _, match := range innPDF.FindAllStringSubmatch(header, -1) {
+			if len(match[1]) == innLength && validINN(match[1]) {
+				inn = match[1]
+				break
+			}
+		}
+	}
+	if ogrn == "" {
+		for _, match := range ogrnPDF.FindAllStringSubmatch(header, -1) {
+			if len(match[2]) == ogrnLength && ValidIdentifier(match[2]) {
+				ogrn = match[2]
+				break
+			}
+		}
+	}
+	return inn, ogrn
 }

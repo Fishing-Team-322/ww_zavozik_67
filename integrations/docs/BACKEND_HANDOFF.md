@@ -1,6 +1,8 @@
 # Передача Go Integration Hub команде backend
 
-Срез ветки `integration` от 24.10.2026. Контракты Hub лежат в `contracts/v1/` и не импортируют `backend/internal`. Основной backend не менялся. Локальный сервис сейчас запускается для одной `demo-company` с операторским Bearer token и собственной PostgreSQL; пользовательские подключения через продукт ещё не включены.
+Обновление 24.10.2026: основной backend уже содержит авторизованные `/v1/companies/{companyId}/sources`, `/v1/sources/{sourceId}/test` и `/sync`, шифрование config через `DATA_ENCRYPTION_KEY` и импорт фактов 1С через `integrations/bridge`. Пользователь может сохранить черновик 1С с одним `base_url` и учётными данными, проверить `$metadata`, получить `discovery`, затем заполнить маппинг и запустить sync. Статусы `pending` → `mapping_required` → `ok` доступны в источнике. Проверено на тестовой OData и PostgreSQL; клиентский мастер и live проверка через backend остаются работой следующего шага. Старое описание ниже отражает состояние отдельного Hub и содержит устаревшую оценку backend.
+
+Срез ветки `integration` от 24.10.2026. Контракты Hub лежат в `contracts/v1/` и не импортируют `backend/internal`. Локальный Hub запускается для одной `demo-company` с операторским Bearer token и собственной PostgreSQL. Пользовательские источники 1С уже реализованы в основном backend через `integrations/bridge`; другие маршруты Hub ещё не подключены через продукт.
 
 ## Маршруты Hub
 
@@ -25,7 +27,7 @@
 | GET | `/v1/fns/counterparties/{inn}`, `/history` | IMPLEMENTED | Текущая запись и история по ОГРН/ОГРНИП в scope компании |
 | GET | `/v1/counterparty-intelligence/{inn}` | IMPLEMENTED | Профиль, provenance, конфликты, датированные риски |
 | POST, GET | `/v1/fns/opendata/sync`, `/status` | LIVE_VERIFIED для публичного набора задолженности | Проверка страницы ФНС, обновление только новой версии, PostgreSQL состояние и история |
-| — | `/connections` | NOT_IMPLEMENTED | Пользовательская настройка и секреты остаются задачей backend |
+| — | `/connections` в Hub | NOT_IMPLEMENTED | В основном backend уже есть `/v1/companies/{companyId}/sources`, шифрованный config и операции test/sync |
 
 Все маршруты, кроме health/ready/providers, требуют операторский токен. Backend должен вызывать Hub по внутренней сети и **сам** проверять владение `company_id`; пользовательский токен напрямую в Hub не передаётся. Сейчас Hub дополнительно принимает только настроенную компанию и возвращает 403 для другой. Для нескольких компаний потребуется сервисная авторизация со scope на конкретную компанию и секреты подключений в отдельном хранилище/менеджере секретов. Пароли и API-ключи не должны возвращаться в GET, логах или batch JSON.
 

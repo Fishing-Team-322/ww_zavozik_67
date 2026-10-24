@@ -369,7 +369,7 @@ func (s *Service) syncJob(ctx context.Context, j store.ProductJob) (Doc, error) 
 		return nil, platform.Fail(409, "source_disabled", "Источник отключён")
 	}
 	kind := text(source, "kind")
-	if e = s.validateSourceConfig(ctx, j.UserID, j.CompanyID, kind, cfg); e != nil {
+	if e = s.validateSourceConfig(ctx, j.UserID, j.CompanyID, kind, cfg, true); e != nil {
 		return nil, e
 	}
 	if kind == "onec_odata" {

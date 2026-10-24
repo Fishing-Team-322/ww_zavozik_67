@@ -71,6 +71,15 @@ func TestSyntheticTextLayerPDF(t *testing.T) {
 	}
 }
 
+func TestPDFIdentifiersSplitIntoDigitLines(t *testing.T) {
+	spread := func(value string) string { return strings.Join(strings.Split(value, ""), "\n") }
+	header := "ОГРН\n" + spread("1234567890127") + "\nИНН\n" + spread("9723161623") + "\nДругой ИНН 500100732259"
+	inn, ogrn := pdfIdentifiers(header, true)
+	if inn != "9723161623" || ogrn != "1234567890127" {
+		t.Fatalf("split registry identifiers: inn=%q ogrn=%q", inn, ogrn)
+	}
+}
+
 func TestWindows1251RegistryAndZIPTraversal(t *testing.T) {
 	xmlText := strings.Replace(legalXML, "UTF-8", "windows-1251", 1)
 	b, e := charmap.Windows1251.NewEncoder().Bytes([]byte(xmlText))
