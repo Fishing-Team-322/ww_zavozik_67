@@ -146,7 +146,7 @@ func (s *Service) importJob(ctx context.Context, j store.ProductJob) (Doc, error
 		}
 		ops, external, rejected = tableOperations(cid, table, store.Decode(mapping))
 	}
-	return s.saveImport(ctx, j, sourceID, format, ops, external, rejected)
+	return s.saveImport(ctx, j, sourceID, format, ops, external, rejected, nil)
 }
 func batchOperations(batch bridge.Batch) ([]domain.Operation, map[string]string, error) {
 	out := []domain.Operation{}
@@ -243,7 +243,7 @@ func tableOperations(cid string, table [][]string, mapping Doc) ([]domain.Operat
 	}
 	return out, keys, issues
 }
-func (s *Service) saveImport(ctx context.Context, j store.ProductJob, sourceID, kind string, ops []domain.Operation, keys map[string]string, issues []Doc) (Doc, error) {
+func (s *Service) saveImport(ctx context.Context, j store.ProductJob, sourceID, kind string, ops []domain.Operation, keys map[string]string, issues []Doc, plans []bridge.PlannedEvent) (Doc, error) {
 	clean, quality := ingest.Deduplicate(ops)
 	cat := s.Categorizer
 	if cat == nil {
@@ -327,8 +327,12 @@ func (s *Service) saveImport(ctx context.Context, j store.ProductJob, sourceID, 
 			added++
 		}
 	}
+	planCounts, e := saveOneCPlans(ctx, tx, j.CompanyID, sourceID, plans)
+	if e != nil {
+		return nil, e
+	}
 	importID := idFor(j.CompanyID, "import-job:"+j.ID)
-	report := Doc{"id": importID, "source_id": sourceID, "source": Doc{"id": sourceID, "kind": sourceKind}, "started_at": time.Now().UTC().Format(time.RFC3339), "added": added, "duplicates": duplicates, "duplicate_candidates_retained": quality.Unconfirmed, "gaps": []Doc{}, "errors": issues, "status": "done"}
+	report := Doc{"id": importID, "source_id": sourceID, "source": Doc{"id": sourceID, "kind": sourceKind}, "started_at": time.Now().UTC().Format(time.RFC3339), "added": added, "duplicates": duplicates, "plans_added": planCounts.Added, "plans_updated": planCounts.Updated, "plans_duplicates": planCounts.Duplicates, "duplicate_candidates_retained": quality.Unconfirmed, "gaps": []Doc{}, "errors": issues, "status": "done"}
 	if len(clean) > 0 {
 		ingest.SortOps(clean)
 		report["period"] = Doc{"from": clean[0].Date.Format(domain.DateLayout), "to": clean[len(clean)-1].Date.Format(domain.DateLayout)}
@@ -354,7 +358,7 @@ func (s *Service) saveImport(ctx context.Context, j store.ProductJob, sourceID, 
 	if e = s.evaluateSignals(ctx, j.UserID, j.CompanyID); e != nil {
 		return nil, e
 	}
-	return Doc{"result_ref": "/v1/imports/" + importID, "added": added, "duplicates": duplicates, "errors": len(issues)}, nil
+	return Doc{"result_ref": "/v1/imports/" + importID, "added": added, "duplicates": duplicates, "plans_added": planCounts.Added, "plans_updated": planCounts.Updated, "plans_duplicates": planCounts.Duplicates, "errors": len(issues)}, nil
 }
 func (s *Service) syncJob(ctx context.Context, j store.ProductJob) (Doc, error) {
 	id := text(j.Payload, "source_id")
@@ -383,11 +387,32 @@ func (s *Service) syncJob(ctx context.Context, j store.ProductJob) (Doc, error) 
 		if batch.CompanyID != j.CompanyID {
 			return nil, platform.Fail(502, "source_scope_mismatch", "Источник вернул данные другой компании")
 		}
+		plans := []bridge.PlannedEvent{}
+		if raw, ok := cfg["plan_config"]; ok {
+			var planConfig bridge.ODataPlanConfig
+			if err := json.Unmarshal(store.JSON(raw), &planConfig); err != nil {
+				return nil, bad("Некорректная настройка обязательств 1С")
+			}
+			planConfig.CompanyID = j.CompanyID
+			planConfig.BaseURL = c.BaseURL
+			if planConfig.Validate() != nil {
+				return nil, bad("Проверьте коллекции и поля обязательств 1С")
+			}
+			planBatch, err := bridge.FetchODataPlans(ctx, planConfig, text(cfg, "username"), text(cfg, "password"))
+			if err != nil {
+				s.markSourceError(ctx, id)
+				return nil, platform.Fail(502, "source_plan_sync_failed", "Не удалось прочитать обязательства 1С")
+			}
+			if planBatch.CompanyID != j.CompanyID {
+				return nil, platform.Fail(502, "source_scope_mismatch", "Источник вернул данные другой компании")
+			}
+			plans = planBatch.PlannedEvents
+		}
 		ops, keys, err := batchOperations(batch)
 		if err != nil {
 			return nil, err
 		}
-		return s.saveImport(ctx, j, id, kind, ops, keys, []Doc{})
+		return s.saveImport(ctx, j, id, kind, ops, keys, []Doc{}, plans)
 	}
 	if kind == "gsheets" {
 		data, err := s.fetchSheet(ctx, cfg)
@@ -407,7 +432,7 @@ func (s *Service) syncJob(ctx context.Context, j store.ProductJob) (Doc, error) 
 			return nil, bad("Настройте mapping столбцов Google Sheets")
 		}
 		ops, keys, issues := tableOperations(j.CompanyID, table, mapping)
-		return s.saveImport(ctx, j, id, kind, ops, keys, issues)
+		return s.saveImport(ctx, j, id, kind, ops, keys, issues, nil)
 	}
 	if kind == "fns" {
 		company, err := s.DB.GetCompany(ctx, j.UserID, j.CompanyID)

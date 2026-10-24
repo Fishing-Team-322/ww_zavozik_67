@@ -22,6 +22,7 @@ type PlanConfig struct {
 	CompanyID       string            `json:"company_id"`
 	DataMode        string            `json:"data_mode"`
 	OrganizationIDs []string          `json:"organization_ids"`
+	RUBCurrencyIDs  []string          `json:"rub_currency_ids,omitempty"`
 	AccountMap      map[string]string `json:"account_map,omitempty"`
 	Invoices        []InvoiceSource   `json:"invoices"`
 	Payments        []PaymentSource   `json:"payments"`
@@ -42,6 +43,7 @@ type InvoiceFields struct {
 	Posted          string `json:"posted"`
 	Deleted         string `json:"deleted,omitempty"`
 	OrganizationKey string `json:"organization_key"`
+	CurrencyKey     string `json:"currency_key,omitempty"`
 	AccountKey      string `json:"account_key,omitempty"`
 	CounterpartyINN string `json:"counterparty_inn,omitempty"`
 	SourceVersion   string `json:"source_version,omitempty"`
@@ -101,10 +103,16 @@ func (c PlanConfig) Validate() error {
 		(u.Scheme != "https" && (u.Scheme != "http" || !isLoopback(u.Hostname()))) ||
 		c.CompanyID == "" || len(c.CompanyID) > 128 || strings.TrimSpace(c.CompanyID) != c.CompanyID ||
 		(c.DataMode != "live" && c.DataMode != "mock" && c.DataMode != "fixture") ||
-		len(c.OrganizationIDs) == 0 || len(c.OrganizationIDs) > 32 || len(c.Invoices) == 0 || len(c.Invoices) > 8 || len(c.Payments) > 8 {
+		len(c.OrganizationIDs) == 0 || len(c.OrganizationIDs) > 32 || len(c.RUBCurrencyIDs) > 8 || len(c.Invoices) == 0 || len(c.Invoices) > 8 || len(c.Payments) > 8 ||
+		(c.DataMode == "live" && len(c.RUBCurrencyIDs) == 0) {
 		return ErrConfig
 	}
 	for _, id := range c.OrganizationIDs {
+		if id == "" || len(id) > 128 {
+			return ErrConfig
+		}
+	}
+	for _, id := range c.RUBCurrencyIDs {
 		if id == "" || len(id) > 128 {
 			return ErrConfig
 		}
@@ -119,7 +127,8 @@ func (c PlanConfig) Validate() error {
 		f := invoice.Fields
 		if !validEntity(invoice.EntitySet) || invoiceSets[invoice.EntitySet] || (invoice.Direction != "in" && invoice.Direction != "out") ||
 			!allFields(f.ExternalID, f.Number, f.DocumentDate, f.Amount, f.Posted, f.OrganizationKey) ||
-			!optionalFields(f.DueDate, f.Deleted, f.AccountKey, f.CounterpartyINN, f.SourceVersion) {
+			!optionalFields(f.DueDate, f.Deleted, f.AccountKey, f.CurrencyKey, f.CounterpartyINN, f.SourceVersion) ||
+			(c.DataMode == "live" && f.CurrencyKey == "") {
 			return ErrConfig
 		}
 		invoiceSets[invoice.EntitySet] = true
@@ -337,6 +346,16 @@ func mapInvoice(row map[string]any, source InvoiceSource, cfg PlanConfig, linked
 		}
 		event.Account = account
 	}
+	if f.CurrencyKey != "" {
+		currency := getString(row, f.CurrencyKey)
+		allowed := false
+		for _, id := range cfg.RUBCurrencyIDs {
+			allowed = allowed || currency == id
+		}
+		if !allowed {
+			return contracts.PlannedEvent{}, "unsupported_currency"
+		}
+	}
 	if f.DueDate != "" && getString(row, f.DueDate) != "" {
 		due, err := parseDate(getString(row, f.DueDate))
 		if err != nil {
@@ -347,6 +366,13 @@ func mapInvoice(row map[string]any, source InvoiceSource, cfg PlanConfig, linked
 		event.DateQuality = "source"
 	}
 	if getString(row, f.Deleted) == "true" {
+		event.PaidKopecks = paid
+		if linked {
+			event.LinkStatus = "reconciled"
+		}
+		if paid > total {
+			event.LinkStatus = "overpaid"
+		}
 		event.Status, event.RemainingKopecks, event.AmountKopecks = "cancelled", 0, 0
 		return event, ""
 	}

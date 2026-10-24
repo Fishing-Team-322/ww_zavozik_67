@@ -16,8 +16,10 @@ import (
 type Identity = contracts.Identity
 type Batch = contracts.ImportBatch
 type Operation = contracts.Operation
+type PlannedEvent = contracts.PlannedEvent
 type ODataConfig = onecodata.Config
 type ODataDiscovery = onecodata.Discovery
+type ODataPlanConfig = onecodata.PlanConfig
 type Party = dadata.Party
 
 func ParseBank(ctx context.Context, r io.Reader, id Identity) (Batch, error) {
@@ -25,6 +27,9 @@ func ParseBank(ctx context.Context, r io.Reader, id Identity) (Batch, error) {
 }
 func FetchOData(ctx context.Context, cfg ODataConfig, username, password string) (Batch, error) {
 	return (onecodata.Client{Username: username, Password: password}).Fetch(ctx, cfg)
+}
+func FetchODataPlans(ctx context.Context, cfg ODataPlanConfig, username, password string) (Batch, error) {
+	return (onecodata.Client{Username: username, Password: password}).FetchPlans(ctx, cfg)
 }
 func InspectOData(ctx context.Context, baseURL, username, password string) (ODataDiscovery, error) {
 	return (onecodata.Client{Username: username, Password: password}).Inspect(ctx, baseURL)
