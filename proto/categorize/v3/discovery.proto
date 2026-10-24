@@ -1,0 +1,73 @@
+syntax = "proto3";
+
+package categorize.v3;
+
+option go_package = "github.com/Fishing-Team-322/ww_zavozik_67/backend/gen/categorize/v3;categorizev3";
+
+// Entire inventory is discovered from data, without seed category names.
+// A request never mutates the inventory; offline discovery creates a new version.
+service DiscoveryService {
+  rpc Assign(AssignRequest) returns (AssignResponse);
+  rpc GetTaxonomy(GetTaxonomyRequest) returns (GetTaxonomyResponse);
+}
+
+message Operation {
+  string id = 1;
+  string direction = 2; // in or out
+  string payment_purpose = 3;
+  // Auxiliary channel/tag evidence only, not an input to category embeddings.
+  string counterparty_name = 4;
+}
+
+message AssignRequest {
+  repeated Operation operations = 1;
+}
+
+message Candidate {
+  string category_id = 1;
+  string title = 2;
+  float similarity = 3; // cosine geometry, not probability
+}
+
+message Assignment {
+  string id = 1;
+  repeated float embedding = 2;
+  // Empty when unassigned; no fallback to the old category enum.
+  string category_id = 3;
+  string category_title = 4;
+  // assigned, insufficient_text, no_category, outside_cluster or ambiguous
+  string status = 5;
+  repeated Candidate candidates = 6;
+  optional float similarity = 7;
+  optional float margin = 8;
+  // Separate weak text evidence; not a learned category or calibrated probability.
+  string channel = 9;
+  repeated string tags = 10;
+  string auxiliary_source = 11;
+}
+
+message AssignResponse {
+  repeated Assignment results = 1;
+  string encoder_version = 2;
+  string taxonomy_version = 3;
+  uint32 embedding_dim = 4;
+  string score_kind = 5; // cosine_geometry_not_probability
+}
+
+message Category {
+  string id = 1;
+  string title = 2;
+  string title_status = 3; // auto_extractive, not an expert-confirmed name
+  string direction = 4;
+  uint32 independent_families = 5;
+  uint32 companies = 6;
+  string attributes_status = 7; // unknown_requires_separate_evidence
+}
+
+message GetTaxonomyRequest {}
+
+message GetTaxonomyResponse {
+  repeated Category categories = 1;
+  string encoder_version = 2;
+  string taxonomy_version = 3;
+}

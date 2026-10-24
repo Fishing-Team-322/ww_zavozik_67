@@ -22,7 +22,7 @@ gen: gen-proto gen-api
 gen-proto:
 	buf lint
 	buf generate
-	$(PY) -m grpc_tools.protoc -I proto --python_out=ml/gen --pyi_out=ml/gen --grpc_python_out=ml/gen proto/forecast/v1/forecaster.proto proto/categorize/v1/categorizer.proto proto/categorize/v2/categorizer.proto
+	$(PY) -m grpc_tools.protoc -I proto --python_out=ml/gen --pyi_out=ml/gen --grpc_python_out=ml/gen proto/forecast/v1/forecaster.proto proto/categorize/v1/categorizer.proto proto/categorize/v2/categorizer.proto proto/categorize/v3/discovery.proto
 
 gen-api:
 	cd backend && go generate ./internal/httpapi && ./scripts/gen-unimplemented.sh

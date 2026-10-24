@@ -383,3 +383,41 @@
 - Примечание: export timing использует362 genuine cal_full inputs (341 после
   hide), поскольку primary clean211 меньше256. Label/temperature calibration
   остаётся на211 clean rows; это не добавление noise в оценку качества.
+
+## Прямое уточнение пользователя: ВСЕ категории обнаруживать из векторов
+
+- Пользователь выбрал второй вариант: модель сама находит смысловые группы и
+  формирует ВЕСЬ справочник, а не выбирает из20 категорий. Это отменяет fixed
+  taxonomy/category CE часть исходного ТЗ; актуальный план в
+  docs/CATEGORY_DISCOVERY_DESIGN.md. Не возвращаться к supervised20 без новой
+  прямой просьбы пользователя.
+- Проверены command lines и остановлены ТОЛЬКО наши controller38250 и
+  train child38362. disjoint_v3_runs/pipeline_state.json и
+  STOPPED_ARCHITECTURE_CHANGED.json фиксируют причину. Старые fits сохранены,
+  E5/hidden/export/final этого pipeline не начинались. Heartbeat обновлён.
+- Новый package category_discovery: real-only label-free corpus, pinned
+  pretrained E5 (без fine-tuning по слабым меткам), HDBSCAN по независимым
+  семейным medoids отдельно in/out, автоназвания из characteristic terms,
+  версии/ID, geometric abstention, incremental auto categories без изменения
+  прежних ID. Никаких named seed prototypes или заданного числа категорий.
+- Новый corpus_v2 в ml/data/category_discovery: реальные train105803ops/
+  385unique purposes/128families; calibration2251/81/36; test5561/80/39.
+  Повторы не увеличивают independent density. При подготовке не вызываются
+  Go/teacher/augment; старые labels не читаются. Ownership унаследован от v3:
+  факт его исторической weak-label stratification записан в manifest.
+- e5_embeddings_v2: реальные128token input intersections ВСЕ0. Train/cal/test
+  embeddings вычислены одним pinned encoder, без обучения на test. Пока ни
+  одной final category prediction нового решения не было. Corpus_v1 и
+  embeddings_v1 только предварительные preparation checks; fit не запускался.
+- Новый отдельный gRPC categorize.v3 DiscoveryService, так как динамический
+  справочник/возможный unassigned/геометрические scores не совместимы с
+  обещанием старых category_probs. Go-генерация/Go/backend не менялись.
+  Separate CPU process без LightGBM; channel/tags отдельно из weak rules,
+  экономические mandatory/flow неизвестны без независимой проверки.
+- Добавлены frozen experiment protocol/one-time evaluate и локальная слепая
+  pairwise review без предзаполненной разметки. Никакую coverage/silhouette/
+  stability не выдавать за semantic accuracy. Auto titles — черновики.
+- Дальше: tests -> commit протокола ДО fit -> единственный experiment_v1
+  на corpus_v2/e5_embeddings_v2 -> один final transfer audit -> blind review
+  -> CPU/live service и immutable model card/artifact -> final checks/report.
+  Не обещать независимое semantic качество без человека; это research status.
