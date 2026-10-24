@@ -97,3 +97,35 @@ def test_stress_preserves_future_and_does_not_modify_source():
     report = summarize([a, b], cfg, {'C'})
     assert set(report.scenario) == {'standard', 'short_14'}
     assert (report.runs == 1).all()
+
+
+def test_protocol_boundary_excludes_the_entire_future_in_v2():
+    from zavozik_ml.eval.backtest import protocol_origins
+    c = company(240)
+    # May 31 + 30 days is June 30; June 1 + 30 days reaches July 1.
+    origins = [Origin(c, (d-date(2026, 1, 1)).days) for d in
+               (date(2026, 5, 31), date(2026, 6, 1), date(2026, 6, 30), date(2026, 7, 1))]
+    spec = {'version': 2, 'audit_start': '2026-07-01', 'audit_companies': ['AUDIT'],
+            'development_target_policy': 'all_target_dates_before_audit_start'}
+    selected = protocol_origins(origins, Config(horizon=30), 'development', spec)
+    assert [o.as_of for o in selected] == [date(2026, 5, 31)]
+    # The configured horizon, rather than a hard-coded 30-day gap, controls the purge.
+    selected = protocol_origins(origins, Config(horizon=1), 'development', spec)
+    assert [o.as_of for o in selected] == [date(2026, 5, 31), date(2026, 6, 1)]
+    # Preserve historical v1 reproducibility and the locked audit company/time policy.
+    assert len(protocol_origins(origins, Config(), 'development', dict(spec, version=1))) == 3
+    from dataclasses import replace
+    origins = [replace(o, company=replace(c, id='AUDIT')) for o in origins]
+    assert not protocol_origins(origins, Config(), 'development', spec)
+    for version in (1, 2):
+        selected = protocol_origins(origins, Config(), 'audit', dict(spec, version=version))
+        assert [o.as_of for o in selected] == [date(2026, 7, 1)]
+
+
+def test_protocol_rejects_unsupported_split_semantics():
+    from zavozik_ml.eval.backtest import protocol_origins
+    spec = {'version': 3, 'audit_start': '2026-07-01', 'audit_companies': []}
+    with pytest.raises(ValueError, match='split version'):
+        protocol_origins([], Config(), 'development', spec)
+    with pytest.raises(ValueError, match='target policy'):
+        protocol_origins([], Config(), 'development', dict(spec, version=2))

@@ -17,8 +17,11 @@ make ml-serve                # gRPC на :50051, подхватывает ml/art
 
 `make ml-backtest MODELS=seasonal_naive,gbm_global` — только выбранные модели.
 Разработка: `python -m zavozik_ml.eval.backtest --protocol development --cv 3`.
-Фиксированный split в `eval/split_v1.json`: 120 development-компаний до 2026-07-01,
+По умолчанию используется `eval/split_v2.json`: 120 development-компаний,
+причём весь 30-дневный целевой горизонт должен закончиться до 2026-07-01;
 30 audit-компаний с этой даты. Audit исключён из fit и из выбора настроек.
+Исторический `split_v1.json` ограничивал только дату старта прогноза. Он сохранён
+для воспроизводимости уже замороженных результатов; v2 не создаёт новый audit.
 Все компании уже исследовались ранее; это внутренний, не внешний тест.
 
 Производственный календарь — `zavozik_ml/calendar_data/` (xmlcalendar.ru);
@@ -53,8 +56,8 @@ make ml-serve                # gRPC на :50051, подхватывает ml/art
 ```bash
 cd ml
 PYTHONPATH=gen .venv/bin/python -m zavozik_ml.eval.backtest --protocol development --cv 3 --models seasonal_naive,gbm_global,ensemble --scenarios standard,short_14,short_28,short_56,gap_14,missing_30pct --out data/development.parquet
-# Только после фиксации настроек; не подбирать параметры по audit:
-PYTHONPATH=gen .venv/bin/python -m zavozik_ml.eval.backtest --protocol audit --models seasonal_naive,gbm_global,ensemble --paths 600 --out data/audit.parquet
+# Историческая команда frozen audit: уже выполнена, повторно не подбирать параметры.
+PYTHONPATH=gen .venv/bin/python -m zavozik_ml.eval.backtest --protocol audit --split eval/split_v1.json --models seasonal_naive,gbm_global,ensemble --paths 600 --out data/audit.parquet
 PYTHONPATH=gen .venv/bin/python -m zavozik_ml.eval.report --results data/audit.parquet --out reports/quality.md
 ```
 

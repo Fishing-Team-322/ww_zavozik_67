@@ -42,11 +42,42 @@
         "forecasters/models.py": "076e952da9478b58bb1d2ec3c4cc424bd2d02832163815b16c96e6cb2c36869f",
         "forecasters/naive.py": "5974238faa15e5306c7baa158631a46a095623558f28f9e6db758b40be8c3104"
       }
+    },
+    {
+      "protocol": "development_only_shadow",
+      "model": "amazon/chronos-t5-small",
+      "revision": "a971ba21945c4f1796b17a91fe69214b5f4ad472",
+      "license": "apache-2.0",
+      "weights_sha256": "9c8b6fde5300f72b01c173153bf9288fa0a200614275bf0585071ad71a6a3d43",
+      "script_sha256": "657263af0f3ecfbc9498a063fe68f9c074851775183bd3a882ade4e125511f1c",
+      "source_sha256": "42673b93ef95e98d989c1231160b4690bf936104bb110b86f3bfb912bdcdef5d",
+      "flows_sha256": "21d1e925e6d9ca1450e9d5254dd3e57ea6a6c6ad72096eb6bd0a2da307c668c5",
+      "paths": 200,
+      "scenarios": [
+        "standard"
+      ],
+      "origins": 320,
+      "fitted_on_case": false,
+      "target": "signed net business flow; not gross inflow/outflow",
+      "calendar_mask": "history-based existing policy",
+      "seconds": 907.0180112499511,
+      "p50_request_seconds": 2.8715825835242867,
+      "p95_request_seconds": 3.4218907228962063,
+      "source_sha256_at_start": "a5dbf6234dee681f4dc1a1c138636237426cadd1507afe906df9f713d683b340",
+      "source_changed_during_run": true,
+      "wrapper_sha256": "7f9bd918429876a76d8329fc1d0f2f9b915913b9df6d6f1580f322e53139bfa0",
+      "source_change_verification": {
+        "changed_existing_backtest_functions": [
+          "main",
+          "run"
+        ],
+        "added_function": "protocol_origins",
+        "all_forecast_calendar_data_files_match_snapshot": true,
+        "note": "During Small inference, backtest CLI/run gained v2 split selection. Chronos uses its own saved v1 origin list and unchanged evaluate_origin/summarize functions, loaded before this edit. No prediction arithmetic or input changed."
+      }
     }
   ],
-  "pending": [
-    "chronos_small"
-  ],
+  "pending": [],
   "serving_model_changed": false,
   "protocol": "development_v1_origins_only",
   "limitation": "No new independent audit. Foundation-model pretraining may include public datasets; this experiment is not an external NN5 test."
