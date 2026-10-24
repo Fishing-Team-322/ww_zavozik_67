@@ -25,7 +25,7 @@ type Party = dadata.Party
 type AccountingOrganization = onecodata.AccountingOrganization
 
 func DiscoverAccounting(ctx context.Context, root, inn, username, password string) ([]AccountingOrganization, error) {
-	return (onecodata.Client{Username: username, Password: password}).DiscoverAccounting(ctx, root, inn)
+	return (onecodata.Client{Username: username, Password: password, HTTP: odataHTTP(root)}).DiscoverAccounting(ctx, root, inn)
 }
 
 // ValidINN validates length, digits and the official checksum, not ownership.
@@ -37,16 +37,16 @@ func ParseBank(ctx context.Context, r io.Reader, id Identity) (Batch, error) {
 	return (onecbank.Parser{}).Parse(ctx, r, id)
 }
 func FetchOData(ctx context.Context, cfg ODataConfig, username, password string) (Batch, error) {
-	return (onecodata.Client{Username: username, Password: password}).Fetch(ctx, cfg)
+	return (onecodata.Client{Username: username, Password: password, HTTP: odataHTTP(cfg.BaseURL)}).Fetch(ctx, cfg)
 }
 func FetchODataPlans(ctx context.Context, cfg ODataPlanConfig, username, password string) (Batch, error) {
-	return (onecodata.Client{Username: username, Password: password}).FetchPlans(ctx, cfg)
+	return (onecodata.Client{Username: username, Password: password, HTTP: odataHTTP(cfg.BaseURL)}).FetchPlans(ctx, cfg)
 }
 func SuggestODataAccounting(ctx context.Context, baseURL, companyID, companyINN, account, username, password string) (ODataConfig, *ODataPlanConfig, error) {
-	return (onecodata.Client{Username: username, Password: password}).SuggestAccounting(ctx, baseURL, companyID, companyINN, account)
+	return (onecodata.Client{Username: username, Password: password, HTTP: odataHTTP(baseURL)}).SuggestAccounting(ctx, baseURL, companyID, companyINN, account)
 }
 func InspectOData(ctx context.Context, baseURL, username, password string) (ODataDiscovery, error) {
-	return (onecodata.Client{Username: username, Password: password}).Inspect(ctx, baseURL)
+	return (onecodata.Client{Username: username, Password: password, HTTP: odataHTTP(baseURL)}).Inspect(ctx, baseURL)
 }
 func Lookup(ctx context.Context, token, inn string, httpClient *http.Client) (Party, error) {
 	return (dadata.Client{Token: token, HTTP: httpClient}).Lookup(ctx, inn)

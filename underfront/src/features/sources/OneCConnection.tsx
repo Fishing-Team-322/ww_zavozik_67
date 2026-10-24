@@ -138,7 +138,7 @@ export function OneCConnection({ companyId, companyINN, sources, onChanged }: Pr
       <ol className="list-decimal space-y-1 pl-5 text-sm text-[color:var(--text-secondary)]"><li>Администратор вашей 1С публикует базу на веб-сервере и включает стандартный интерфейс OData. Универсального адреса для всех организаций нет.</li><li>Получите URL публикации и отдельного пользователя с правом чтения. Это адрес сервера, а не API-ключ. Сервер ПУЛЬС должен иметь доступ к адресу; локальная база потребует защищённого подключения и разрешения оператора.</li><li>Укажите адрес и учётную запись, нажмите «Найти организацию и счета», затем выберите найденный счёт.</li></ol>
       <form className="grid gap-4 sm:grid-cols-2" onSubmit={connect}>
         {discovered && foundAccounts.length > 0 && <Select label="Найденный счёт организации" value={account} options={foundAccounts.map(item => ({ value: item.number, label: `${item.number} · ${item.name}` }))} onChange={event => setAccount(event.target.value)} />}
-        <details className="sm:col-span-2"><summary className="cursor-pointer text-sm">Дополнительно: номер счёта вручную</summary><Input
+        <Input
           label="ИНН компании"
           required
           inputMode="numeric"
@@ -159,7 +159,7 @@ export function OneCConnection({ companyId, companyINN, sources, onChanged }: Pr
           disabled={busy !== null}
           containerClassName="sm:col-span-2"
         />
-        <Input
+        <details className="sm:col-span-2"><summary className="cursor-pointer text-sm">Дополнительно: номер счёта вручную</summary><Input
           label="Расчётный счёт компании"
           required
           inputMode="numeric"

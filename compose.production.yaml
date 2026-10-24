@@ -1,8 +1,19 @@
 # docker compose -f compose.yaml -f compose.production.yaml up -d --build
 services:
+  api:
+    environment:
+      TRUSTED_PROXY_CIDRS: ${TRUSTED_PROXY_CIDRS:-172.29.245.2/32}
+    networks:
+      default: {}
+      ingress:
+        ipv4_address: 172.29.245.3
   proxy:
     image: caddy:2-alpine
     restart: unless-stopped
+    networks:
+      default: {}
+      ingress:
+        ipv4_address: 172.29.245.2
     environment:
       APP_DOMAIN: ${APP_DOMAIN:?Set APP_DOMAIN to the public DNS name}
     ports:
@@ -16,6 +27,12 @@ services:
     depends_on:
       frontend: { condition: service_started }
       api: { condition: service_started }
+
+networks:
+  ingress:
+    ipam:
+      config:
+        - subnet: 172.29.245.0/24
 
 volumes:
   caddy_data:

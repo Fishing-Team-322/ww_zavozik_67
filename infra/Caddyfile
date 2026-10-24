@@ -1,10 +1,13 @@
 {$APP_DOMAIN} {
 	encode zstd gzip
 	handle /v1/* {
-		reverse_proxy api:8080
+		reverse_proxy 172.29.245.3:8080
 	}
 	handle /healthz {
-		reverse_proxy api:8080
+		reverse_proxy 172.29.245.3:8080
+	}
+	handle /readyz {
+		reverse_proxy 172.29.245.3:8080
 	}
 	handle {
 		reverse_proxy frontend:3000
