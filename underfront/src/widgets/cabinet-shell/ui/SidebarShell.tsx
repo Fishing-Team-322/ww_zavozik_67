@@ -1,20 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useSession } from "@/src/features/auth";
 import { CircleHelp, Folder, Menu, Moon, Sun } from "lucide-react";
 import CompanyIdenticonAvatar from "@/src/shared/ui/AbstractAvatar/AbstractAvatar";
 import { Breadcrumbs, type BreadcrumbItem } from "@/src/shared/ui/breadcrumbs/breadcrumbs";
 import { Button } from "@/src/shared/ui/button";
 import { Select, type SelectOption } from "@/src/shared/ui/select";
 import { SidebarBrand, SidebarNav, SidebarUtilityNav, type SidebarNavItem, defaultCabinetNav, sidebarSectionIcons } from "./SidebarNav";
-
-const mockOrganizationOptions: SelectOption[] = [
-  { value: "huy", label: "ООО Хуйня" },
-  { value: "cats", label: "ООО Котики" },
-  { value: "zero", label: "ООО Нолик" },
-  { value: "change", label: "ООО Ой всё" },
-];
 
 export type SidebarShellProps = {
   children: ReactNode;
@@ -61,7 +55,12 @@ function breadcrumbsForPath(pathname: string, navItems: SidebarNavItem[]): Bread
 }
 
 /** Cabinet shell with shared desktop and mobile navigation. */
-export function SidebarShell({children, navItems = defaultCabinetNav, appTitle = "PULSE", appSubtitle = "Financial radar", organizationName = "ПУЛЬС", userName = "Пользователь", sidebarFooter, topRight}: SidebarShellProps) {
+export function SidebarShell({children, navItems = defaultCabinetNav, appTitle = "PULSE", appSubtitle = "Financial radar", organizationName: providedOrganizationName, userName: providedUserName, sidebarFooter, topRight}: SidebarShellProps) {
+  const session = useSession(); const router = useRouter();
+  const organizationName = session.company?.name || providedOrganizationName || 'Компания не выбрана';
+  const userName = session.profile?.email || providedUserName || 'Гость';
+  const organizationOptions: SelectOption[] = session.profile?.companies.map(company => ({ value: company.id, label: company.name })) || [];
+  const [accountError, setAccountError] = useState<string | null>(null);
   const pathname = usePathname() || "/";
   const [mobileOpen, setMobileOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -69,8 +68,11 @@ export function SidebarShell({children, navItems = defaultCabinetNav, appTitle =
   const profileRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const saved = document.documentElement.getAttribute("data-theme");
-    if (saved === "light" || saved === "dark") setTheme(saved);
+    const timer = setTimeout(() => {
+      const saved = document.documentElement.getAttribute("data-theme");
+      if (saved === "light" || saved === "dark") setTheme(saved);
+    }, 0);
+    return () => clearTimeout(timer);
   }, []);
   useEffect(() => {
     if (!mobileOpen) return;
@@ -137,13 +139,13 @@ export function SidebarShell({children, navItems = defaultCabinetNav, appTitle =
             </svg>
           </button>
           <div className="min-w-0 max-w-full">
-            <Select size="md" fitContent aria-label="Организация" options={mockOrganizationOptions} defaultValue="huy" />
+            <Select size="md" fitContent aria-label="Организация" options={organizationOptions} value={session.company?.id || ''} disabled={!organizationOptions.length} placeholder="Компания не выбрана" onChange={event => session.selectCompany(event.target.value)} />
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <div className="hidden items-center gap-4 sm:flex">
-            <span className="whitespace-nowrap text-[12px] font-medium leading-4 tracking-normal tabular-nums text-[color:var(--nav-item-text)]">Обновлено сегодня, 09:40</span>
-            <Button type="button" variant="outline" size="md">
+            <span className="whitespace-nowrap text-[12px] font-medium leading-4 tracking-normal tabular-nums text-[color:var(--nav-item-text)]">{session.company?.data_as_of ? `Данные на ${new Date(session.company.data_as_of).toLocaleDateString('ru-RU')}` : 'Данные не загружены'}</span>
+            <Button type="button" variant="outline" size="md" disabled={!session.company} onClick={() => router.push('/calendar')}>
               <span className="">+ Событие</span>
             </Button>
           </div>
@@ -171,6 +173,8 @@ export function SidebarShell({children, navItems = defaultCabinetNav, appTitle =
                   <p className="text-xs font-medium text-[color:var(--text-secondary)]">Профиль</p>
                   <p className="mt-1 truncate text-sm font-semibold text-[color:var(--text-primary)]">{userName}</p>
                   <p className="mt-1 truncate text-xs text-[color:var(--text-secondary)]">{organizationName}</p>
+                  {session.profile ? <Button className="mt-3" variant="outline" onClick={async () => { setAccountError(null); try { await session.logout(); router.push('/login'); } catch { setAccountError('Не удалось выйти. Повторите попытку.'); } }}>Выйти</Button> : <Button className="mt-3" onClick={() => router.push('/login')}>Войти</Button>}
+                  {accountError && <p role="alert" className="mt-2 text-xs text-[color:var(--danger)]">{accountError}</p>}
                 </div>
               </div>
             ) : null}
