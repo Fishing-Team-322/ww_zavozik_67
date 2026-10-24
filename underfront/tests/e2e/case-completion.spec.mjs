@@ -19,7 +19,12 @@ test('confirmed tax reaches the forecast and plan-fact observes a new statement 
   await page.goto('/login');await page.getByLabel('Электронная почта',{exact:true}).fill(email);await page.getByLabel('Пароль',{exact:true}).fill(password);await page.getByRole('button',{name:'Войти',exact:true}).click();await expect(page).toHaveURL(/\/overview$/);
   await page.goto('/taxes');await expect(page.getByRole('heading',{name:'Налоги и обязательные платежи',exact:true})).toBeVisible();
   await page.getByLabel('Название обязательства',{exact:true}).fill('Проверочный налог');await page.getByLabel('Налоговый год',{exact:true}).fill('2026');await page.getByLabel('Подтверждённая сумма, ₽',{exact:true}).fill('90000');await page.getByLabel('Откуда получена сумма',{exact:true}).fill('Синтетическая декларация');
-  await page.getByRole('checkbox',{name:'Это дополнительная сумма сверх обычных налоговых платежей: включить её в прогноз',exact:true}).check();await page.getByRole('checkbox',{name:'Подтверждаю сумму и отсутствие второго обязательства на тот же платёж',exact:true}).check();
+  const additional=page.getByRole('checkbox',{name:'Это дополнительная сумма сверх обычных налоговых платежей: включить её в прогноз',exact:true});
+  const confirmed=page.getByRole('checkbox',{name:'Подтверждаю сумму и отсутствие второго обязательства на тот же платёж',exact:true});
+  // The shared checkbox hides the native input under a styled label. Exercise
+  // its keyboard interaction rather than clicking the decorative overlay.
+  await additional.press('Space');await expect(additional).toBeChecked();
+  await confirmed.press('Space');await expect(confirmed).toBeChecked();
   await page.getByRole('button',{name:'Рассчитать график платежей',exact:true}).click();await expect(page.getByText('Проверьте перед сохранением',{exact:true})).toBeVisible();await page.getByRole('button',{name:'Подтвердить и добавить',exact:true}).click();await expect(page.getByText('Обязательство сохранено. Календарь и прогноз обновятся автоматически.',{exact:true})).toBeVisible();
   await expect(page.getByRole('heading',{name:/Проверочный налог/})).toBeVisible();
   const screenshotDir=process.env.E2E_SCREENSHOTS_DIR||path.resolve('test-results/screenshots');mkdirSync(screenshotDir,{recursive:true});await page.screenshot({path:path.join(screenshotDir,'taxes-synthetic.png'),fullPage:true});
