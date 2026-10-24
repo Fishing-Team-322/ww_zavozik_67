@@ -41,6 +41,10 @@ type resetMail struct {
 	calls int
 }
 
+func init() {
+	openapi3filter.RegisterBodyDecoder("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", openapi3filter.FileBodyDecoder)
+}
+
 func (m *resetMail) SendReset(_ context.Context, _ string, link string) error {
 	m.link = link
 	m.calls++

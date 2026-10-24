@@ -40,9 +40,11 @@ jobs:
           go-version-file: backend/go.mod
           cache-dependency-path: backend/go.sum
       - run: test -z "$(gofmt -l cmd internal)"
-      - run: go generate ./internal/httpapi && bash ./scripts/gen-unimplemented.sh && git diff --exit-code -- internal/httpapi/api.gen.go internal/httpapi/unimplemented.gen.go
+      - run: go generate ./internal/httpapi && bash ./scripts/gen-unimplemented.sh && git diff --exit-code -- internal/httpapi/api.gen.go internal/httpapi/unimplemented.gen.go internal/httpapi/product.gen.go
       - run: go vet ./...
       - run: go test -race ./...
+      - run: go test -race ./...
+        working-directory: integrations
 
   ml:
     runs-on: ubuntu-latest
