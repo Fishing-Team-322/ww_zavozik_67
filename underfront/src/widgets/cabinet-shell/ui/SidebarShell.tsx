@@ -2,12 +2,13 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { useSession } from "@/src/features/auth";
 import { CircleHelp, Folder, Menu, Moon, Sun } from "lucide-react";
 import CompanyIdenticonAvatar from "@/src/shared/ui/AbstractAvatar/AbstractAvatar";
 import { Breadcrumbs, type BreadcrumbItem } from "@/src/shared/ui/breadcrumbs/breadcrumbs";
 import { Button } from "@/src/shared/ui/button";
 import { Select, type SelectOption } from "@/src/shared/ui/select";
+import { useCompany } from "@/src/features/company-context/CompanyProvider";
+import { useAuth } from "@/src/features/auth/model/AuthProvider";
 import { SidebarBrand, SidebarNav, SidebarUtilityNav, type SidebarNavItem, defaultCabinetNav, sidebarSectionIcons } from "./SidebarNav";
 
 export type SidebarShellProps = {
@@ -24,6 +25,7 @@ export type SidebarShellProps = {
 
 function breadcrumbsForPath(pathname: string, navItems: SidebarNavItem[]): BreadcrumbItem[] {
   const path = pathname.replace(/\/+$/, "") || "/";
+  if (path === "/companies/new") return [{ label: "Компании", icon: Folder }, { label: "Новая компания", icon: Folder }];
   const page = navItems
     .filter((item) => item.href === path || (item.href !== "/" && path.startsWith(`${item.href}/`)))
     .sort((a, b) => b.href.length - a.href.length)[0];
@@ -55,24 +57,21 @@ function breadcrumbsForPath(pathname: string, navItems: SidebarNavItem[]): Bread
 }
 
 /** Cabinet shell with shared desktop and mobile navigation. */
-export function SidebarShell({children, navItems = defaultCabinetNav, appTitle = "PULSE", appSubtitle = "Financial radar", organizationName: providedOrganizationName, userName: providedUserName, sidebarFooter, topRight}: SidebarShellProps) {
-  const session = useSession(); const router = useRouter();
-  const organizationName = session.company?.name || providedOrganizationName || 'Компания не выбрана';
-  const userName = session.profile?.email || providedUserName || 'Гость';
-  const organizationOptions: SelectOption[] = session.profile?.companies.map(company => ({ value: company.id, label: company.name })) || [];
-  const [accountError, setAccountError] = useState<string | null>(null);
+export function SidebarShell({children, navItems = defaultCabinetNav, appTitle = "PULSE", appSubtitle = "Financial radar", organizationName = "ПУЛЬС", userName = "Пользователь", sidebarFooter, topRight}: SidebarShellProps) {
   const pathname = usePathname() || "/";
+  const router = useRouter();
+  const { companies, companyId, selectedCompany, status: companyStatus, error: companyError, selectCompany, reloadCompanies } = useCompany();
+  const { signOut, user } = useAuth();
+  const organizationOptions: SelectOption[] = [...companies.map(company => ({ value: company.id, label: company.name })), { value: "__add_company__", label: "+ Добавить компанию" }];
   const [mobileOpen, setMobileOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [profileError, setProfileError] = useState("");
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const profileRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      const saved = document.documentElement.getAttribute("data-theme");
-      if (saved === "light" || saved === "dark") setTheme(saved);
-    }, 0);
-    return () => clearTimeout(timer);
+    const saved = document.documentElement.getAttribute("data-theme");
+    if (saved === "light" || saved === "dark") setTheme(saved);
   }, []);
   useEffect(() => {
     if (!mobileOpen) return;
@@ -139,13 +138,17 @@ export function SidebarShell({children, navItems = defaultCabinetNav, appTitle =
             </svg>
           </button>
           <div className="min-w-0 max-w-full">
-            <Select size="md" fitContent aria-label="Организация" options={organizationOptions} value={session.company?.id || ''} disabled={!organizationOptions.length} placeholder="Компания не выбрана" onChange={event => session.selectCompany(event.target.value)} />
+            {companyStatus === "ready" && companies.length > 0 ? <Select size="md" fitContent aria-label="Организация" options={organizationOptions} value={companyId ?? ""} onChange={(event) => { if (event.target.value === "__add_company__") router.push("/companies/new"); else selectCompany(event.target.value); }} />
+              : companyStatus === "ready" ? <Button type="button" variant="outline" size="md" onClick={() => router.push("/companies/new")}>+ Создать компанию</Button>
+              : companyStatus === "unauthorized" ? <Button type="button" variant="outline" size="md" onClick={() => router.push("/login")}>Войти для выбора компании</Button>
+              : companyStatus === "error" ? <Button type="button" variant="outline" size="md" title={companyError ?? undefined} onClick={() => void reloadCompanies().catch(() => {})}>Повторить загрузку компаний</Button>
+              : <span className="text-[12px] text-[color:var(--nav-item-text)]">Компании…</span>}
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <div className="hidden items-center gap-4 sm:flex">
-            <span className="whitespace-nowrap text-[12px] font-medium leading-4 tracking-normal tabular-nums text-[color:var(--nav-item-text)]">{session.company?.data_as_of ? `Данные на ${new Date(session.company.data_as_of).toLocaleDateString('ru-RU')}` : 'Данные не загружены'}</span>
-            <Button type="button" variant="outline" size="md" disabled={!session.company} onClick={() => router.push('/calendar')}>
+            <span className="whitespace-nowrap text-[12px] font-medium leading-4 tracking-normal tabular-nums text-[color:var(--nav-item-text)]">{selectedCompany?.data_as_of ? `Данные на ${new Date(selectedCompany.data_as_of).toLocaleDateString("ru-RU")}` : "Данные ещё не загружены"}</span>
+            <Button type="button" variant="outline" size="md" onClick={() => router.push("/calendar")}>
               <span className="">+ Событие</span>
             </Button>
           </div>
@@ -165,16 +168,17 @@ export function SidebarShell({children, navItems = defaultCabinetNav, appTitle =
               onClick={() => setProfileOpen(true)}
               className="flex h-9 w-9 items-center justify-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--focus-ring-strong)]"
             >
-              <CompanyIdenticonAvatar seed={organizationName} size={32} rounded={16} className="h-8 w-8" />
+              <CompanyIdenticonAvatar seed={selectedCompany?.name ?? organizationName} size={32} rounded={16} className="h-8 w-8" />
             </button>
             {profileOpen ? (
               <div id="header-profile-popover" className="absolute right-0 top-full z-50 w-60 pt-2">
                 <div className="rounded-md border border-[color:var(--border)] bg-[color:var(--surface-elevated)] p-4 shadow-[var(--shadow-md)]">
                   <p className="text-xs font-medium text-[color:var(--text-secondary)]">Профиль</p>
-                  <p className="mt-1 truncate text-sm font-semibold text-[color:var(--text-primary)]">{userName}</p>
-                  <p className="mt-1 truncate text-xs text-[color:var(--text-secondary)]">{organizationName}</p>
-                  {session.profile ? <Button className="mt-3" variant="outline" onClick={async () => { setAccountError(null); try { await session.logout(); router.push('/login'); } catch { setAccountError('Не удалось выйти. Повторите попытку.'); } }}>Выйти</Button> : <Button className="mt-3" onClick={() => router.push('/login')}>Войти</Button>}
-                  {accountError && <p role="alert" className="mt-2 text-xs text-[color:var(--danger)]">{accountError}</p>}
+                  <p className="mt-1 truncate text-sm font-semibold text-[color:var(--text-primary)]">{user?.email ?? userName}</p>
+                  {user && <p className="mt-1 text-xs text-[color:var(--text-secondary)]">{user.role === "admin" ? "Администратор" : "Владелец"}</p>}
+                  <p className="mt-1 truncate text-xs text-[color:var(--text-secondary)]">{selectedCompany?.name ?? organizationName}</p>
+                  {profileError && <p role="alert" className="mt-2 text-[11px] text-[color:var(--danger)]">{profileError}</p>}
+                  {companyStatus === "ready" && <Button type="button" variant="ghost" size="sm" className="mt-3" onClick={async () => { setProfileError(""); try { await signOut(); setProfileOpen(false); router.replace("/login"); } catch (cause) { setProfileError(cause instanceof Error ? cause.message : "Не удалось выйти"); } }}>Выйти</Button>}
                 </div>
               </div>
             ) : null}
@@ -195,7 +199,7 @@ export function SidebarShell({children, navItems = defaultCabinetNav, appTitle =
       <main id="main-content" className="min-h-[calc(100vh-48px)] min-w-0 bg-[color:var(--surface)] p-4 sm:p-6">
         <div className="space-y-6">
           <Breadcrumbs items={breadcrumbsForPath(pathname, navItems)} />
-          {children}
+          <div key={companyId ?? "no-company"}>{children}</div>
         </div>
       </main>
       {mobileOpen ? <>

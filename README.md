@@ -21,7 +21,8 @@
 | `backend/` | API, воркер, бот, бэктест, вся бизнес-логика | Go 1.26 |
 | `ml/` | ML-сервис прогноза, обучение, оценка | Python 3.12+ |
 | `underfront/` | рабочий фронтенд | Next.js / React / TypeScript |
-| `infra/` | docker-compose | Postgres 17 |
+| `compose.yaml` | приложение целиком | Postgres, Go API, worker, ML, Next.js |
+| `infra/` | вспомогательная инфраструктура | Docker Compose |
 
 ## Быстрый старт
 

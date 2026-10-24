@@ -41,9 +41,10 @@ export class ApiClient {
   private generation = 0;
   private listeners = new Set<() => void>();
   constructor(
-    origin = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080",
+    origin = process.env.NEXT_PUBLIC_API_URL || "",
     private transport: typeof fetch = (...args) => fetch(...args),
   ) {
+    if (!origin) { this.origin = ""; return; }
     const url = new URL(origin);
     if (
       !["http:", "https:"].includes(url.protocol) ||
@@ -61,6 +62,10 @@ export class ApiClient {
     return () => {
       this.listeners.delete(listener);
     };
+  }
+  clearSession() {
+    this.generation++;
+    this.lost();
   }
   private lost() {
     this.token = null;
@@ -303,3 +308,18 @@ export function message(error: unknown) {
     ? error.message
     : "Не удалось выполнить действие.";
 }
+
+// Compatibility exports share the same client and in-memory token as financial screens.
+export function apiRequest<T>(path: string, init: RequestInit = {}, authenticated = true): Promise<T> {
+  const form = init.body instanceof FormData ? init.body : undefined;
+  const json = typeof init.body === "string" ? JSON.parse(init.body) : undefined;
+  return api.request<T>(path.startsWith("/v1/") ? path : `/v1${path}`, {
+    method: init.method, headers: init.headers, signal: init.signal ?? undefined,
+    form, json, authenticated,
+  });
+}
+export const onAuthLost = (listener: () => void) => api.onSessionLost(listener);
+export const clearAccessToken = () => api.clearSession();
+export const login = (email: string, password: string) => api.authenticate("login", email, password);
+export const register = (email: string, password: string) => api.authenticate("register", email, password, true);
+export const logout = () => api.logout();
