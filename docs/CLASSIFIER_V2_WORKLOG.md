@@ -718,3 +718,17 @@
   Did not change system power settings or override lid/user sleep. Jobs resume
   when the host runs; wall-clock completion estimates are unreliable while asleep.
 - Source snapshot/config/data untouched; no new calibration/model scores yet.
+
+### 2026-10-24 20:55 MSK — resume interrupted local worker
+
+- Recorded controller52801/teacher52813 both disappeared; pgrep found no other
+  controller/teacher/fit/evaluation. Last log completed748 train pairs at20:45:42,
+  no traceback/report. Exact termination cause unknown; do not call it model failure.
+- Confirmed both flock locks available and748 atomic per-pair JSONs preserved.
+  Previous state archived in ignored interruption_20261024_2054.json.
+- Resumed the SAME controller via frozen source_snapshot/PYTHONPATH, same config,
+  with detached process session/stdinDEVNULL, append-only existing controller log.
+  Newcontroller1752/teacher1755 verified alive; it resumes ONLY252 missing pairs.
+  The resumed worker log counts pending pairs (4/252 etc), not total748+ progress.
+- No source snapshot/data/recipe edits, duplicate jobs, model fit or final read.
+  Next: verify resumed pair writes, then existing automatic cal/fits/seeds queue.
