@@ -54,11 +54,14 @@ func (s *Service) ModelQuality() []Doc {
 			}
 			return n
 		}
+		if val("companies") != "all" {
+			continue
+		} // One row per model; unseen cohort is a separate report, not another model.
 		series := []Doc{}
 		for _, h := range []string{"7", "14", "30"} {
 			series = append(series, Doc{"horizon": h, "wape": numeric("wape_" + h)})
 		}
-		out = append(out, Doc{"name": val("model"), "wape_7": numeric("wape_7"), "wape_14": numeric("wape_14"), "wape_30": numeric("wape_30"), "coverage": numeric("coverage"), "gap_recall": numeric("gap_recall"), "gap_lead_days": numeric("gap_lead_days"), "business_path_wape": numeric("business_path_wape"), "description": "Зафиксированная внутренняя оценка на синтетических компаниях; не независимая проверка на реальных выписках", "source": "ml/reports/metrics/final_audit.summary.csv", "limitations": []string{"synthetic_previously_inspected_data", "nine_gap_events_four_new_gaps", "false_alerts_remain"}, "series": series})
+		out = append(out, Doc{"name": val("model"), "wape_7": numeric("wape_7"), "wape_14": numeric("wape_14"), "wape_30": numeric("wape_30"), "coverage": numeric("coverage"), "gap_recall": numeric("gap_recall"), "gap_brier": numeric("gap_brier"), "gap_auc": numeric("gap_auc"), "gap_lead_days": numeric("gap_lead_days"), "business_path_wape": numeric("business_path_wape"), "description": "Зафиксированная внутренняя оценка на синтетических компаниях; не независимая проверка на реальных выписках", "source": "ml/reports/metrics/final_audit.summary.csv", "limitations": []string{"synthetic_previously_inspected_data", "nine_gap_events_four_new_gaps", "false_alerts_remain"}, "series": series})
 	}
 	return out
 }
@@ -156,7 +159,7 @@ func (s *Service) admin(ctx context.Context, op string, p platform.Principal, r 
 		return Result{Status: 200, Body: result}, e
 	case "getAdminCompany":
 		cid := r.PathValue("companyId")
-		rows, e := s.queryDocs(ctx, "SELECT to_jsonb(c) FROM companies c WHERE id=$1", cid)
+		rows, e := s.queryDocs(ctx, "SELECT to_jsonb(c)||jsonb_build_object('data_as_of',(SELECT max(op_date)::timestamptz FROM operations WHERE company_id=c.id)) FROM companies c WHERE id=$1", cid)
 		if e != nil {
 			return Result{}, e
 		}
@@ -171,7 +174,28 @@ func (s *Service) admin(ctx context.Context, op string, p platform.Principal, r 
 		if e = s.DB.Audit(ctx, uid, cid, "admin_view_company", Doc{"ip": ip, "user_agent": agent}); e != nil {
 			return Result{}, e
 		}
-		return ok(rows[0])
+		company := rows[0]
+		sources, e := s.queryDocs(ctx, "SELECT (to_jsonb(s)-'config'-'config_secret'-'extra')||jsonb_build_object('records',(SELECT count(*) FROM operations WHERE source_id=s.id)) FROM sources s WHERE company_id=$1", cid)
+		if e != nil {
+			return Result{}, e
+		}
+		stats, e := s.queryDocs(ctx, "SELECT jsonb_build_object('count',count(*),'from',min(op_date),'to',max(op_date),'internal_count',count(*) FILTER(WHERE is_internal)) FROM operations WHERE company_id=$1", cid)
+		if e != nil {
+			return Result{}, e
+		}
+		forecasts, e := s.queryDocs(ctx, "SELECT payload FROM forecast_runs WHERE company_id=$1 ORDER BY created_at DESC LIMIT 1", cid)
+		if e != nil {
+			return Result{}, e
+		}
+		signals, e := s.queryDocs(ctx, "SELECT data||jsonb_build_object('id',id,'created_at',created_at) FROM product_documents WHERE kind='signal' AND company_id=$1 ORDER BY created_at DESC LIMIT 100", cid)
+		if e != nil {
+			return Result{}, e
+		}
+		var latest any
+		if len(forecasts) > 0 {
+			latest = forecasts[0]
+		}
+		return ok(Doc{"company": company, "sources": sources, "operations_stats": stats[0], "forecast": latest, "signals": signals})
 	case "listAdminIntegrations":
 		rows, e := s.queryDocs(ctx, `SELECT (to_jsonb(s)-'config'-'config_secret'-'extra')||jsonb_build_object('company',jsonb_build_object('id',c.id,'name',c.name),'records',(SELECT count(*) FROM operations WHERE source_id=s.id)) FROM sources s JOIN companies c ON c.id=s.company_id WHERE ($1='' OR s.kind=$1) AND ($2='' OR s.status=$2)`, q.Get("kind"), q.Get("status"))
 		if e != nil {
@@ -201,7 +225,13 @@ func (s *Service) admin(ctx context.Context, op string, p platform.Principal, r 
 		}
 		return Result{Status: 202, Body: j}, nil
 	case "listAdminModels":
-		return ok(s.ModelQuality())
+		models := s.ModelQuality()
+		for _, model := range models {
+			model["is_default"] = text(model, "name") == "auto"
+			model["trained_at"], model["companies"] = nil, nil
+			model["metrics"] = Doc{"wape_7": model["wape_7"], "wape_14": model["wape_14"], "wape_30": model["wape_30"], "coverage": model["coverage"], "gap_brier": model["gap_brier"], "gap_auc": model["gap_auc"], "gap_lead_days": model["gap_lead_days"]}
+		}
+		return ok(models)
 	case "getModelDrift":
 		rows, e := s.queryDocs(ctx, `SELECT jsonb_build_object('week',date_trunc('week',p.point_date)::date,'mean_absolute_error',avg(abs(p.p50-o.balance_eod))::float8,'samples',count(*)) FROM forecast_points p JOIN forecast_runs f ON f.id=p.run_id JOIN (SELECT company_id,op_date,max(balance_eod) AS balance_eod FROM operations WHERE balance_eod IS NOT NULL GROUP BY company_id,op_date) o ON o.company_id=f.company_id AND o.op_date=p.point_date WHERE p.point_date>f.as_of AND p.point_date>=current_date-28 GROUP BY date_trunc('week',p.point_date)`)
 		if e != nil {
@@ -253,6 +283,25 @@ func (s *Service) admin(ctx context.Context, op string, p platform.Principal, r 
 		}
 		d := rows[0]
 		if op == "getSignal" {
+			company, _ := d["company"].(map[string]any)
+			operations, e := s.queryDocs(ctx, "SELECT o.extra||(to_jsonb(o)-'extra') FROM operations o WHERE company_id=$1 AND id=$2", company["id"], text(d, "operation_id"))
+			if e != nil {
+				return Result{}, e
+			}
+			views := []Doc{}
+			for _, operation := range operations {
+				views = append(views, view("operation", operation))
+				d["counterparty"] = cpRef(text(operation, "company_id"), operation)
+			}
+			if len(views) == 0 {
+				d["counterparty"] = nil
+			}
+			d["operations"] = views
+			history, e := s.queryDocs(ctx, "SELECT data||jsonb_build_object('id',id,'created_at',created_at,'company',$2::jsonb) FROM product_documents WHERE kind='signal' AND company_id=$1 ORDER BY created_at DESC LIMIT 50", company["id"], string(store.JSON(company)))
+			if e != nil {
+				return Result{}, e
+			}
+			d["company_history"] = history
 			return ok(d)
 		}
 		if e = fields(b, "status resolution comment"); e != nil {

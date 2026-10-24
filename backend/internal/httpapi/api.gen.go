@@ -283,6 +283,73 @@ type Action struct {
 	Title string                 `json:"title"`
 }
 
+// AdminCompanyDetail defines model for AdminCompanyDetail.
+type AdminCompanyDetail struct {
+	Company  Company `json:"company"`
+	Forecast *struct {
+		AsOf         openapi_types.Date `json:"as_of"`
+		FallbackUsed bool               `json:"fallback_used"`
+		FlowScope    string             `json:"flow_scope"`
+		Gaps         []Gap              `json:"gaps"`
+		Headline     string             `json:"headline"`
+		History      []struct {
+			Balance *float64           `json:"balance"`
+			Date    openapi_types.Date `json:"date"`
+		} `json:"history"`
+		Horizon       int  `json:"horizon"`
+		LowConfidence bool `json:"low_confidence"`
+		Markers       []struct {
+			Amount float64            `json:"amount"`
+			Date   openapi_types.Date `json:"date"`
+			Kind   string             `json:"kind"`
+			Title  string             `json:"title"`
+		} `json:"markers"`
+		ModelUsed      string  `json:"model_used"`
+		ModelVersion   string  `json:"model_version"`
+		OpeningBalance float64 `json:"opening_balance"`
+		Points         []struct {
+			Date      openapi_types.Date `json:"date"`
+			IsWorkday bool               `json:"is_workday"`
+			P10       float64            `json:"p10"`
+			P50       float64            `json:"p50"`
+			P90       float64            `json:"p90"`
+		} `json:"points"`
+		SafeToSpend float64  `json:"safe_to_spend"`
+		Status      string   `json:"status"`
+		Warnings    []string `json:"warnings"`
+	} `json:"forecast"`
+	OperationsStats Object   `json:"operations_stats"`
+	Signals         []Object `json:"signals"`
+	Sources         []Source `json:"sources"`
+}
+
+// AdminModel defines model for AdminModel.
+type AdminModel struct {
+	Companies   *int     `json:"companies"`
+	Coverage    *float64 `json:"coverage"`
+	Description string   `json:"description"`
+	GapLeadDays *float64 `json:"gap_lead_days"`
+	GapRecall   *float64 `json:"gap_recall"`
+	IsDefault   bool     `json:"is_default"`
+	Limitations []string `json:"limitations"`
+	Metrics     struct {
+		Coverage    *float64 `json:"coverage"`
+		GapAuc      *float64 `json:"gap_auc"`
+		GapBrier    *float64 `json:"gap_brier"`
+		GapLeadDays *float64 `json:"gap_lead_days"`
+		Wape14      *float64 `json:"wape_14"`
+		Wape30      *float64 `json:"wape_30"`
+		Wape7       *float64 `json:"wape_7"`
+	} `json:"metrics"`
+	Name      string     `json:"name"`
+	Series    []Object   `json:"series"`
+	Source    string     `json:"source"`
+	TrainedAt *time.Time `json:"trained_at"`
+	Wape14    *float64   `json:"wape_14"`
+	Wape30    *float64   `json:"wape_30"`
+	Wape7     *float64   `json:"wape_7"`
+}
+
 // Alert defines model for Alert.
 type Alert struct {
 	Body      string             `json:"body"`
@@ -602,6 +669,22 @@ type ForecastAccuracy struct {
 	} `json:"items"`
 	MeanAbsoluteError *float32 `json:"mean_absolute_error"`
 	Samples           int      `json:"samples"`
+}
+
+// ForecastDay defines model for ForecastDay.
+type ForecastDay struct {
+	Components []struct {
+		Amount float64 `json:"amount"`
+		Kind   string  `json:"kind"`
+		Source string  `json:"source"`
+		Title  string  `json:"title"`
+	} `json:"components"`
+	ComponentsBasis string             `json:"components_basis"`
+	Date            openapi_types.Date `json:"date"`
+	IsWorkday       bool               `json:"is_workday"`
+	P10             float64            `json:"p10"`
+	P50             float64            `json:"p50"`
+	P90             float64            `json:"p90"`
 }
 
 // ForgotPasswordRequest defines model for ForgotPasswordRequest.
@@ -935,6 +1018,28 @@ type Signal struct {
 	Explanation map[string]interface{} `json:"explanation"`
 	Id          openapi_types.UUID     `json:"id"`
 	Kind        string                 `json:"kind"`
+	Resolution  *string                `json:"resolution"`
+	Severity    string                 `json:"severity"`
+	Status      string                 `json:"status"`
+}
+
+// SignalDetail defines model for SignalDetail.
+type SignalDetail struct {
+	Amount  *float64 `json:"amount"`
+	Company struct {
+		Id   openapi_types.UUID `json:"id"`
+		Name string             `json:"name"`
+	} `json:"company"`
+	CompanyHistory []Signal `json:"company_history"`
+	Counterparty   *struct {
+		Id   *openapi_types.UUID `json:"id"`
+		Name string              `json:"name"`
+	} `json:"counterparty"`
+	CreatedAt   time.Time              `json:"created_at"`
+	Explanation map[string]interface{} `json:"explanation"`
+	Id          openapi_types.UUID     `json:"id"`
+	Kind        string                 `json:"kind"`
+	Operations  []Operation            `json:"operations"`
 	Resolution  *string                `json:"resolution"`
 	Severity    string                 `json:"severity"`
 	Status      string                 `json:"status"`
@@ -5657,7 +5762,7 @@ type GetSignalResponseObject interface {
 	VisitGetSignalResponse(w http.ResponseWriter) error
 }
 
-type GetSignal200JSONResponse Object
+type GetSignal200JSONResponse SignalDetail
 
 func (response GetSignal200JSONResponse) VisitGetSignalResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
@@ -5830,7 +5935,7 @@ type GetAdminCompanyResponseObject interface {
 	VisitGetAdminCompanyResponse(w http.ResponseWriter) error
 }
 
-type GetAdminCompany200JSONResponse Object
+type GetAdminCompany200JSONResponse AdminCompanyDetail
 
 func (response GetAdminCompany200JSONResponse) VisitGetAdminCompanyResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
@@ -5944,7 +6049,7 @@ type ListAdminModelsResponseObject interface {
 	VisitListAdminModelsResponse(w http.ResponseWriter) error
 }
 
-type ListAdminModels200JSONResponse []Object
+type ListAdminModels200JSONResponse []AdminModel
 
 func (response ListAdminModels200JSONResponse) VisitListAdminModelsResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
@@ -7051,7 +7156,7 @@ type GetForecastDayResponseObject interface {
 	VisitGetForecastDayResponse(w http.ResponseWriter) error
 }
 
-type GetForecastDay200JSONResponse Object
+type GetForecastDay200JSONResponse ForecastDay
 
 func (response GetForecastDay200JSONResponse) VisitGetForecastDayResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")

@@ -49,6 +49,10 @@ func TestProductSourceAdaptersAndRecovery(t *testing.T) {
 	c := call("POST", "/v1/companies", product.Doc{"name": "Adapters", "legal_form": "ООО", "industry": "services", "inn": "7700000000"}, 201)
 	cid := c["id"].(string)
 	base := "/v1/companies/" + cid
+	emptyCompany := call("GET", "/v1/admin/companies/"+cid, nil, 200)
+	if emptyCompany["forecast"] != nil {
+		t.Fatal("empty company has a forecast")
+	}
 	upload := func(name string, data []byte, want int) product.Doc {
 		t.Helper()
 		buf := &bytes.Buffer{}
