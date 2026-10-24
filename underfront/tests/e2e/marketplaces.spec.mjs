@@ -19,10 +19,11 @@ test('isolated sandbox: WB/Ozon financial reports, duplicate sync and secret mas
   await page.getByRole('textbox', { name: 'Вид деятельности' }).fill('Tests');
   await page.getByRole('button', { name: 'Создать компанию', exact: true }).click();
   await expect(page).toHaveURL(/\/sources$/);
-  await expect(page.getByRole('status').filter({ hasText: 'ДЕМОНСТРАЦИЯ / MOCK' })).toBeVisible();
+  await page.getByRole('button', { name: /^Маркетплейсы Wildberries/ }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'Деморежим: ответы Wildberries и Ozon синтетические' })).toBeVisible();
   const workspace = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Маркетплейсы · отчёты продавца' }) });
   for (const provider of ['Wildberries', 'Ozon']) {
-    await workspace.getByRole('button', { name: 'Маркетплейс', exact: true }).click();
+    await workspace.getByRole('combobox', { name: 'Маркетплейс', exact: true }).click();
     await page.getByRole('option', { name: provider, exact: true }).click();
     if (provider === 'Ozon') await workspace.getByRole('textbox', { name: 'Client ID Ozon' }).fill('sandbox-client');
     await workspace.getByLabel('Ключ продавца маркетплейса', { exact: true }).fill('sandbox-key');
@@ -45,18 +46,25 @@ test('isolated sandbox: WB/Ozon financial reports, duplicate sync and secret mas
   const reports = await request.get(`${api}/v1/companies/${cid}/marketplace-reports`, { headers }); const data = await reports.json(); expect(data).toHaveLength(4);
   for (const row of data) { expect(row.data_mode).toBe('mock'); expect(row.forecast_eligible).toBe(false); expect(row.bank_fact).toBe(false); }
   const operations = await request.get(`${api}/v1/companies/${cid}/operations`, { headers }); expect((await operations.json()).items).toHaveLength(0);
-  await page.reload(); await expect(workspace.getByRole('article')).toHaveCount(4);
+  await page.reload();
+  await page.getByRole('button', { name: /^Маркетплейсы Wildberries/ }).click();
+  await expect(workspace.getByRole('article')).toHaveCount(4);
+  await page.getByRole('dialog').getByRole('button', { name: 'Закрыть', exact: true }).click();
   const wbSource=page.getByRole('article').filter({has:page.getByRole('heading',{name:'Wildberries · отчёты продавца',exact:true})});
-  await wbSource.getByRole('button',{name:'Доступ и параметры',exact:true}).click();
+  await wbSource.getByRole('button',{name:'Настроить',exact:true}).click();
   const credentials=page.getByRole('dialog');
   await credentials.getByLabel('Новый ключ доступа',{exact:true}).fill('sandbox-key');
   await credentials.getByRole('button',{name:'Сохранить параметры',exact:true}).click();
   await expect(credentials).toHaveCount(0);
   await expect(wbSource).toContainText('Ожидает проверки');
+  await wbSource.getByText('Ещё действия', { exact: true }).click();
   await wbSource.getByRole('button',{name:'Проверить',exact:true}).click();
   await expect(wbSource).toContainText('Готово');
   const shots = process.env.E2E_SCREENSHOTS_DIR || path.resolve('test-results/screenshots'); mkdirSync(shots, { recursive: true });
+  await page.getByRole('button', { name: /^Маркетплейсы Wildberries/ }).click();
   await workspace.screenshot({ path: path.join(shots, 'marketplace-sandbox-reports.png') });
+  await page.getByRole('dialog').getByRole('button', { name: 'Закрыть', exact: true }).click();
+  await page.getByRole('button', { name: /^Google Sheets Операции/ }).click();
   const sheet = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Google Sheets · предпросмотр и импорт', exact: true }) });
   await sheet.getByLabel('ID таблицы Google Sheets', { exact: true }).fill('synthetic-sheet');
   await sheet.getByLabel('Ключ доступа Google Sheets', { exact: true }).fill('sandbox-key');
@@ -71,5 +79,6 @@ test('isolated sandbox: WB/Ozon financial reports, duplicate sync and secret mas
   await page.reload();
   const persisted = await request.get(`${api}/v1/companies/${cid}/operations`, { headers });
   expect((await persisted.json()).items).toHaveLength(1);
+  await page.getByRole('button', { name: /^Google Sheets Операции/ }).click();
   await sheet.screenshot({ path: path.join(shots, 'sheets-sandbox-import.png') });
 });

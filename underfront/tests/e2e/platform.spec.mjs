@@ -69,6 +69,7 @@ test('anonymous data is protected and an unavailable source fails clearly', asyn
   await login(page, user.email);
   await createCompany(page, 'E2E empty company');
   await expect(page.getByRole('heading', { name: 'Источники данных' })).toBeVisible();
+  await page.getByRole('button', { name: /^1С Подключение/ }).click();
   await page.getByRole('textbox', { name: 'Адрес OData 1С' }).fill('https://example.invalid/odata/');
   await page.getByRole('textbox', { name: 'ИНН компании' }).fill('7725895601');
   await page.getByText('Дополнительно: номер счёта вручную', { exact: true }).click();
@@ -178,11 +179,13 @@ test('synthetic CSV drives dashboard, forecast and a persistent manual event', a
     if (failJobPoll) { failJobPoll = false; return route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ message: 'E2E polling outage' }) }); }
     return route.continue();
   });
+  await page.getByRole('button', { name: /^Банковская выписка/ }).click();
   await page.locator('input[type="file"][accept=".csv,.xlsx,.txt,.1c"]').setInputFiles({ name: 'synthetic-statement.csv', mimeType: 'text/csv', buffer: Buffer.from(csv) });
   await expect(page.getByRole('alert').filter({ hasText: 'Проверка задания приостановлена' })).toBeVisible();
   await page.getByRole('button', { name: 'Повторить проверку задания' }).click();
   const report = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Результат импорта' }) });
   await expect(report).toContainText('240', { timeout: 60_000 });
+  await page.getByRole('dialog').getByRole('button', { name: 'Закрыть', exact: true }).click();
 
   await navigate(page, '/overview');
   await expect(page.getByRole('heading', { name: /Финансовый прогноз/ })).toBeVisible({ timeout: 60_000 });
@@ -197,14 +200,14 @@ test('synthetic CSV drives dashboard, forecast and a persistent manual event', a
   expect(dashboard.warnings).not.toContain('ml_service_fallback');
   await navigate(page, '/forecast');
   await expect(page.getByRole('heading', { name: 'Денежный остаток' })).toBeVisible();
-  await page.getByRole('button', { name: 'Горизонт прогноза' }).click();
+  await page.getByRole('combobox', { name: 'Горизонт прогноза' }).click();
   const [forecastResponse] = await Promise.all([
     page.waitForResponse(response => response.url().includes('/forecast?') && new URL(response.url()).searchParams.get('horizon') === '60'),
     page.getByRole('option', { name: '60 дней', exact: true }).click(),
   ]);
   expect(forecastResponse.status()).toBe(200);
   expect((await forecastResponse.json()).points).toHaveLength(60);
-  await expect(page.getByRole('button', { name: 'Горизонт прогноза' })).toContainText('60 дней');
+  await expect(page.getByRole('combobox', { name: 'Горизонт прогноза' })).toContainText('60 дней');
   await expect(page.locator('main').getByRole('alert')).toHaveCount(0);
 
   await navigate(page, '/calendar');
@@ -250,12 +253,12 @@ test('synthetic CSV drives dashboard, forecast and a persistent manual event', a
     if(route==='/notifications'){
       await expect(page.getByRole('article')).toHaveCount(1);
       await page.getByRole('button',{name:'Прочитать все',exact:true}).click();
-      await page.getByRole('button',{name:'Прочтение',exact:true}).click();
+      await page.getByRole('combobox',{name:'Прочтение',exact:true}).click();
       await page.getByRole('option',{name:'Прочитанные',exact:true}).click();
       await expect(page.getByRole('article')).toHaveCount(1);
       await page.getByRole('button',{name:'Отметить непрочитанным',exact:true}).click();
       await expect(page.getByRole('article')).toHaveCount(0);
-      await page.getByRole('button',{name:'Прочтение',exact:true}).click();
+      await page.getByRole('combobox',{name:'Прочтение',exact:true}).click();
       await page.getByRole('option',{name:'Непрочитанные',exact:true}).click();
       await expect(page.getByRole('article')).toHaveCount(1);
     }

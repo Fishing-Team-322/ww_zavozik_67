@@ -48,7 +48,8 @@ function DocumentsPanel({ kind }: { kind: Kind }) {
 function DocumentEditor({ kind, base, initial, onClose }: { kind: Kind; base: string; initial: Invoice | Contract | null; onClose: () => void }) {
   const invoice = initial && "amount" in initial ? initial : null;
   const contract = initial && "total" in initial ? initial : null;
-  const [schedule, setSchedule] = useState<Schemas["CreateContractInput"]["schedule"]>(contract?.schedule.map(item => ({ date: item.date, amount: item.amount, status: (["expected", "received", "missed", "cancelled"].includes(item.status) ? item.status : "expected") as NonNullable<Schemas["CreateContractInput"]["schedule"][number]["status"]> })) ?? [{ date: today(), amount: 0, status: "expected" }]);
+  type Schedule = NonNullable<Schemas["CreateContractInput"]["schedule"]>;
+  const [schedule, setSchedule] = useState<Schedule>(contract?.schedule.map(item => ({ date: item.date, amount: item.amount, status: (["expected", "received", "missed", "cancelled"].includes(item.status) ? item.status : "expected") as NonNullable<Schedule[number]["status"]> })) ?? [{ date: today(), amount: 0, status: "expected" }]);
   const action = useAction();
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault(); const form = new FormData(e.currentTarget);

@@ -14,13 +14,14 @@ test('browser registration and XLSX mapping preserve cents, zero balance and dup
  await page.getByRole('button',{name:'Создать компанию',exact:true}).click();await expect(page).toHaveURL(/\/sources$/);
  const api=process.env.E2E_API_URL||'http://localhost:8080';const login=await request.post(`${api}/v1/auth/login`,{data:{email,password}});expect(login.status()).toBe(200);
  const headers={Authorization:`Bearer ${(await login.json()).access_token}`};const profile=await request.get(`${api}/v1/me`,{headers});const cid=(await profile.json()).companies[0].id;
+ await page.getByRole('button',{name:/^Банковская выписка/}).click();
  const file=page.locator('input[accept=".csv,.xlsx,.txt,.1c"]');
  const mapping=page.locator('section').filter({has:page.getByRole('heading',{name:'Сопоставление колонок',exact:true})});
  for(let run=0;run<2;run++){
   await file.setInputFiles(path.resolve('tests/fixtures/mapping.xlsx'));
   await expect(mapping).toBeVisible();
   for(const [label,column] of [['Дата *','booked'],['Сумма *','value'],['Направление','flow'],['Остаток на конец дня','closing']]){
-   await mapping.getByRole('button',{name:label,exact:true}).click();await page.getByRole('option',{name:column,exact:true}).click();
+   await mapping.getByRole('combobox',{name:label,exact:true}).click();await page.getByRole('option',{name:column,exact:true}).click();
   }
   await mapping.getByRole('button',{name:'Запустить импорт',exact:true}).click();
   const report=page.locator('section').filter({has:page.getByRole('heading',{name:'Результат импорта',exact:true})});
@@ -36,6 +37,7 @@ test('browser registration and XLSX mapping preserve cents, zero balance and dup
  await page.getByLabel('Вид деятельности',{exact:true}).fill('Tests');
  await page.getByLabel('ИНН',{exact:true}).fill('7707083893');
  await page.getByRole('button',{name:'Создать компанию',exact:true}).click();await expect(page).toHaveURL(/\/sources$/);
+ await page.getByRole('button',{name:/^1С Подключение/}).click();
  await page.getByRole('button',{name:'Импортировать файлы из 1С',exact:true}).click();
  await expect(page.getByLabel('Адрес OData 1С',{exact:true})).toHaveCount(0);
  await page.getByRole('button',{name:'Перейти к импорту банковской выписки',exact:true}).click();

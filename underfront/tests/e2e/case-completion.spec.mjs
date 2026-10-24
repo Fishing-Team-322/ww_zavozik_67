@@ -33,7 +33,7 @@ test('confirmed tax reaches the forecast and plan-fact observes a new statement 
   await page.goto('/plan-fact');await expect(page.getByRole('img',{name:'График плана и факта: пропуски выписки не заменяются нулём'})).toBeVisible();await expect(page.getByText('Пропущенных платежей нет',{exact:true})).toBeVisible();
   let update=csvHeader;for(let i=1;i<=3;i++){const dt=new Date(end);dt.setUTCDate(dt.getUTCDate()+i);const date=dt.toISOString().slice(0,10);const weekday=![0,6].includes(dt.getUTCDay());const incoming=weekday?2000:0,outgoing=weekday?1900:0;balance+=incoming-outgoing;update+=`${date};${incoming};in;Тестовый клиент;Оплата услуг по договору;${balance};new-in-${i}\n${date};${outgoing};out;Тестовый поставщик;Оплата материалов;${balance};new-out-${i}\n`;}
   await upload(update);
-  await expect(page.getByText(/Поступление для проверки обновлений ·/)).toBeVisible({timeout:30000});
+  await expect(page.getByRole('row').filter({hasText:'Поступление для проверки обновлений'})).toBeVisible({timeout:30000});
   await page.screenshot({path:path.join(screenshotDir,'plan-fact-synthetic.png'),fullPage:true});
   const alerts=await request.get(`${base}/alerts?kind=missed_payment`,{headers});expect((await alerts.json()).items.length).toBeGreaterThan(0);
   expect(errors).toEqual([]);

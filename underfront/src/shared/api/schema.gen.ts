@@ -1820,10 +1820,10 @@ export interface components {
         /** @enum {string} */
         TaxRegime: "usn6" | "usn15" | "osno" | "eshn" | "unknown";
         /** @enum {string} */
-        SourceKind: "upload" | "onec_bank_file" | "excel" | "gsheets" | "onec_odata" | "wb" | "ozon" | "fns" | "manual";
+        SourceKind: "upload" | "onec_bank_file" | "excel" | "gsheets" | "onec_odata" | "bank_api" | "tax_api" | "wb" | "ozon" | "fns" | "manual";
         Source: {
             /** @enum {string|null} */
-            data_mode?: "live" | "mock" | null;
+            data_mode?: "live" | "mock" | "demo" | "unverified" | null;
             /** Format: uuid */
             id: string;
             kind: string;
@@ -1974,6 +1974,11 @@ export interface components {
             is_workday: boolean;
         };
         Gap: {
+            /** Format: date */
+            worst_date?: string;
+            /** @description Probability of falling below reserve on the first risk date. probability is the risk anywhere in the horizon. */
+            probability_on_date?: number;
+            explanation?: components["schemas"]["GapExplanation"];
             id: string;
             /** Format: date */
             date: string;
@@ -1987,6 +1992,10 @@ export interface components {
             headline: string;
         };
         Forecast: {
+            /** @description fresh_paths, reused_paths or updated_from_actuals. Empty for fallback. */
+            update_mode?: string;
+            /** @description Last date observed by the model used for the stored paths. May precede as_of when new actuals rebase the forecast. */
+            model_as_of?: string;
             /** Format: date */
             as_of: string;
             horizon: number;
@@ -2086,6 +2095,8 @@ export interface components {
             observed: boolean;
         };
         PlannedEvent: {
+            /** @description true adds this obligation to the modeled business flow; false explicitly marks it as already covered. */
+            additional?: boolean;
             /** Format: uuid */
             id: string;
             /** Format: date */
@@ -2102,7 +2113,7 @@ export interface components {
             status: string;
             editable: boolean;
             /** Format: uuid */
-            source_id?: string;
+            source_id?: string | null;
             external_id?: string;
             /** Format: date */
             due_date?: string | null;
@@ -2114,6 +2125,20 @@ export interface components {
             remaining_kopecks?: number;
             forecast_eligible?: boolean;
             link_status?: string;
+            /**
+             * Format: uuid
+             * @description Canonical obligation for a linked bank payment order; the order is excluded from financial totals.
+             */
+            linked_event_id?: string;
+            /** @description Bank payment orders describing this same obligation. */
+            linked_sources?: {
+                /** Format: uuid */
+                event_id: string;
+                /** Format: uuid */
+                source_id: string | null;
+                source: string;
+                external_id: string;
+            }[];
             data_mode?: string;
             payment_status?: string;
             /** Format: int64 */
@@ -2192,6 +2217,8 @@ export interface components {
             name: string;
         };
         Invoice: {
+            /** @description true adds this obligation to the modeled business flow; false explicitly marks it as already covered. */
+            additional?: boolean;
             /** Format: uuid */
             id: string;
             number: string;
@@ -2211,6 +2238,12 @@ export interface components {
             source: string;
         };
         Contract: {
+            /** Format: date */
+            start_date?: string | null;
+            /** @enum {string|null} */
+            schedule_mode?: "terms" | "explicit" | null;
+            /** @description true adds this obligation to the modeled business flow; false explicitly marks it as already covered. */
+            additional?: boolean;
             /** Format: uuid */
             id: string;
             number: string;
@@ -2361,6 +2394,11 @@ export interface components {
             counterparty_inn?: string;
         };
         CreateContractInput: {
+            /**
+             * Format: date
+             * @description Advance is due on start_date, balance after deferral_days. Explicit schedule contains final dates.
+             */
+            start_date?: string;
             number: string;
             direction: components["schemas"]["Direction"];
             /** Format: double */
@@ -2368,7 +2406,7 @@ export interface components {
             /** Format: double */
             prepayment?: number;
             deferral_days?: number;
-            schedule: {
+            schedule?: {
                 /** Format: date */
                 date: string;
                 /** Format: double */
@@ -2381,6 +2419,11 @@ export interface components {
             counterparty_inn?: string;
         };
         UpdateContractInput: {
+            /**
+             * Format: date
+             * @description Advance is due on start_date, balance after deferral_days. Explicit schedule contains final dates.
+             */
+            start_date?: string;
             number?: string;
             direction?: components["schemas"]["Direction"];
             /** Format: double */
@@ -2410,7 +2453,7 @@ export interface components {
         };
         CreateSourceInput: {
             /** @enum {string} */
-            kind: "upload" | "onec_bank_file" | "excel" | "gsheets" | "onec_odata" | "wb" | "ozon" | "fns" | "manual";
+            kind: "upload" | "onec_bank_file" | "excel" | "gsheets" | "onec_odata" | "bank_api" | "tax_api" | "wb" | "ozon" | "fns" | "manual";
             title: string;
             /** @description Для onec_odata шаблон accounting3 принимает base_url, company_account, username и password; сервер подбирает OData маппинг по ИНН компании и номеру счёта. Данные подключения не возвращаются в Source. */
             config?: {
@@ -2827,6 +2870,59 @@ export interface components {
             /** Format: date-time */
             last_job_finished_at: string | null;
             last_job_error: string | null;
+        };
+        GapExplanation: {
+            /** Format: date */
+            date: string;
+            opening_balance: number;
+            inflow: number;
+            outflow: number;
+            balance: number;
+            reserve: number;
+            shortfall: number;
+            /** @enum {string} */
+            basis: "median_balance_paths";
+            summary: string;
+        };
+        /** @description Read-only GET response from an operator-approved bank_api or tax_api gateway. Bearer token is stored encrypted in source config. A complete snapshot is required; missing unpaid records are cancelled. This is a connector protocol, not a declaration of access to a particular bank. */
+        ExternalObligationFeed: {
+            company_inn: string;
+            /** Format: date */
+            as_of: string;
+            /** @enum {string} */
+            data_mode?: "demo" | "live";
+            /** @enum {boolean} */
+            complete: true;
+            items: components["schemas"]["ExternalObligation"][];
+        };
+        ExternalObligation: {
+            external_id: string;
+            /**
+             * Format: uuid
+             * @description Optional explicit reference to an existing payment event in this company. Amount, direction and date must agree.
+             */
+            related_event_id?: string;
+            /** @description Optional invoice number for unambiguous linking with matching party, amount, direction and date. Ambiguous orders remain separate. */
+            document_number?: string;
+            /** @enum {string} */
+            kind: "loan_payment" | "salary" | "payment_order" | "tax";
+            title: string;
+            /** Format: date */
+            due_date?: string;
+            /** Format: int64 */
+            amount_kopecks: number;
+            direction: components["schemas"]["Direction"];
+            /** @enum {string} */
+            status: "expected" | "paid" | "cancelled";
+            counterparty_name?: string;
+            counterparty_inn?: string;
+            /** @default true */
+            additional: boolean;
+            /** @enum {string} */
+            tax_kind?: "usn_advance" | "usn_annual" | "vat" | "enp" | "contributions" | "other";
+            /** @description For ENP m01..m12 is the payment month; for employer contributions it is the accrual month, payable in the following month. Other contributions require an explicit due_date. */
+            period?: string;
+            year?: number;
         };
     };
     responses: {

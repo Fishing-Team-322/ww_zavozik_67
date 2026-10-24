@@ -22,7 +22,7 @@ test('invoice partial payment, recurring schedule, settings, export and theme pe
   await dialog.getByLabel('Контрагент', { exact: true }).fill('Synthetic customer');
   await dialog.getByLabel('Сумма, ₽', { exact: true }).fill('350000');
   await dialog.getByLabel('Оплачено, ₽', { exact: true }).fill('100000');
-  await dialog.getByRole('button', { name: 'Статус', exact: true }).click();
+  await dialog.getByRole('combobox', { name: 'Статус', exact: true }).click();
   await page.getByRole('option', { name: 'Частично оплачен', exact: true }).click();
   await dialog.getByRole('button', { name: 'Сохранить', exact: true }).click();
   await expect(dialog).toHaveCount(0);
@@ -34,7 +34,7 @@ test('invoice partial payment, recurring schedule, settings, export and theme pe
   const facts = await request.get(`${api}/v1/companies/${cid}/operations`, { headers }); expect((await facts.json()).items).toHaveLength(0);
   await row.getByRole('button', { name: 'Изменить', exact: true }).click();
   await dialog.getByLabel('Оплачено, ₽', { exact: true }).fill('350000');
-  await dialog.getByRole('button', { name: 'Статус', exact: true }).click(); await page.getByRole('option', { name: 'Оплачен', exact: true }).click();
+  await dialog.getByRole('combobox', { name: 'Статус', exact: true }).click(); await page.getByRole('option', { name: 'Оплачен', exact: true }).click();
   await dialog.getByRole('button', { name: 'Сохранить', exact: true }).click(); await expect(dialog).toHaveCount(0);
   await page.reload(); await expect(row).toContainText('Оплачен');
   await page.getByRole('tab',{name:'Договоры',exact:true}).click();
