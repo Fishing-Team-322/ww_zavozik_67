@@ -1,0 +1,43 @@
+{
+  "base_url": "http://127.0.0.1:8092/odata/standard.odata/",
+  "company_id": "demo-company",
+  "company_inn": "7700000000",
+  "company_account": "40702810000000000001",
+  "account_map": {
+    "bank-account-1": "40702810000000000001"
+  },
+  "collections": [
+    {
+      "entity_set": "Document_BankReceipt",
+      "direction": "in",
+      "fields": {
+        "external_id": "Ref_Key",
+        "number": "Number",
+        "document_date": "Date",
+        "execution_date": "ExecutionDate",
+        "amount": "Amount",
+        "posted": "Posted",
+        "account_key": "Account_Key",
+        "counterparty_inn": "Counterparty.INN",
+        "counterparty_name": "Counterparty.Description",
+        "purpose": "PaymentPurpose"
+      }
+    },
+    {
+      "entity_set": "Document_BankPayment",
+      "direction": "out",
+      "fields": {
+        "external_id": "Ref_Key",
+        "number": "Number",
+        "document_date": "Date",
+        "execution_date": "ExecutionDate",
+        "amount": "Amount",
+        "posted": "Posted",
+        "account_key": "Account_Key",
+        "counterparty_inn": "Counterparty.INN",
+        "counterparty_name": "Counterparty.Description",
+        "purpose": "PaymentPurpose"
+      }
+    }
+  ]
+}

@@ -23,6 +23,7 @@ import (
 	"strings"
 
 	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/categorize"
+	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/csvout"
 	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/dataset"
 	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/domain"
 	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/ingest"
@@ -59,16 +60,14 @@ func main() {
 	if err != nil {
 		fail(err)
 	}
-	defer out.Close()
-	w := csv.NewWriter(out)
-	defer w.Flush()
+	w := csvout.New(out)
 
 	header := []string{"company_id", "industry", "date", "inflow", "outflow", "missing", "balance"}
 	header = append(header, "missing_known_on")
 	for _, c := range domain.AllCategories {
 		header = append(header, "cat_"+string(c))
 	}
-	_ = w.Write(header)
+	w.Write(header)
 
 	cat := categorize.Chain{Steps: []categorize.Categorizer{categorize.DefaultRules}, Threshold: 0.5}
 	rows := 0
@@ -107,13 +106,12 @@ func main() {
 			for _, c := range domain.AllCategories {
 				rec = append(rec, fl.ByCategory[c].String())
 			}
-			_ = w.Write(rec)
+			w.Write(rec)
 			rows++
 		}
 	}
-	w.Flush()
-	if err := w.Error(); err != nil {
-		fail(err)
+	if err := w.Close(); err != nil {
+		fail(fmt.Errorf("write output %s: %w", *outPath, err))
 	}
 	meta, err := json.MarshalIndent(map[string]any{"schema_version": 2, "target": "business_without_internal_transfers", "companies": quality}, "", "  ")
 	if err != nil {
