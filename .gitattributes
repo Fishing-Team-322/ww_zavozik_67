@@ -1,0 +1,2 @@
+# TSV fixtures deliberately retain trailing separators for empty text fields.
+ml/zavozik_ml/classify_v2/*.tsv whitespace=-blank-at-eol

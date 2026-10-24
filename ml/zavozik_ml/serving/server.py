@@ -25,7 +25,7 @@ from zavozik_ml import forecasters
 from zavozik_ml.forecasters.base import domain_warnings, select_model
 from zavozik_ml import calendar as cal
 from zavozik_ml.forecasters import models  # noqa: F401 — регистрирует все модели
-from zavozik_ml.serving import categorizer
+from zavozik_ml.serving import categorizer, categorizer_v2
 from zavozik_ml.provenance import source_fingerprint
 from zavozik_ml.classify.text import CATEGORIES
 
@@ -186,13 +186,14 @@ def load_artifacts(directory: Path) -> list[str]:
     return loaded
 
 
-def build_server(addr: str, workers: int = 8, classifier=None) -> tuple[grpc.Server, int]:
+def build_server(addr: str, workers: int = 8, classifier=None, classifier_v2=None) -> tuple[grpc.Server, int]:
     server = grpc.server(
         futures.ThreadPoolExecutor(max_workers=workers),
         options=[("grpc.max_receive_message_length", 64 << 20), ("grpc.max_send_message_length", 64 << 20)],
     )
     pb_grpc.add_ForecasterServiceServicer_to_server(ForecasterService(), server)
     categorizer.register(server, classifier)
+    categorizer_v2.register(server, classifier_v2)
     port = server.add_insecure_port(addr)
     return server, port
 
@@ -205,7 +206,14 @@ def main() -> None:
     log.info("artifacts %s: loaded %s", artifacts, loaded or "none")
     clf = categorizer.load_classifier(artifacts / "classifier")
     log.info("classifier: %s", categorizer.model_version(clf) if clf else "none")
-    server, _ = build_server(addr, classifier=clf)
+    clf_v2 = None
+    if path_v2 := os.environ.get("ML_CLASSIFIER_V2"):
+        # Explicit configuration must fail startup on invalid/missing weights;
+        # do not silently serve another model with a different contract.
+        from zavozik_ml.classify_v2.model import EncoderClassifier
+        clf_v2 = EncoderClassifier.load(Path(path_v2), backend=os.environ.get("ML_CLASSIFIER_V2_BACKEND") or None)
+        log.info("classifier_v2: %s taxonomy=%s", clf_v2.model_version, clf_v2.taxonomy.version)
+    server, _ = build_server(addr, classifier=clf, classifier_v2=clf_v2)
     server.start()
     log.info("ml listening on %s, ready models: %s, auto=%s", addr,
              [m.name for m in forecasters.all_models() if m.ready], forecasters.default_model())
