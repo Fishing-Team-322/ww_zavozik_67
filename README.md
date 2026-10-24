@@ -10,6 +10,7 @@
 - [Прогресс](docs/PROGRESS.md) — состояние реализации, доказательства и следующие шаги.
 - [Детали реализации](docs/IMPLEMENTATION_NOTES.md) — ограничения и подводные камни.
 - [Полный API бэкенда](docs/BACKEND_API.md) — маршруты, источники, worker и ограничения расчётов.
+- [Подключение фронта к API](docs/FRONTEND_INTEGRATION.md) — рабочие экраны, запуск и сквозные проверки.
 
 ## Состав
 
@@ -19,7 +20,7 @@
 | `proto/` | контракт бэкенд ↔ ML | gRPC, buf |
 | `backend/` | API, воркер, бот, бэктест, вся бизнес-логика | Go 1.26 |
 | `ml/` | ML-сервис прогноза, обучение, оценка | Python 3.12+ |
-| `web/` | фронтенд | на выбор фронтендера |
+| `underfront/` | рабочий фронтенд | Next.js / React / TypeScript |
 | `infra/` | docker-compose | Postgres 17 |
 
 ## Быстрый старт
@@ -52,7 +53,8 @@ cd backend && go run ./cmd/api
 Финансовые методы используют постоянные данные компании; все маршруты документа
 экранов включены в OpenAPI. Настройка интеграций — в [инструкции API](docs/BACKEND_API.md).
 
-Фронту до готовности API — мок по контракту:
+Фронтенд работает с API; запуск — в [underfront/README.md](underfront/README.md).
+Для отдельной проверки контракта также доступен mock:
 
 ```bash
 npx @stoplight/prism-cli mock api/openapi.yaml

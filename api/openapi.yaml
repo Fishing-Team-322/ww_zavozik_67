@@ -249,7 +249,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Object'
+                $ref: '#/components/schemas/UploadMappingResult'
         '202':
           description: Import queued
           content:
@@ -1274,7 +1274,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Object'
+                $ref: '#/components/schemas/Dashboard'
   /v1/companies/{companyId}/forecast/days/{date}:
     get:
       tags:
@@ -1392,7 +1392,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Object'
+                $ref: '#/components/schemas/GapSimulation'
       requestBody:
         required: true
         content:
@@ -1452,7 +1452,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Object'
+                $ref: '#/components/schemas/OperationsSummary'
   /v1/companies/{companyId}/operations/recategorize:
     post:
       tags:
@@ -1883,7 +1883,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Object'
+                $ref: '#/components/schemas/UploadPreview'
   /v1/uploads/{uploadId}/mapping:
     post:
       tags:
@@ -1980,7 +1980,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Object'
+                $ref: '#/components/schemas/Calendar'
   /v1/scenario-presets:
     get:
       tags:
@@ -3379,20 +3379,22 @@ components:
       - p10
       - p50
       - p90
+      - is_workday
       properties:
         date:
           type: string
           format: date
         p10:
           type: number
+          format: double
         p50:
           type: number
+          format: double
         p90:
           type: number
-        components:
-          type: array
-          items:
-            $ref: '#/components/schemas/ForecastComponent'
+          format: double
+        is_workday:
+          type: boolean
     Gap:
       type: object
       required:
@@ -5086,3 +5088,340 @@ components:
                 type: string
         components_basis:
           type: string
+    Calendar:
+      type: object
+      required:
+      - calendar_source
+      - days
+      properties:
+        calendar_source:
+          type: string
+        days:
+          type: array
+          items:
+            type: object
+            required:
+            - date
+            - is_workday
+            - balance_p50
+            - risk
+            - events
+            properties:
+              date:
+                type: string
+                format: date
+              is_workday:
+                type: boolean
+              balance_p50:
+                type: number
+                format: double
+                nullable: true
+              risk:
+                type: string
+                enum:
+                - unknown
+                - ok
+                - warning
+                - danger
+              events:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PlannedEvent'
+    Dashboard:
+      type: object
+      required:
+      - status
+      - headline
+      - balance_now
+      - safe_to_spend
+      - min_balance
+      - low_confidence
+      - data_as_of
+      - forecast
+      - upcoming_in
+      - upcoming_out
+      - alerts
+      - top_gap
+      properties:
+        status:
+          type: string
+          enum:
+          - empty
+          - ok
+          - warning
+          - danger
+        headline:
+          type: string
+        balance_now:
+          type: number
+          format: double
+          nullable: true
+        safe_to_spend:
+          type: number
+          format: double
+          nullable: true
+        min_balance:
+          type: object
+          required:
+          - date
+          - p50
+          properties:
+            date:
+              type: string
+              format: date
+            p50:
+              type: number
+              format: double
+          nullable: true
+        low_confidence:
+          type: boolean
+        data_as_of:
+          type: string
+          format: date
+          nullable: true
+        forecast:
+          type: object
+          required:
+          - as_of
+          - horizon
+          - model_used
+          - model_version
+          - flow_scope
+          - fallback_used
+          - warnings
+          - low_confidence
+          - opening_balance
+          - safe_to_spend
+          - status
+          - headline
+          - history
+          - points
+          - markers
+          - gaps
+          properties:
+            as_of:
+              type: string
+              format: date
+            horizon:
+              type: integer
+            model_used:
+              type: string
+            model_version:
+              type: string
+            flow_scope:
+              type: string
+            fallback_used:
+              type: boolean
+            warnings:
+              type: array
+              items:
+                type: string
+            low_confidence:
+              type: boolean
+            opening_balance:
+              type: number
+              format: double
+            safe_to_spend:
+              type: number
+              format: double
+            status:
+              type: string
+            headline:
+              type: string
+            history:
+              type: array
+              items:
+                type: object
+                required:
+                - date
+                - balance
+                properties:
+                  date:
+                    type: string
+                    format: date
+                  balance:
+                    type: number
+                    format: double
+                    nullable: true
+            points:
+              type: array
+              items:
+                type: object
+                required:
+                - date
+                - p10
+                - p50
+                - p90
+                - is_workday
+                properties:
+                  date:
+                    type: string
+                    format: date
+                  p10:
+                    type: number
+                    format: double
+                  p50:
+                    type: number
+                    format: double
+                  p90:
+                    type: number
+                    format: double
+                  is_workday:
+                    type: boolean
+            markers:
+              type: array
+              items:
+                type: object
+                required:
+                - date
+                - title
+                - amount
+                - kind
+                properties:
+                  date:
+                    type: string
+                    format: date
+                  title:
+                    type: string
+                  amount:
+                    type: number
+                    format: double
+                  kind:
+                    type: string
+            gaps:
+              type: array
+              items:
+                $ref: '#/components/schemas/Gap'
+          nullable: true
+        upcoming_in:
+          type: array
+          items:
+            $ref: '#/components/schemas/PlannedEvent'
+        upcoming_out:
+          type: array
+          items:
+            $ref: '#/components/schemas/PlannedEvent'
+        alerts:
+          type: array
+          items:
+            $ref: '#/components/schemas/Alert'
+        top_gap:
+          type: object
+          required:
+          - id
+          - date
+          - shortfall
+          - shortfall_p90
+          - probability
+          - days_left
+          - headline
+          properties:
+            id:
+              type: string
+            date:
+              type: string
+              format: date
+            shortfall:
+              type: number
+              format: double
+            shortfall_p90:
+              type: number
+              format: double
+            probability:
+              type: number
+              format: double
+            days_left:
+              type: integer
+            headline:
+              type: string
+          nullable: true
+    OperationsSummary:
+      type: object
+      required:
+      - total_in
+      - total_out
+      - net
+      - internal_total
+      - by_category
+      properties:
+        total_in:
+          type: number
+          format: double
+        total_out:
+          type: number
+          format: double
+        net:
+          type: number
+          format: double
+        internal_total:
+          type: number
+          format: double
+        by_category:
+          type: array
+          items:
+            type: object
+            required:
+            - category
+            - in
+            - out
+            - count
+            properties:
+              category:
+                $ref: '#/components/schemas/Category'
+              in:
+                type: number
+                format: double
+              out:
+                type: number
+                format: double
+              count:
+                type: integer
+    GapSimulation:
+      type: object
+      required:
+      - points
+      - gaps
+      properties:
+        points:
+          type: array
+          items:
+            $ref: '#/components/schemas/ForecastPoint'
+        gaps:
+          type: array
+          items:
+            $ref: '#/components/schemas/Gap'
+    UploadMappingResult:
+      type: object
+      required:
+      - upload_id
+      - detected_format
+      - needs_mapping
+      properties:
+        upload_id:
+          type: string
+          format: uuid
+        detected_format:
+          type: string
+        needs_mapping:
+          type: boolean
+    UploadPreview:
+      type: object
+      required:
+      - columns
+      - rows
+      - proposed_mapping
+      properties:
+        columns:
+          type: array
+          items:
+            type: string
+        rows:
+          type: array
+          items:
+            type: array
+            items:
+              type: string
+        proposed_mapping:
+          type: object
+          additionalProperties:
+            type: string

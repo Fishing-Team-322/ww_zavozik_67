@@ -6,7 +6,7 @@ import { SidebarShell, type SidebarShellProps } from "./SidebarShell";
 /** Постоянная оболочка приложения, монтируется в корневом layout. */
 export function CabinetShell(props: SidebarShellProps) {
   const pathname = usePathname();
-  if (pathname === "/login" || pathname === "/register" || pathname === "/forgot-password") return <>{props.children}</>;
+  if (["/login", "/register", "/forgot-password", "/reset-password", "/auth/callback"].includes(pathname || '')) return <>{props.children}</>;
 
   return <SidebarShell {...props} />;
 }

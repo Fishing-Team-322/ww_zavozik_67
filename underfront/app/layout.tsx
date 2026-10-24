@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { SessionProvider } from "@/src/features/auth";
 import { CabinetShell } from "@/src/widgets/cabinet-shell";
 import { SidebarNavStateProvider } from "@/src/widgets/cabinet-shell";
 import "@fontsource-variable/inter/wght.css";
@@ -17,7 +18,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <head>
         <script dangerouslySetInnerHTML={{ __html: "(function(){try{var t=localStorage.getItem('puls-theme');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t)}catch(e){}})();" }} />
       </head>
-      <body><SidebarNavStateProvider><CabinetShell>{children}</CabinetShell></SidebarNavStateProvider></body>
+      <body><SessionProvider><SidebarNavStateProvider><CabinetShell>{children}</CabinetShell></SidebarNavStateProvider></SessionProvider></body>
     </html>
   );
 }
