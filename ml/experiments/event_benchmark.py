@@ -183,7 +183,7 @@ def run(args):
     if not train_histories:
         raise ValueError("no fit histories")
     options = FitOptions(seed=config["seed"], threads=args.threads, rounds=args.rounds, epochs=args.epochs,
-                         max_training_rows=args.max_training_rows, hidden_size=args.hidden_size)
+                         max_training_rows=args.max_training_rows, hidden_size=args.hidden_size, device=args.device)
     chosen = list(EVENT_MODELS) if args.models == ["all"] else args.models
     if len(set(chosen)) != len(chosen) or not set(chosen) <= set(EVENT_MODELS):
         raise ValueError("unknown or duplicate event model")
@@ -297,6 +297,7 @@ def main():
     p.add_argument("--rounds", type=int, default=120)
     p.add_argument("--epochs", type=int, default=8)
     p.add_argument("--hidden-size", type=int, default=32)
+    p.add_argument("--device", default="cpu", help="torch device for the GRU: cpu, auto, or cuda")
     p.add_argument("--max-training-rows", type=int, default=100000)
     args = p.parse_args()
     if min(args.threads, args.rounds, args.epochs, args.hidden_size, args.max_training_rows) < 1:
