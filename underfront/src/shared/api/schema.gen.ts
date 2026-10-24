@@ -1080,7 +1080,7 @@ export interface paths {
         };
         get: operations["getTaxes"];
         put?: never;
-        post?: never;
+        post: operations["createTax"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1594,6 +1594,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/companies/{companyId}/taxes/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["previewTax"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/taxes/{taxId}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["cancelTax"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/companies/{companyId}/updates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getCompanyUpdates"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2032,9 +2080,10 @@ export interface components {
             period: string;
             plan_in: number;
             plan_out: number;
-            fact_in: number;
-            fact_out: number;
-            deviation: number;
+            fact_in: number | null;
+            fact_out: number | null;
+            deviation: number | null;
+            observed: boolean;
         };
         PlannedEvent: {
             /** Format: uuid */
@@ -2690,6 +2739,94 @@ export interface components {
             proposed_mapping: {
                 [key: string]: string;
             };
+        };
+        /** @enum {string} */
+        TaxKind: "usn_advance" | "usn_annual" | "vat" | "enp" | "contributions" | "other";
+        TaxInput: {
+            /** Format: uuid */
+            request_id?: string;
+            kind: components["schemas"]["TaxKind"];
+            period: string;
+            year: number;
+            /** Format: double */
+            amount: number;
+            title: string;
+            /** Format: date */
+            due_date?: string;
+            source_ref: string;
+            confirmed: boolean;
+            additional: boolean;
+        };
+        TaxPayment: {
+            /** Format: date */
+            date: string;
+            /** Format: double */
+            amount: number;
+            /** @enum {string} */
+            status: "expected" | "received" | "missed" | "cancelled";
+            /** Format: uuid */
+            event_id?: string;
+        };
+        TaxDraft: {
+            kind: components["schemas"]["TaxKind"];
+            period: string;
+            year: number;
+            /** Format: double */
+            amount: number;
+            title: string;
+            source_ref: string;
+            source_url: string;
+            confirmed: boolean;
+            additional: boolean;
+            /** @enum {string} */
+            status: "active" | "cancelled";
+            calculation_basis: string;
+            date_rule: string;
+            payments: components["schemas"]["TaxPayment"][];
+        };
+        TaxObligation: components["schemas"]["TaxDraft"] & {
+            /** Format: uuid */
+            id: string;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: double */
+            paid_amount: number;
+        };
+        TaxCalendarRule: {
+            kind: components["schemas"]["TaxKind"];
+            period: string;
+            year: number;
+            dates: string[];
+            source_url: string;
+        };
+        TaxOverview: {
+            tax_regime: components["schemas"]["TaxRegime"];
+            regime_detected: string | null;
+            items: {
+                /** Format: date */
+                date: string;
+                title: string;
+                /** Format: double */
+                amount_estimate: number;
+                how_calculated: string;
+                /** Format: uuid */
+                event_id: string;
+            }[];
+            calendar: components["schemas"]["TaxCalendarRule"][];
+            obligations: components["schemas"]["TaxObligation"][];
+            year: number;
+            calculation_basis: string;
+            notice: string;
+        };
+        CompanyUpdates: {
+            data_revision: number;
+            forecast_revision: number | null;
+            /** Format: date-time */
+            data_as_of: string | null;
+            pending_jobs: number;
+            /** Format: date-time */
+            last_job_finished_at: string | null;
+            last_job_error: string | null;
         };
     };
     responses: {
@@ -4767,6 +4904,7 @@ export interface operations {
         parameters: {
             query?: {
                 months?: number;
+                year?: number;
             };
             header?: never;
             path: {
@@ -4782,7 +4920,34 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Object"];
+                    "application/json": components["schemas"]["TaxOverview"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    createTax: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                companyId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TaxInput"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaxObligation"];
                 };
             };
             default: components["responses"]["Error"];
@@ -5567,6 +5732,77 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RegistryDocument"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    previewTax: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                companyId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TaxInput"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaxDraft"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    cancelTax: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                taxId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Cancelled; received payments remain in history */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    getCompanyUpdates: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                companyId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompanyUpdates"];
                 };
             };
             default: components["responses"]["Error"];

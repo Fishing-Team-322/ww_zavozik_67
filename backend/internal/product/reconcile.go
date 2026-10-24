@@ -4,9 +4,11 @@ import (
 	"context"
 	"math"
 	"sort"
+	"strings"
 
 	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/domain"
 	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/ingest"
+	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/store"
 )
 
 // Detection is a reviewable heuristic, never an automatic confirmation.
@@ -129,6 +131,23 @@ func (s *Service) reconcileFacts(ctx context.Context, uid, cid string) error {
 		return e
 	}
 	used := map[string]bool{}
+	settlements, e := tx.Query(ctx, "SELECT operation_id FROM operation_settlements WHERE company_id=$1", cid)
+	if e != nil {
+		return e
+	}
+	for settlements.Next() {
+		var id string
+		if e = settlements.Scan(&id); e != nil {
+			settlements.Close()
+			return e
+		}
+		used[id] = true
+	}
+	e = settlements.Err()
+	settlements.Close()
+	if e != nil {
+		return e
+	}
 	for _, d := range events {
 		if id := text(d, "matched_operation_id"); id != "" {
 			used[id] = true
@@ -146,14 +165,19 @@ func (s *Service) reconcileFacts(ctx context.Context, uid, cid string) error {
 		}
 		matches := []Doc{}
 		for _, op := range rows {
-			if used[text(op, "id")] || flag(op, "is_duplicate") || text(op, "direction") != text(event, "direction") || math.Abs(number(op, "amount")-number(event, "amount")) > .011 {
+			if used[text(op, "id")] || flag(op, "is_duplicate") || flag(op, "is_internal") || text(op, "direction") != text(event, "direction") || math.Round(number(op, "amount")*100) != math.Round(number(event, "amount")*100) {
 				continue
 			}
-			if text(event, "counterparty_name") == "" || text(event, "counterparty_name") != text(op, "counterparty_name") {
+			taxMatch := text(event, "source_kind") == "tax_calendar" && text(op, "category") == "tax"
+			if !taxMatch && !samePaymentCounterparty(event, op) {
 				continue
 			}
 			actual, _ := day(date(op["op_date"]))
-			if math.Abs(actual.Sub(dt).Hours()/24) <= 3 {
+			window := 3.0
+			if in(text(event, "source_kind"), "manual invoice contract tax_calendar") {
+				window = 31
+			}
+			if math.Abs(actual.Sub(dt).Hours()/24) <= window {
 				matches = append(matches, op)
 				possibleUses[text(op, "id")]++
 			}
@@ -172,6 +196,13 @@ func (s *Service) reconcileFacts(ctx context.Context, uid, cid string) error {
 		matches := candidates[text(event, "id")]
 		if len(matches) == 1 && possibleUses[text(matches[0], "id")] == 1 {
 			match := matches[0]
+			tag, err := tx.Exec(ctx, `INSERT INTO operation_settlements(company_id,operation_id,event_id,source_kind,document_id) VALUES($1,$2,$3,$4,$5) ON CONFLICT(company_id,operation_id) DO NOTHING`, cid, match["id"], event["id"], text(event, "source_kind"), text(event, "document_id"))
+			if err != nil {
+				return err
+			}
+			if tag.RowsAffected() == 0 {
+				continue
+			}
 			used[text(match, "id")] = true
 			_, e = tx.Exec(ctx, "UPDATE planned_events SET status='received',matched_operation_id=$2,extra=extra||jsonb_build_object('_revision',COALESCE((extra->>'_revision')::int,0)+1) WHERE id=$1 AND company_id=$3 AND status IN ('expected','missed')", event["id"], match["id"], cid)
 			if e != nil {
@@ -181,6 +212,11 @@ func (s *Service) reconcileFacts(ctx context.Context, uid, cid string) error {
 			if text(event, "source_kind") == "invoice" {
 				_, e = tx.Exec(ctx, `UPDATE product_documents SET data=data||jsonb_build_object('_revision',COALESCE((data->>'_revision')::int,0)+1,'paid_amount',LEAST((data->>'amount')::numeric,COALESCE((data->>'paid_amount')::numeric,0)+$2::numeric),'paid_at',$3::text,'status','paid'),updated_at=now() WHERE id::text=$1 AND company_id=$4 AND kind='invoice'`, text(event, "document_id"), number(match, "amount"), date(match["op_date"]), cid)
 				if e != nil {
+					return e
+				}
+			}
+			if text(event, "source_kind") == "contract" {
+				if e = store.ApplyContractReceipt(ctx, tx, cid, text(event, "document_id"), text(event, "id")); e != nil {
 					return e
 				}
 			}
@@ -198,6 +234,15 @@ func (s *Service) reconcileFacts(ctx context.Context, uid, cid string) error {
 		}
 	}
 	return tx.Commit(ctx)
+}
+func samePaymentCounterparty(event, operation Doc) bool {
+	expectedINN := strings.TrimSpace(text(event, "counterparty_inn"))
+	actualINN := strings.TrimSpace(text(operation, "counterparty_inn"))
+	if expectedINN != "" && actualINN != "" {
+		return expectedINN == actualINN
+	}
+	name := text(event, "counterparty_name")
+	return name != "" && name == text(operation, "counterparty_name")
 }
 func (s *Service) evaluateSignals(ctx context.Context, uid, cid string) error {
 	rows, e := s.DB.ProductList(ctx, uid, cid, "operation")

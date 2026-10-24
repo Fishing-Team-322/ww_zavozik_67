@@ -165,12 +165,13 @@ export function TransactionsScreen() {
             label: hasTotal ? `${operationPage}/${operationTotalPages}` : `${operationPage}/…`,
             disabled: rows.loading,
             onPageChange: (nextPage) => {
+              const nextCursor = rows.data?.next_cursor;
               if (nextPage < previous.length + 1) {
                 setCursor(previous.at(-1) ?? null);
                 setPrevious(previous.slice(0, -1));
-              } else if (rows.data.next_cursor) {
+              } else if (nextCursor) {
                 setPrevious([...previous, cursor]);
-                setCursor(rows.data.next_cursor);
+                setCursor(nextCursor);
               }
             },
           }}>

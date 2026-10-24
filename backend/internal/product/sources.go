@@ -346,6 +346,9 @@ func (s *Service) deleteSource(ctx context.Context, uid, cid, id string, b Doc) 
 		return Result{}, platform.ErrNotFound
 	}
 	if !keep {
+		if e = store.RemoveSourceSettlements(ctx, tx, cid, id); e != nil {
+			return Result{}, e
+		}
 		if _, e = tx.Exec(ctx, "DELETE FROM operations WHERE source_id=$1 AND company_id=$2", id, cid); e != nil {
 			return Result{}, e
 		}

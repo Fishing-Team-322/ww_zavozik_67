@@ -76,6 +76,8 @@ type Input struct {
 // Result — компоненты прогноза. Сценарии меняют компоненты и вызывают
 // Recompute, ML при этом заново не вызывается.
 type Result struct {
+	// Application snapshot for derived actions; never part of a public forecast DTO.
+	DataRevision   int64 `json:"-"`
 	AsOf           time.Time
 	OpeningBalance domain.Money
 	Dates          []time.Time

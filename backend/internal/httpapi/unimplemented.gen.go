@@ -336,6 +336,18 @@ func (Unimplemented) GetTaxes(ctx context.Context, request GetTaxesRequestObject
 	return nil, ErrNotImplemented
 }
 
+func (Unimplemented) CreateTax(ctx context.Context, request CreateTaxRequestObject) (CreateTaxResponseObject, error) {
+	return nil, ErrNotImplemented
+}
+
+func (Unimplemented) PreviewTax(ctx context.Context, request PreviewTaxRequestObject) (PreviewTaxResponseObject, error) {
+	return nil, ErrNotImplemented
+}
+
+func (Unimplemented) GetCompanyUpdates(ctx context.Context, request GetCompanyUpdatesRequestObject) (GetCompanyUpdatesResponseObject, error) {
+	return nil, ErrNotImplemented
+}
+
 func (Unimplemented) UploadStatement(ctx context.Context, request UploadStatementRequestObject) (UploadStatementResponseObject, error) {
 	return nil, ErrNotImplemented
 }
@@ -457,6 +469,10 @@ func (Unimplemented) SyncSource(ctx context.Context, request SyncSourceRequestOb
 }
 
 func (Unimplemented) TestSource(ctx context.Context, request TestSourceRequestObject) (TestSourceResponseObject, error) {
+	return nil, ErrNotImplemented
+}
+
+func (Unimplemented) CancelTax(ctx context.Context, request CancelTaxRequestObject) (CancelTaxResponseObject, error) {
 	return nil, ErrNotImplemented
 }
 

@@ -180,7 +180,7 @@ export function ScenariosScreen() {
       </div>
       <FinanceState
         loading={forecast.loading && !forecast.data}
-        error={forecast.error || comparison.error || scenarios.error || presets.error || events.error || (!saveOpen && error)}
+        error={forecast.error || comparison.error || scenarios.error || presets.error || events.error || (saveOpen ? null : error)}
         retry={() => {
           forecast.refresh();
           compare.refresh(); savedCompare.refresh(); scenarios.refresh(); presets.refresh(); events.refresh();
