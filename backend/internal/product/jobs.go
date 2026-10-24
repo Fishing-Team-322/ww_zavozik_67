@@ -434,6 +434,9 @@ func (s *Service) syncJob(ctx context.Context, j store.ProductJob) (Doc, error) 
 		ops, keys, issues := tableOperations(j.CompanyID, table, mapping)
 		return s.saveImport(ctx, j, id, kind, ops, keys, issues, nil)
 	}
+	if kind == "wb" || kind == "ozon" {
+		return s.syncMarketplace(ctx, j, id, kind, cfg)
+	}
 	if kind == "fns" {
 		company, err := s.DB.GetCompany(ctx, j.UserID, j.CompanyID)
 		if err != nil {

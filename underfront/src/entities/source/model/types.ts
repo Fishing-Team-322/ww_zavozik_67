@@ -1,10 +1,11 @@
-export type SourceKind = "upload" | "onec_bank_file" | "excel" | "gsheets" | "onec_odata" | "fns" | "manual";
+export type SourceKind = "upload" | "onec_bank_file" | "excel" | "gsheets" | "onec_odata" | "fns" | "wb" | "ozon" | "manual";
 
 export interface DataSource {
   id: string;
   kind: SourceKind;
   title: string;
   status: string;
+  data_mode?: "live" | "mock" | null;
   enabled: boolean;
   last_synced_at: string | null;
   records: number;

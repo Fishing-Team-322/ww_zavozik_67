@@ -149,6 +149,9 @@ func (Unimplemented) ParseEvent(ctx context.Context, request ParseEventRequestOb
 func (Unimplemented) ExportCompany(ctx context.Context, request ExportCompanyRequestObject) (ExportCompanyResponseObject, error) {
 	return nil, ErrNotImplemented
 }
+func (Unimplemented) GetFNSOpenData(ctx context.Context, request GetFNSOpenDataRequestObject) (GetFNSOpenDataResponseObject, error) {
+	return nil, ErrNotImplemented
+}
 func (Unimplemented) GetForecast(ctx context.Context, request GetForecastRequestObject) (GetForecastResponseObject, error) {
 	return nil, ErrNotImplemented
 }
@@ -170,10 +173,16 @@ func (Unimplemented) SimulateGap(ctx context.Context, request SimulateGapRequest
 func (Unimplemented) ListImports(ctx context.Context, request ListImportsRequestObject) (ListImportsResponseObject, error) {
 	return nil, ErrNotImplemented
 }
+func (Unimplemented) GetIntegrationCapabilities(ctx context.Context, request GetIntegrationCapabilitiesRequestObject) (GetIntegrationCapabilitiesResponseObject, error) {
+	return nil, ErrNotImplemented
+}
 func (Unimplemented) ListInvoices(ctx context.Context, request ListInvoicesRequestObject) (ListInvoicesResponseObject, error) {
 	return nil, ErrNotImplemented
 }
 func (Unimplemented) CreateInvoice(ctx context.Context, request CreateInvoiceRequestObject) (CreateInvoiceResponseObject, error) {
+	return nil, ErrNotImplemented
+}
+func (Unimplemented) ListMarketplaceReports(ctx context.Context, request ListMarketplaceReportsRequestObject) (ListMarketplaceReportsResponseObject, error) {
 	return nil, ErrNotImplemented
 }
 func (Unimplemented) DiscoverOneCAccounting(ctx context.Context, request DiscoverOneCAccountingRequestObject) (DiscoverOneCAccountingResponseObject, error) {
@@ -321,6 +330,12 @@ func (Unimplemented) GetSource(ctx context.Context, request GetSourceRequestObje
 	return nil, ErrNotImplemented
 }
 func (Unimplemented) UpdateSource(ctx context.Context, request UpdateSourceRequestObject) (UpdateSourceResponseObject, error) {
+	return nil, ErrNotImplemented
+}
+func (Unimplemented) ConfirmSheetMapping(ctx context.Context, request ConfirmSheetMappingRequestObject) (ConfirmSheetMappingResponseObject, error) {
+	return nil, ErrNotImplemented
+}
+func (Unimplemented) PreviewSheetSource(ctx context.Context, request PreviewSheetSourceRequestObject) (PreviewSheetSourceResponseObject, error) {
 	return nil, ErrNotImplemented
 }
 func (Unimplemented) SyncSource(ctx context.Context, request SyncSourceRequestObject) (SyncSourceResponseObject, error) {

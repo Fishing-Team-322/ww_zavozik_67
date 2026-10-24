@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"net"
+	"net/http"
 	"net/url"
 	"strings"
 	"time"
@@ -14,6 +15,21 @@ import (
 )
 
 func New(db *store.Postgres, c config.Config, ml forecast.StochasticForecaster) (*Service, error) {
+	if c.IntegrationSandbox {
+		for _, origin := range []string{c.PublicURL, c.FrontendURL} {
+			u, e := url.Parse(origin)
+			if e != nil || u.Hostname() != "localhost" && (net.ParseIP(u.Hostname()) == nil || !net.ParseIP(u.Hostname()).IsLoopback()) {
+				return nil, fmt.Errorf("integration sandbox requires loopback origins")
+			}
+		}
+	}
+	if c.FNSHubURL != "" {
+		u, e := url.Parse(c.FNSHubURL)
+		if e != nil || u.Host == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || u.Path != "" && u.Path != "/" || u.Scheme != "https" && u.Scheme != "http" || c.FNSHubToken == "" || c.FNSHubCompany == "" {
+			return nil, fmt.Errorf("invalid operator FNS Hub configuration")
+		}
+	}
+
 	var key []byte
 	if c.DataEncryptionKey != "" {
 		var e error
@@ -39,5 +55,10 @@ func New(db *store.Postgres, c config.Config, ml forecast.StochasticForecaster) 
 			hosts = append(hosts, h)
 		}
 	}
-	return &Service{DB: db, ML: forecast.NewCachedForecaster(ml, time.Minute, 16), Fallback: forecast.SeasonalNaive{}, EncryptionKey: key, AllowedSourceHosts: hosts, DaDataToken: c.DaDataToken, ReportsDir: c.ModelReportsDir, TrainingURL: c.TrainingURL, TrainingToken: c.TrainingToken}, nil
+	service := &Service{IntegrationSandbox: c.IntegrationSandbox, FNSHubURL: c.FNSHubURL, FNSHubToken: c.FNSHubToken, FNSHubCompany: c.FNSHubCompany, DB: db, ML: forecast.NewCachedForecaster(ml, time.Minute, 16), Fallback: forecast.SeasonalNaive{}, EncryptionKey: key, AllowedSourceHosts: hosts, DaDataToken: c.DaDataToken, ReportsDir: c.ModelReportsDir, TrainingURL: c.TrainingURL, TrainingToken: c.TrainingToken}
+	if c.IntegrationSandbox {
+		service.HTTP = &http.Client{Transport: sandboxTransport{}}
+		service.DaDataToken = "sandbox-key"
+	}
+	return service, nil
 }

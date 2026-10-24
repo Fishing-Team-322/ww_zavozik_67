@@ -78,6 +78,24 @@ func (s *Service) unseal(data []byte) (Doc, error) {
 }
 func (s *Service) validateSourceConfig(ctx context.Context, uid, cid, kind string, cfg Doc, requireMapping bool) error {
 	switch kind {
+	case "wb", "ozon":
+		if e := fields(cfg, "api_key client_id from to"); e != nil {
+			return e
+		}
+		if text(cfg, "api_key") == "" || len(text(cfg, "api_key")) > 8192 {
+			return bad("Нужен ключ продавца; до 8192 символов")
+		}
+		if kind == "ozon" && (text(cfg, "client_id") == "" || len(text(cfg, "client_id")) > 100) {
+			return bad("Укажите Client ID Ozon")
+		}
+		from, e := day(text(cfg, "from"))
+		if e != nil {
+			return bad("Укажите начало периода отчёта")
+		}
+		to, e := day(text(cfg, "to"))
+		if e != nil || to.Before(from) || to.Sub(from) > 30*24*time.Hour {
+			return bad("Выберите период отчёта до 31 календарного дня")
+		}
 	case "onec_odata":
 		var c bridge.ODataConfig
 		if e := json.Unmarshal(store.JSON(cfg), &c); e != nil {
@@ -187,7 +205,7 @@ func (s *Service) sourceAction(ctx context.Context, op, uid, id string) (Result,
 		return Result{}, platform.Fail(409, "source_disabled", "Источник отключён")
 	}
 	kind := text(d, "kind")
-	if !in(kind, "onec_odata gsheets fns") {
+	if !in(kind, "onec_odata gsheets fns wb ozon") {
 		if op == "testSource" {
 			return ok(Doc{"ok": true, "message": "Файловый источник готов к загрузке"})
 		}
@@ -281,6 +299,8 @@ func (s *Service) sourceAction(ctx context.Context, op, uid, id string) (Result,
 			}
 		case "gsheets":
 			_, e = s.fetchSheet(ctx, cfg)
+		case "wb", "ozon":
+			_, e = s.fetchMarketplace(ctx, kind, cfg)
 		case "fns":
 			company, err := s.DB.GetCompany(ctx, uid, cid)
 			if err != nil {
@@ -358,7 +378,12 @@ func (s *Service) lookup(ctx context.Context, uid, inn string) (Result, error) {
 			if len(inn) == 12 {
 				legal = "ИП"
 			}
-			return ok(Doc{"inn": party.INN, "name": party.Name, "legal_form": legal, "industry": nil, "tax_regime": "unknown", "status": party.Status, "source": party.SourceKind, "ownership_verified": false})
+			return ok(Doc{"inn": party.INN, "name": party.Name, "legal_form": legal, "industry": nil, "tax_regime": "unknown", "status": party.Status, "source": func() string {
+				if s.IntegrationSandbox {
+					return "DEMO / MOCK: DaData fixture"
+				}
+				return party.SourceKind
+			}(), "ownership_verified": false})
 		}
 	}
 	var raw []byte

@@ -26,7 +26,7 @@ services:
     build:
       context: .
       dockerfile: backend/Dockerfile
-      args: { CMD: migrate }
+      args: { CMD: migrate, GIT_SHA: "${GIT_SHA:-unknown}" }
     environment:
       DATABASE_URL: postgres://zavozik:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/zavozik?sslmode=disable
     depends_on:
@@ -59,6 +59,10 @@ services:
       DATA_ENCRYPTION_KEY: ${DATA_ENCRYPTION_KEY:?Set DATA_ENCRYPTION_KEY in .env}
       SOURCE_ALLOWED_HOSTS: ${SOURCE_ALLOWED_HOSTS:-}
       DADATA_API_TOKEN: ${DADATA_API_TOKEN:-}
+      FNS_HUB_URL: ${FNS_HUB_URL:-}
+      INTEGRATION_SANDBOX: ${INTEGRATION_SANDBOX:-false}
+      FNS_HUB_TOKEN: ${FNS_HUB_TOKEN:-}
+      FNS_HUB_COMPANY: ${FNS_HUB_COMPANY:-}
       CATEGORIZER_MODE: ${CATEGORIZER_MODE:-rules}
       TRAINING_URL: ${TRAINING_URL:-}
       TRAINING_TOKEN: ${TRAINING_TOKEN:-}

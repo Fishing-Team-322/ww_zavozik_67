@@ -1423,6 +1423,101 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/sources/{sourceId}/sheet-preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sourceId: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Fetch a bounded Google Sheets preview without importing operations */
+        post: operations["previewSheetSource"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/sources/{sourceId}/sheet-mapping": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sourceId: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Save validated column mapping and queue a sheet import */
+        post: operations["confirmSheetMapping"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/companies/{companyId}/integration-capabilities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                companyId: components["parameters"]["CompanyId"];
+            };
+            cookie?: never;
+        };
+        /** Actual server integration mode and setup requirements, without credentials */
+        get: operations["getIntegrationCapabilities"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/companies/{companyId}/fns-open-data": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                companyId: components["parameters"]["CompanyId"];
+            };
+            cookie?: never;
+        };
+        /** Operator-managed FNS snapshot filtered by this workspace's identifiers */
+        get: operations["getFNSOpenData"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/companies/{companyId}/marketplace-reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                companyId: components["parameters"]["CompanyId"];
+            };
+            cookie?: never;
+        };
+        /** Versioned marketplace accounting entries, never bank facts */
+        get: operations["listMarketplaceReports"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/companies/{companyId}/onec/discover": {
         parameters: {
             query?: never;
@@ -1677,8 +1772,10 @@ export interface components {
         /** @enum {string} */
         TaxRegime: "usn6" | "usn15" | "osno" | "eshn" | "unknown";
         /** @enum {string} */
-        SourceKind: "upload" | "onec_bank_file" | "excel" | "gsheets" | "onec_odata" | "fns" | "manual";
+        SourceKind: "upload" | "onec_bank_file" | "excel" | "gsheets" | "onec_odata" | "wb" | "ozon" | "fns" | "manual";
         Source: {
+            /** @enum {string|null} */
+            data_mode?: "live" | "mock" | null;
             /** Format: uuid */
             id: string;
             kind: string;
@@ -2263,7 +2360,7 @@ export interface components {
         };
         CreateSourceInput: {
             /** @enum {string} */
-            kind: "upload" | "onec_bank_file" | "excel" | "gsheets" | "onec_odata" | "fns" | "manual";
+            kind: "upload" | "onec_bank_file" | "excel" | "gsheets" | "onec_odata" | "wb" | "ozon" | "fns" | "manual";
             title: string;
             /** @description Для onec_odata шаблон accounting3 принимает base_url, company_account, username и password; сервер подбирает OData маппинг по ИНН компании и номеру счёта. Данные подключения не возвращаются в Source. */
             config?: {
@@ -5211,6 +5308,137 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Page"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    previewSheetSource: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sourceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Columns, five sample rows and suggested mapping */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    confirmSheetMapping: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sourceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    mapping: {
+                        [key: string]: string;
+                    };
+                };
+            };
+        };
+        responses: {
+            /** @description Durable synchronization job */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Job"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    getIntegrationCapabilities: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                companyId: components["parameters"]["CompanyId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Provider capabilities are not proof that a user source is connected */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    getFNSOpenData: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                companyId: components["parameters"]["CompanyId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Dated risk signals, never current tax or bank balances */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    listMarketplaceReports: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                companyId: components["parameters"]["CompanyId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Entries and their report periods, currencies and source identifiers */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    }[];
                 };
             };
             default: components["responses"]["Error"];

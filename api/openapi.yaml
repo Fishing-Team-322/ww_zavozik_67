@@ -2630,6 +2630,95 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Page'
+  /v1/sources/{sourceId}/sheet-preview:
+    parameters:
+    - name: sourceId
+      in: path
+      required: true
+      schema: {type: string, format: uuid}
+    post:
+      operationId: previewSheetSource
+      summary: Fetch a bounded Google Sheets preview without importing operations
+      responses:
+        '200':
+          description: Columns, five sample rows and suggested mapping
+          content:
+            application/json:
+              schema: {type: object, additionalProperties: true}
+        default:
+          $ref: '#/components/responses/Error'
+  /v1/sources/{sourceId}/sheet-mapping:
+    parameters:
+    - name: sourceId
+      in: path
+      required: true
+      schema: {type: string, format: uuid}
+    post:
+      operationId: confirmSheetMapping
+      summary: Save validated column mapping and queue a sheet import
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [mapping]
+              properties:
+                mapping: {type: object, additionalProperties: {type: string}}
+      responses:
+        '202':
+          description: Durable synchronization job
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Job'
+        default:
+          $ref: '#/components/responses/Error'
+  /v1/companies/{companyId}/integration-capabilities:
+    parameters:
+    - $ref: '#/components/parameters/CompanyId'
+    get:
+      operationId: getIntegrationCapabilities
+      summary: Actual server integration mode and setup requirements, without credentials
+      responses:
+        '200':
+          description: Provider capabilities are not proof that a user source is connected
+          content:
+            application/json:
+              schema: {type: object, additionalProperties: true}
+        default:
+          $ref: '#/components/responses/Error'
+  /v1/companies/{companyId}/fns-open-data:
+    parameters:
+    - $ref: '#/components/parameters/CompanyId'
+    get:
+      operationId: getFNSOpenData
+      summary: Operator-managed FNS snapshot filtered by this workspace's identifiers
+      responses:
+        '200':
+          description: Dated risk signals, never current tax or bank balances
+          content:
+            application/json:
+              schema: {type: object, additionalProperties: true}
+        default:
+          $ref: '#/components/responses/Error'
+  /v1/companies/{companyId}/marketplace-reports:
+    parameters:
+    - $ref: '#/components/parameters/CompanyId'
+    get:
+      operationId: listMarketplaceReports
+      summary: Versioned marketplace accounting entries, never bank facts
+      responses:
+        '200':
+          description: Entries and their report periods, currencies and source identifiers
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {type: object, additionalProperties: true}
+        default:
+          $ref: '#/components/responses/Error'
   /v1/companies/{companyId}/onec/discover:
     parameters:
     - $ref: '#/components/parameters/CompanyId'
@@ -3155,6 +3244,8 @@ components:
       - excel
       - gsheets
       - onec_odata
+      - wb
+      - ozon
       - fns
       - manual
     Source:
@@ -3169,6 +3260,7 @@ components:
       - records
       - error
       properties:
+        data_mode: {type: string, nullable: true, enum: [live, mock]}
         id:
           type: string
           format: uuid
@@ -4702,6 +4794,8 @@ components:
           - excel
           - gsheets
           - onec_odata
+          - wb
+          - ozon
           - fns
           - manual
         title:

@@ -140,7 +140,9 @@ const (
 	Manual       CreateSourceInputKind = "manual"
 	OnecBankFile CreateSourceInputKind = "onec_bank_file"
 	OnecOdata    CreateSourceInputKind = "onec_odata"
+	Ozon         CreateSourceInputKind = "ozon"
 	Upload       CreateSourceInputKind = "upload"
+	Wb           CreateSourceInputKind = "wb"
 )
 
 // Defines values for DashboardStatus.
@@ -245,6 +247,12 @@ const (
 	MoveEvent         ScenarioStepKind = "move_event"
 	ScaleFixedCosts   ScenarioStepKind = "scale_fixed_costs"
 	ScaleRevenue      ScenarioStepKind = "scale_revenue"
+)
+
+// Defines values for SourceDataMode.
+const (
+	Live SourceDataMode = "live"
+	Mock SourceDataMode = "mock"
 )
 
 // Defines values for TaxRegime.
@@ -1268,6 +1276,7 @@ type SimulateGapInput struct {
 
 // Source defines model for Source.
 type Source struct {
+	DataMode     *SourceDataMode    `json:"data_mode"`
 	Enabled      bool               `json:"enabled"`
 	Error        *string            `json:"error"`
 	Id           openapi_types.UUID `json:"id"`
@@ -1277,6 +1286,9 @@ type Source struct {
 	Status       string             `json:"status"`
 	Title        string             `json:"title"`
 }
+
+// SourceDataMode defines model for Source.DataMode.
+type SourceDataMode string
 
 // TaxRegime defines model for TaxRegime.
 type TaxRegime string
@@ -1632,6 +1644,11 @@ type CompareSavedScenarioParams struct {
 	Horizon *int `form:"horizon,omitempty" json:"horizon,omitempty"`
 }
 
+// ConfirmSheetMappingJSONBody defines parameters for ConfirmSheetMapping.
+type ConfirmSheetMappingJSONBody struct {
+	Mapping map[string]string `json:"mapping"`
+}
+
 // UpdateSignalJSONRequestBody defines body for UpdateSignal for application/json ContentType.
 type UpdateSignalJSONRequestBody = UpdateSignalInput
 
@@ -1736,6 +1753,9 @@ type DeleteSourceJSONRequestBody = DeleteSourceInput
 
 // UpdateSourceJSONRequestBody defines body for UpdateSource for application/json ContentType.
 type UpdateSourceJSONRequestBody = UpdateSourceInput
+
+// ConfirmSheetMappingJSONRequestBody defines body for ConfirmSheetMapping for application/json ContentType.
+type ConfirmSheetMappingJSONRequestBody ConfirmSheetMappingJSONBody
 
 // MapUploadJSONRequestBody defines body for MapUpload for application/json ContentType.
 type MapUploadJSONRequestBody = MapUploadInput
@@ -1886,6 +1906,9 @@ type ServerInterface interface {
 
 	// (POST /v1/companies/{companyId}/export)
 	ExportCompany(w http.ResponseWriter, r *http.Request, companyId openapi_types.UUID)
+	// Operator-managed FNS snapshot filtered by this workspace's identifiers
+	// (GET /v1/companies/{companyId}/fns-open-data)
+	GetFNSOpenData(w http.ResponseWriter, r *http.Request, companyId CompanyId)
 
 	// (GET /v1/companies/{companyId}/forecast)
 	GetForecast(w http.ResponseWriter, r *http.Request, companyId openapi_types.UUID, params GetForecastParams)
@@ -1907,12 +1930,18 @@ type ServerInterface interface {
 
 	// (GET /v1/companies/{companyId}/imports)
 	ListImports(w http.ResponseWriter, r *http.Request, companyId openapi_types.UUID)
+	// Actual server integration mode and setup requirements, without credentials
+	// (GET /v1/companies/{companyId}/integration-capabilities)
+	GetIntegrationCapabilities(w http.ResponseWriter, r *http.Request, companyId CompanyId)
 
 	// (GET /v1/companies/{companyId}/invoices)
 	ListInvoices(w http.ResponseWriter, r *http.Request, companyId openapi_types.UUID, params ListInvoicesParams)
 
 	// (POST /v1/companies/{companyId}/invoices)
 	CreateInvoice(w http.ResponseWriter, r *http.Request, companyId openapi_types.UUID)
+	// Versioned marketplace accounting entries, never bank facts
+	// (GET /v1/companies/{companyId}/marketplace-reports)
+	ListMarketplaceReports(w http.ResponseWriter, r *http.Request, companyId CompanyId)
 	// Discover organizations and their accounts in an allowlisted 1C publication
 	// (POST /v1/companies/{companyId}/onec/discover)
 	DiscoverOneCAccounting(w http.ResponseWriter, r *http.Request, companyId CompanyId)
@@ -2060,6 +2089,12 @@ type ServerInterface interface {
 
 	// (PATCH /v1/sources/{sourceId})
 	UpdateSource(w http.ResponseWriter, r *http.Request, sourceId openapi_types.UUID)
+	// Save validated column mapping and queue a sheet import
+	// (POST /v1/sources/{sourceId}/sheet-mapping)
+	ConfirmSheetMapping(w http.ResponseWriter, r *http.Request, sourceId openapi_types.UUID)
+	// Fetch a bounded Google Sheets preview without importing operations
+	// (POST /v1/sources/{sourceId}/sheet-preview)
+	PreviewSheetSource(w http.ResponseWriter, r *http.Request, sourceId openapi_types.UUID)
 
 	// (POST /v1/sources/{sourceId}/sync)
 	SyncSource(w http.ResponseWriter, r *http.Request, sourceId openapi_types.UUID)
@@ -3669,6 +3704,37 @@ func (siw *ServerInterfaceWrapper) ExportCompany(w http.ResponseWriter, r *http.
 	handler.ServeHTTP(w, r)
 }
 
+// GetFNSOpenData operation middleware
+func (siw *ServerInterfaceWrapper) GetFNSOpenData(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "companyId" -------------
+	var companyId CompanyId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "companyId", r.PathValue("companyId"), &companyId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "companyId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetFNSOpenData(w, r, companyId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetForecast operation middleware
 func (siw *ServerInterfaceWrapper) GetForecast(w http.ResponseWriter, r *http.Request) {
 
@@ -3981,6 +4047,37 @@ func (siw *ServerInterfaceWrapper) ListImports(w http.ResponseWriter, r *http.Re
 	handler.ServeHTTP(w, r)
 }
 
+// GetIntegrationCapabilities operation middleware
+func (siw *ServerInterfaceWrapper) GetIntegrationCapabilities(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "companyId" -------------
+	var companyId CompanyId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "companyId", r.PathValue("companyId"), &companyId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "companyId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetIntegrationCapabilities(w, r, companyId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ListInvoices operation middleware
 func (siw *ServerInterfaceWrapper) ListInvoices(w http.ResponseWriter, r *http.Request) {
 
@@ -4053,6 +4150,37 @@ func (siw *ServerInterfaceWrapper) CreateInvoice(w http.ResponseWriter, r *http.
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.CreateInvoice(w, r, companyId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListMarketplaceReports operation middleware
+func (siw *ServerInterfaceWrapper) ListMarketplaceReports(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "companyId" -------------
+	var companyId CompanyId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "companyId", r.PathValue("companyId"), &companyId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "companyId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListMarketplaceReports(w, r, companyId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -5713,6 +5841,68 @@ func (siw *ServerInterfaceWrapper) UpdateSource(w http.ResponseWriter, r *http.R
 	handler.ServeHTTP(w, r)
 }
 
+// ConfirmSheetMapping operation middleware
+func (siw *ServerInterfaceWrapper) ConfirmSheetMapping(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "sourceId" -------------
+	var sourceId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "sourceId", r.PathValue("sourceId"), &sourceId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sourceId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ConfirmSheetMapping(w, r, sourceId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PreviewSheetSource operation middleware
+func (siw *ServerInterfaceWrapper) PreviewSheetSource(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "sourceId" -------------
+	var sourceId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "sourceId", r.PathValue("sourceId"), &sourceId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sourceId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PreviewSheetSource(w, r, sourceId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // SyncSource operation middleware
 func (siw *ServerInterfaceWrapper) SyncSource(w http.ResponseWriter, r *http.Request) {
 
@@ -6005,6 +6195,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc("POST "+options.BaseURL+"/v1/companies/{companyId}/events", wrapper.CreateEvent)
 	m.HandleFunc("POST "+options.BaseURL+"/v1/companies/{companyId}/events/parse", wrapper.ParseEvent)
 	m.HandleFunc("POST "+options.BaseURL+"/v1/companies/{companyId}/export", wrapper.ExportCompany)
+	m.HandleFunc("GET "+options.BaseURL+"/v1/companies/{companyId}/fns-open-data", wrapper.GetFNSOpenData)
 	m.HandleFunc("GET "+options.BaseURL+"/v1/companies/{companyId}/forecast", wrapper.GetForecast)
 	m.HandleFunc("GET "+options.BaseURL+"/v1/companies/{companyId}/forecast/accuracy", wrapper.GetForecastAccuracy)
 	m.HandleFunc("GET "+options.BaseURL+"/v1/companies/{companyId}/forecast/days/{date}", wrapper.GetForecastDay)
@@ -6012,8 +6203,10 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc("GET "+options.BaseURL+"/v1/companies/{companyId}/gaps/{gapId}", wrapper.GetGap)
 	m.HandleFunc("POST "+options.BaseURL+"/v1/companies/{companyId}/gaps/{gapId}/simulate", wrapper.SimulateGap)
 	m.HandleFunc("GET "+options.BaseURL+"/v1/companies/{companyId}/imports", wrapper.ListImports)
+	m.HandleFunc("GET "+options.BaseURL+"/v1/companies/{companyId}/integration-capabilities", wrapper.GetIntegrationCapabilities)
 	m.HandleFunc("GET "+options.BaseURL+"/v1/companies/{companyId}/invoices", wrapper.ListInvoices)
 	m.HandleFunc("POST "+options.BaseURL+"/v1/companies/{companyId}/invoices", wrapper.CreateInvoice)
+	m.HandleFunc("GET "+options.BaseURL+"/v1/companies/{companyId}/marketplace-reports", wrapper.ListMarketplaceReports)
 	m.HandleFunc("POST "+options.BaseURL+"/v1/companies/{companyId}/onec/discover", wrapper.DiscoverOneCAccounting)
 	m.HandleFunc("GET "+options.BaseURL+"/v1/companies/{companyId}/operations", wrapper.ListOperations)
 	m.HandleFunc("GET "+options.BaseURL+"/v1/companies/{companyId}/operations/export", wrapper.ExportOperations)
@@ -6063,6 +6256,8 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc("DELETE "+options.BaseURL+"/v1/sources/{sourceId}", wrapper.DeleteSource)
 	m.HandleFunc("GET "+options.BaseURL+"/v1/sources/{sourceId}", wrapper.GetSource)
 	m.HandleFunc("PATCH "+options.BaseURL+"/v1/sources/{sourceId}", wrapper.UpdateSource)
+	m.HandleFunc("POST "+options.BaseURL+"/v1/sources/{sourceId}/sheet-mapping", wrapper.ConfirmSheetMapping)
+	m.HandleFunc("POST "+options.BaseURL+"/v1/sources/{sourceId}/sheet-preview", wrapper.PreviewSheetSource)
 	m.HandleFunc("POST "+options.BaseURL+"/v1/sources/{sourceId}/sync", wrapper.SyncSource)
 	m.HandleFunc("POST "+options.BaseURL+"/v1/sources/{sourceId}/test", wrapper.TestSource)
 	m.HandleFunc("POST "+options.BaseURL+"/v1/uploads/{uploadId}/mapping", wrapper.MapUpload)
@@ -7491,6 +7686,35 @@ func (response ExportCompanydefaultJSONResponse) VisitExportCompanyResponse(w ht
 	return json.NewEncoder(w).Encode(response.Body)
 }
 
+type GetFNSOpenDataRequestObject struct {
+	CompanyId CompanyId `json:"companyId"`
+}
+
+type GetFNSOpenDataResponseObject interface {
+	VisitGetFNSOpenDataResponse(w http.ResponseWriter) error
+}
+
+type GetFNSOpenData200JSONResponse map[string]interface{}
+
+func (response GetFNSOpenData200JSONResponse) VisitGetFNSOpenDataResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetFNSOpenDatadefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response GetFNSOpenDatadefaultJSONResponse) VisitGetFNSOpenDataResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+
+	return json.NewEncoder(w).Encode(response.Body)
+}
+
 type GetForecastRequestObject struct {
 	CompanyId openapi_types.UUID `json:"companyId"`
 	Params    GetForecastParams
@@ -7703,6 +7927,35 @@ func (response ListImportsdefaultJSONResponse) VisitListImportsResponse(w http.R
 	return json.NewEncoder(w).Encode(response.Body)
 }
 
+type GetIntegrationCapabilitiesRequestObject struct {
+	CompanyId CompanyId `json:"companyId"`
+}
+
+type GetIntegrationCapabilitiesResponseObject interface {
+	VisitGetIntegrationCapabilitiesResponse(w http.ResponseWriter) error
+}
+
+type GetIntegrationCapabilities200JSONResponse map[string]interface{}
+
+func (response GetIntegrationCapabilities200JSONResponse) VisitGetIntegrationCapabilitiesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetIntegrationCapabilitiesdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response GetIntegrationCapabilitiesdefaultJSONResponse) VisitGetIntegrationCapabilitiesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+
+	return json.NewEncoder(w).Encode(response.Body)
+}
+
 type ListInvoicesRequestObject struct {
 	CompanyId openapi_types.UUID `json:"companyId"`
 	Params    ListInvoicesParams
@@ -7757,6 +8010,35 @@ type CreateInvoicedefaultJSONResponse struct {
 }
 
 func (response CreateInvoicedefaultJSONResponse) VisitCreateInvoiceResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+
+	return json.NewEncoder(w).Encode(response.Body)
+}
+
+type ListMarketplaceReportsRequestObject struct {
+	CompanyId CompanyId `json:"companyId"`
+}
+
+type ListMarketplaceReportsResponseObject interface {
+	VisitListMarketplaceReportsResponse(w http.ResponseWriter) error
+}
+
+type ListMarketplaceReports200JSONResponse []map[string]interface{}
+
+func (response ListMarketplaceReports200JSONResponse) VisitListMarketplaceReportsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListMarketplaceReportsdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response ListMarketplaceReportsdefaultJSONResponse) VisitListMarketplaceReportsResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(response.StatusCode)
 
@@ -9237,6 +9519,65 @@ func (response UpdateSourcedefaultJSONResponse) VisitUpdateSourceResponse(w http
 	return json.NewEncoder(w).Encode(response.Body)
 }
 
+type ConfirmSheetMappingRequestObject struct {
+	SourceId openapi_types.UUID `json:"sourceId"`
+	Body     *ConfirmSheetMappingJSONRequestBody
+}
+
+type ConfirmSheetMappingResponseObject interface {
+	VisitConfirmSheetMappingResponse(w http.ResponseWriter) error
+}
+
+type ConfirmSheetMapping202JSONResponse Job
+
+func (response ConfirmSheetMapping202JSONResponse) VisitConfirmSheetMappingResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(202)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ConfirmSheetMappingdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response ConfirmSheetMappingdefaultJSONResponse) VisitConfirmSheetMappingResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+
+	return json.NewEncoder(w).Encode(response.Body)
+}
+
+type PreviewSheetSourceRequestObject struct {
+	SourceId openapi_types.UUID `json:"sourceId"`
+}
+
+type PreviewSheetSourceResponseObject interface {
+	VisitPreviewSheetSourceResponse(w http.ResponseWriter) error
+}
+
+type PreviewSheetSource200JSONResponse map[string]interface{}
+
+func (response PreviewSheetSource200JSONResponse) VisitPreviewSheetSourceResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PreviewSheetSourcedefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response PreviewSheetSourcedefaultJSONResponse) VisitPreviewSheetSourceResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+
+	return json.NewEncoder(w).Encode(response.Body)
+}
+
 type SyncSourceRequestObject struct {
 	SourceId openapi_types.UUID `json:"sourceId"`
 }
@@ -9500,6 +9841,9 @@ type StrictServerInterface interface {
 
 	// (POST /v1/companies/{companyId}/export)
 	ExportCompany(ctx context.Context, request ExportCompanyRequestObject) (ExportCompanyResponseObject, error)
+	// Operator-managed FNS snapshot filtered by this workspace's identifiers
+	// (GET /v1/companies/{companyId}/fns-open-data)
+	GetFNSOpenData(ctx context.Context, request GetFNSOpenDataRequestObject) (GetFNSOpenDataResponseObject, error)
 
 	// (GET /v1/companies/{companyId}/forecast)
 	GetForecast(ctx context.Context, request GetForecastRequestObject) (GetForecastResponseObject, error)
@@ -9521,12 +9865,18 @@ type StrictServerInterface interface {
 
 	// (GET /v1/companies/{companyId}/imports)
 	ListImports(ctx context.Context, request ListImportsRequestObject) (ListImportsResponseObject, error)
+	// Actual server integration mode and setup requirements, without credentials
+	// (GET /v1/companies/{companyId}/integration-capabilities)
+	GetIntegrationCapabilities(ctx context.Context, request GetIntegrationCapabilitiesRequestObject) (GetIntegrationCapabilitiesResponseObject, error)
 
 	// (GET /v1/companies/{companyId}/invoices)
 	ListInvoices(ctx context.Context, request ListInvoicesRequestObject) (ListInvoicesResponseObject, error)
 
 	// (POST /v1/companies/{companyId}/invoices)
 	CreateInvoice(ctx context.Context, request CreateInvoiceRequestObject) (CreateInvoiceResponseObject, error)
+	// Versioned marketplace accounting entries, never bank facts
+	// (GET /v1/companies/{companyId}/marketplace-reports)
+	ListMarketplaceReports(ctx context.Context, request ListMarketplaceReportsRequestObject) (ListMarketplaceReportsResponseObject, error)
 	// Discover organizations and their accounts in an allowlisted 1C publication
 	// (POST /v1/companies/{companyId}/onec/discover)
 	DiscoverOneCAccounting(ctx context.Context, request DiscoverOneCAccountingRequestObject) (DiscoverOneCAccountingResponseObject, error)
@@ -9674,6 +10024,12 @@ type StrictServerInterface interface {
 
 	// (PATCH /v1/sources/{sourceId})
 	UpdateSource(ctx context.Context, request UpdateSourceRequestObject) (UpdateSourceResponseObject, error)
+	// Save validated column mapping and queue a sheet import
+	// (POST /v1/sources/{sourceId}/sheet-mapping)
+	ConfirmSheetMapping(ctx context.Context, request ConfirmSheetMappingRequestObject) (ConfirmSheetMappingResponseObject, error)
+	// Fetch a bounded Google Sheets preview without importing operations
+	// (POST /v1/sources/{sourceId}/sheet-preview)
+	PreviewSheetSource(ctx context.Context, request PreviewSheetSourceRequestObject) (PreviewSheetSourceResponseObject, error)
 
 	// (POST /v1/sources/{sourceId}/sync)
 	SyncSource(ctx context.Context, request SyncSourceRequestObject) (SyncSourceResponseObject, error)
@@ -11029,6 +11385,32 @@ func (sh *strictHandler) ExportCompany(w http.ResponseWriter, r *http.Request, c
 	}
 }
 
+// GetFNSOpenData operation middleware
+func (sh *strictHandler) GetFNSOpenData(w http.ResponseWriter, r *http.Request, companyId CompanyId) {
+	var request GetFNSOpenDataRequestObject
+
+	request.CompanyId = companyId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetFNSOpenData(ctx, request.(GetFNSOpenDataRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetFNSOpenData")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetFNSOpenDataResponseObject); ok {
+		if err := validResponse.VisitGetFNSOpenDataResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // GetForecast operation middleware
 func (sh *strictHandler) GetForecast(w http.ResponseWriter, r *http.Request, companyId openapi_types.UUID, params GetForecastParams) {
 	var request GetForecastRequestObject
@@ -11232,6 +11614,32 @@ func (sh *strictHandler) ListImports(w http.ResponseWriter, r *http.Request, com
 	}
 }
 
+// GetIntegrationCapabilities operation middleware
+func (sh *strictHandler) GetIntegrationCapabilities(w http.ResponseWriter, r *http.Request, companyId CompanyId) {
+	var request GetIntegrationCapabilitiesRequestObject
+
+	request.CompanyId = companyId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetIntegrationCapabilities(ctx, request.(GetIntegrationCapabilitiesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetIntegrationCapabilities")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetIntegrationCapabilitiesResponseObject); ok {
+		if err := validResponse.VisitGetIntegrationCapabilitiesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // ListInvoices operation middleware
 func (sh *strictHandler) ListInvoices(w http.ResponseWriter, r *http.Request, companyId openapi_types.UUID, params ListInvoicesParams) {
 	var request ListInvoicesRequestObject
@@ -11285,6 +11693,32 @@ func (sh *strictHandler) CreateInvoice(w http.ResponseWriter, r *http.Request, c
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(CreateInvoiceResponseObject); ok {
 		if err := validResponse.VisitCreateInvoiceResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListMarketplaceReports operation middleware
+func (sh *strictHandler) ListMarketplaceReports(w http.ResponseWriter, r *http.Request, companyId CompanyId) {
+	var request ListMarketplaceReportsRequestObject
+
+	request.CompanyId = companyId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListMarketplaceReports(ctx, request.(ListMarketplaceReportsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListMarketplaceReports")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListMarketplaceReportsResponseObject); ok {
+		if err := validResponse.VisitListMarketplaceReportsResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -12689,6 +13123,65 @@ func (sh *strictHandler) UpdateSource(w http.ResponseWriter, r *http.Request, so
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(UpdateSourceResponseObject); ok {
 		if err := validResponse.VisitUpdateSourceResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ConfirmSheetMapping operation middleware
+func (sh *strictHandler) ConfirmSheetMapping(w http.ResponseWriter, r *http.Request, sourceId openapi_types.UUID) {
+	var request ConfirmSheetMappingRequestObject
+
+	request.SourceId = sourceId
+
+	var body ConfirmSheetMappingJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ConfirmSheetMapping(ctx, request.(ConfirmSheetMappingRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ConfirmSheetMapping")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ConfirmSheetMappingResponseObject); ok {
+		if err := validResponse.VisitConfirmSheetMappingResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PreviewSheetSource operation middleware
+func (sh *strictHandler) PreviewSheetSource(w http.ResponseWriter, r *http.Request, sourceId openapi_types.UUID) {
+	var request PreviewSheetSourceRequestObject
+
+	request.SourceId = sourceId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PreviewSheetSource(ctx, request.(PreviewSheetSourceRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PreviewSheetSource")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PreviewSheetSourceResponseObject); ok {
+		if err := validResponse.VisitPreviewSheetSourceResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

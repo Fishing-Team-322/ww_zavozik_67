@@ -12,6 +12,8 @@ import (
 )
 
 type Config struct {
+	IntegrationSandbox                                                                                               bool
+	FNSHubURL, FNSHubToken, FNSHubCompany                                                                            string
 	TrustedProxyCIDRs                                                                                                []string
 	HTTPAddr                                                                                                         string        // HTTP_ADDR
 	DatabaseURL                                                                                                      string        // DATABASE_URL
@@ -30,6 +32,8 @@ type Config struct {
 
 func Load() Config {
 	return Config{
+		IntegrationSandbox: env("INTEGRATION_SANDBOX", "false") == "true",
+		FNSHubURL:          env("FNS_HUB_URL", ""), FNSHubToken: env("FNS_HUB_TOKEN", ""), FNSHubCompany: env("FNS_HUB_COMPANY", ""),
 		TrustedProxyCIDRs: strings.FieldsFunc(env("TRUSTED_PROXY_CIDRS", ""), func(r rune) bool { return r == ',' || r == ' ' }),
 		HTTPAddr:          env("HTTP_ADDR", ":8080"),
 		DatabaseURL:       env("DATABASE_URL", ""),

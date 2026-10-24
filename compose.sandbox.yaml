@@ -1,0 +1,22 @@
+# Isolated synthetic suppliers and a separate PostgreSQL volume.
+# docker compose --env-file <sandbox.env> -p puls-integration-sandbox -f compose.yaml -f compose.sandbox.yaml up -d --build
+services:
+  api:
+    environment:
+      INTEGRATION_SANDBOX: "true"
+      PUBLIC_URL: http://localhost:8081
+      FRONTEND_URL: http://localhost:3001
+      COOKIE_SECURE: "false"
+      FNS_HUB_URL: ""
+    ports: !override
+      - "127.0.0.1:8081:8080"
+  worker:
+    environment:
+      INTEGRATION_SANDBOX: "true"
+      PUBLIC_URL: http://localhost:8081
+      FRONTEND_URL: http://localhost:3001
+      COOKIE_SECURE: "false"
+      FNS_HUB_URL: ""
+  frontend:
+    ports: !override
+      - "127.0.0.1:3001:3000"

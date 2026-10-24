@@ -30,6 +30,8 @@ type Result struct {
 	Filename, MIME string
 }
 type Service struct {
+	IntegrationSandbox                                  bool
+	FNSHubURL, FNSHubToken, FNSHubCompany               string
 	DB                                                  *store.Postgres
 	ML                                                  forecast.StochasticForecaster
 	Fallback                                            forecast.StochasticForecaster
@@ -225,6 +227,7 @@ func view(kind string, d Doc) Doc {
 		}
 	case "source":
 		copyKeys("id kind title status enabled last_synced_at error")
+		out["data_mode"] = d["data_mode"]
 		if out["title"] == nil {
 			out["title"] = ""
 		}
@@ -555,8 +558,15 @@ func (s *Service) prepare(ctx context.Context, uid, cid, kind string, d Doc, cre
 		}
 		d["next_date"] = nextOccurrence(today().AddDate(0, 0, -1), text(d, "period"), int(number(d, "day_of_month"))).Format(domain.DateLayout)
 	case "source":
+		if create && in(text(d, "kind"), "wb ozon gsheets fns") {
+			if s.IntegrationSandbox {
+				d["data_mode"] = "mock"
+			} else {
+				d["data_mode"] = "live"
+			}
+		}
 		defaults("enabled", true)
-		if create && text(d, "kind") == "onec_odata" {
+		if create && in(text(d, "kind"), "onec_odata gsheets fns wb ozon") {
 			defaults("status", "pending")
 		} else {
 			defaults("status", "ok")
@@ -564,10 +574,10 @@ func (s *Service) prepare(ctx context.Context, uid, cid, kind string, d Doc, cre
 		if !flag(d, "enabled") {
 			d["status"] = "disabled"
 		}
-		if !in(text(d, "kind"), "upload onec_bank_file excel gsheets onec_odata fns manual") {
+		if !in(text(d, "kind"), "upload onec_bank_file excel gsheets onec_odata fns manual wb ozon") {
 			return bad("Неизвестный источник")
 		}
-		if create && in(text(d, "kind"), "gsheets onec_odata") && d["config"] == nil {
+		if create && in(text(d, "kind"), "gsheets onec_odata wb ozon") && d["config"] == nil {
 			return bad("Для сетевого источника укажите config")
 		}
 		if cfg, yes := d["config"].(map[string]any); yes {
