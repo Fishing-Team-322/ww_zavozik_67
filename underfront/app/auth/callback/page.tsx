@@ -8,7 +8,7 @@ export default function OAuthCallbackPage() {
   const session = useSession();
   const router = useRouter();
   useEffect(() => {
-    if (session.profile) router.replace("/");
+    if (session.profile) router.replace(session.profile.role === "admin" ? "/admin" : session.profile.companies.length ? "/overview" : "/companies/new");
   }, [session.profile, router]);
   return (
     <main className="flex min-h-screen items-center justify-center p-6">

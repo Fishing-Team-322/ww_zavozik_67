@@ -65,7 +65,7 @@ export function AuthPage({ mode }: AuthPageProps) {
   useEffect(() => {
     if (status !== "authenticated" || (mode !== "login" && mode !== "register")) return;
     const wanted = new URLSearchParams(window.location.search).get("redirect");
-    router.replace(user?.companies.length ? safeRedirect(wanted) : "/companies/new");
+    router.replace(user?.role === "admin" ? safeRedirect(wanted, "/admin") : user?.companies.length ? safeRedirect(wanted) : "/companies/new");
   }, [status, mode, user, router]);
 
   async function submitCredentials(action: "login" | "register") {
@@ -82,7 +82,7 @@ export function AuthPage({ mode }: AuthPageProps) {
     try {
       const profile = action === "login" ? await signIn(email.trim(), password) : await signUp(email.trim(), password);
       const wanted = new URLSearchParams(window.location.search).get("redirect");
-      router.replace(profile.companies.length ? safeRedirect(wanted) : "/companies/new");
+      router.replace(profile.role === "admin" ? safeRedirect(wanted, "/admin") : profile.companies.length ? safeRedirect(wanted) : "/companies/new");
     } catch (cause) { setError(messageFor(cause, mode)); }
     finally { submitLock.current = false; setBusy(false); }
   }

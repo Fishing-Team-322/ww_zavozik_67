@@ -1,0 +1,37 @@
+"use client";
+import { useState } from "react";
+import { useSession } from "@/src/features/auth";
+import { api, type Schemas } from "@/src/shared/api";
+import { useApiResource } from "@/src/shared/api/use-api-resource";
+import { Button, Input, Select, Tabs, Checkbox, Dialog, ConfirmDialog, EmptyState, Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/src/shared/ui";
+import { SectionCard } from "@/src/widgets/cabinet-shell";
+import { FinanceState } from "./FinanceState";
+import { useAction, ActionFeedback, money, directions, fieldGrid } from "./finance-utils";
+
+type Pattern = Schemas["RecurringPattern"];
+const periods = [{ value: "weekly", label: "Еженедельно" }, { value: "biweekly", label: "Раз в две недели" }, { value: "monthly", label: "Ежемесячно" }, { value: "quarterly", label: "Ежеквартально" }];
+export function RecurringScreen() {
+  const { company } = useSession();
+  const base = `/v1/companies/${company!.id}/recurring`;
+  const [direction, setDirection] = useState("");
+  const rows = useApiResource<Pattern[]>(`${base}?direction=${direction}`);
+  const [editing, setEditing] = useState<Pattern | "new" | null>(null);
+  const [deleting, setDeleting] = useState<Pattern | null>(null);
+  const action = useAction();
+  return <SectionCard className="space-y-4 p-5"><div className="flex flex-wrap justify-between gap-3"><h1 className="text-lg font-semibold">Регулярные платежи</h1><Button onClick={() => setEditing("new")}>Добавить платёж</Button></div>
+    <p className="text-sm text-[color:var(--text-secondary)]">Проверьте найденные по выписке платежи и подтвердите расписание. Отключение шаблона меняет план, но не переобучает прогнозную модель.</p>
+    <Tabs value={direction} onValueChange={setDirection} showContent={false} tabs={[{ key: "", label: "Все", content: null }, ...directions.map(d => ({ key: d.value, label: d.label, content: null }))]} />
+    {rows.data && <div className="text-sm space-y-1"><p>Подтверждено и включено: {rows.data.filter(row => row.confirmed && row.active).length} из {rows.data.length}</p>{periods.map(period => { const payments = rows.data!.filter(row => row.period === period.value && row.confirmed && row.active && row.direction === "out"); return payments.length ? <p key={period.value}>{period.label}: {money(payments.reduce((sum, row) => sum + row.amount, 0))} подтверждённых списаний</p> : null; })}</div>}
+    <FinanceState loading={rows.loading} error={rows.error} retry={rows.refresh} /><ActionFeedback action={action} />
+    {rows.data?.length === 0 && <EmptyState title="Регулярных платежей пока нет" description="Добавьте платёж вручную или загрузите историю операций." />}
+    {!!rows.data?.length && <Table><TableHeader><TableRow>{["Платёж", "Сумма", "Расписание", "Статус", "Действия"].map(v => <TableHead key={v}>{v}</TableHead>)}</TableRow></TableHeader><TableBody>{rows.data.map(row => <TableRow key={row.id}><TableCell>{row.title}<p className="text-xs text-[color:var(--text-secondary)]">{row.counterparty.name}</p></TableCell><TableCell>{row.direction === "in" ? "+" : "−"}{money(row.amount)}<p className="text-xs">Разброс: {money(row.amount_spread)}</p></TableCell><TableCell>{periods.find(p => p.value === row.period)?.label ?? row.period}<p>{row.next_date}</p></TableCell><TableCell>{!row.active ? "Отключён" : row.confirmed ? "Подтверждён" : "Требует подтверждения"}<p className="text-xs">{row.origin === "manual" ? "Добавлен вручную" : "Найден по истории"}</p></TableCell><TableCell><div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" onClick={() => setEditing(row)}>Изменить</Button>{!row.confirmed && <Button size="sm" disabled={action.busy} onClick={() => void action.run(() => api.request(`/v1/recurring/${row.id}`, { method: "PATCH", json: { confirmed: true, active: true } }))}>Подтвердить</Button>}<Button size="sm" variant="ghost" disabled={action.busy} onClick={() => void action.run(() => api.request(`/v1/recurring/${row.id}`, { method: "PATCH", json: { active: !row.active } }))}>{row.active ? "Отключить" : "Включить"}</Button><Button size="sm" variant="ghost" onClick={() => setDeleting(row)}>Удалить</Button></div></TableCell></TableRow>)}</TableBody></Table>}
+    {editing && <RecurringEditor key={editing === "new" ? "new" : editing.id} initial={editing === "new" ? null : editing} base={base} onClose={() => setEditing(null)} />}
+    <ConfirmDialog open={!!deleting} title="Удалить регулярный платёж?" description={deleting?.title} loading={action.busy} onCancel={() => { if (!action.busy) setDeleting(null); }} onConfirm={() => void action.run(() => api.request(`/v1/recurring/${deleting!.id}`, { method: "DELETE" }), () => setDeleting(null))}><ActionFeedback action={action} /></ConfirmDialog>
+  </SectionCard>;
+}
+function RecurringEditor({ initial, base, onClose }: { initial: Pattern | null; base: string; onClose: () => void }) {
+  const [draft, setDraft] = useState<Schemas["CreateRecurringInput"]>({ title: initial?.title ?? "", amount: initial?.amount ?? 0, direction: initial?.direction ?? "out", period: (initial?.period as Schemas["CreateRecurringInput"]["period"]) ?? "monthly", day_of_month: initial?.day_of_month ?? 1, category: initial?.category ?? "other", active: initial?.active ?? true, confirmed: initial?.confirmed ?? true, ...(initial?.counterparty.name ? { counterparty_name: initial.counterparty.name } : {}) });
+  const categories = useApiResource<Array<{ key: Schemas["Category"]; title: string }>>("/v1/categories");
+  const action = useAction();
+  return <Dialog open title={initial ? "Изменить платёж" : "Новый регулярный платёж"} onClose={onClose} dismissDisabled={action.busy}><form className="space-y-4" onSubmit={e => { e.preventDefault(); void action.run(() => api.request(initial ? `/v1/recurring/${initial.id}` : base, { method: initial ? "PATCH" : "POST", json: draft }), onClose); }}><Input label="Название" required maxLength={1024} value={draft.title} onChange={e => setDraft({ ...draft, title: e.target.value })} /><Input label="Контрагент" value={draft.counterparty_name ?? ""} onChange={e => setDraft({ ...draft, counterparty_name: e.target.value || undefined })} /><div className={fieldGrid}><Input label="Сумма, ₽" type="number" min="0" max="10000000000000" step="0.01" required value={draft.amount} onChange={e => setDraft({ ...draft, amount: Number(e.target.value) })} /><Select label="Направление" value={draft.direction} options={directions} onChange={e => setDraft({ ...draft, direction: e.target.value as "in" | "out" })} /><Select label="Период" value={draft.period} options={periods} onChange={e => setDraft({ ...draft, period: e.target.value as typeof draft.period })} /><Input label="День месяца" type="number" min="1" max="31" value={draft.day_of_month} onChange={e => setDraft({ ...draft, day_of_month: Number(e.target.value) })} /></div><FinanceState loading={categories.loading} error={categories.error} retry={categories.refresh} /><Select label="Категория" value={draft.category} options={(categories.data ?? []).map(c => ({ value: c.key, label: c.title }))} onChange={e => setDraft({ ...draft, category: e.target.value as Schemas["Category"] })} /><Checkbox label="Подтверждаю расписание" checked={draft.confirmed} onChange={e => setDraft({ ...draft, confirmed: e.target.checked })} /><Checkbox label="Активен" checked={draft.active} onChange={e => setDraft({ ...draft, active: e.target.checked })} /><ActionFeedback action={action} /><Button type="submit" loading={action.busy}>Сохранить</Button></form></Dialog>;
+}

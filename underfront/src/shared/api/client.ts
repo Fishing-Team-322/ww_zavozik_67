@@ -39,6 +39,15 @@ export class ApiClient {
   private token: string | null = null;
   private refreshing: Promise<void> | null = null;
   private generation = 0;
+  private channel: BroadcastChannel | null = null;
+  private ensureChannel() {
+    if (this.channel || typeof window === "undefined" || typeof BroadcastChannel === "undefined") return;
+    this.channel = new BroadcastChannel(`puls-auth:${this.origin}`);
+    this.channel.onmessage = event => { if (event.data === "logout") { this.generation++; this.lost(); } };
+  }
+  private dataListeners = new Set<() => void>();
+  invalidate() { this.dataListeners.forEach(listener => listener()); }
+  onDataChanged(listener: () => void) { this.dataListeners.add(listener); return () => { this.dataListeners.delete(listener); }; }
   private listeners = new Set<() => void>();
   constructor(
     origin = process.env.NEXT_PUBLIC_API_URL || "",
@@ -58,6 +67,7 @@ export class ApiClient {
     this.origin = url.origin;
   }
   onSessionLost(listener: () => void) {
+    this.ensureChannel();
     this.listeners.add(listener);
     return () => {
       this.listeners.delete(listener);
@@ -66,6 +76,7 @@ export class ApiClient {
   clearSession() {
     this.generation++;
     this.lost();
+    this.channel?.postMessage("logout");
   }
   private lost() {
     this.token = null;
@@ -79,6 +90,7 @@ export class ApiClient {
     if (!path.startsWith("/v1/") || path.includes("\\"))
       throw new Error("Expected a relative /v1/ API path");
     const authenticated = options.authenticated !== false;
+    const generation = this.generation;
     if (authenticated && !this.token) await this.refresh();
     options.signal?.throwIfAborted();
     const headers = new Headers(options.headers);
@@ -109,6 +121,7 @@ export class ApiClient {
         "Не удалось связаться с сервером. Проверьте соединение и повторите запрос.",
       );
     }
+    if (authenticated && generation !== this.generation) throw new ApiError(401, "session_changed", "Сессия изменилась. Повторите запрос.");
     if (response.status === 401 && authenticated && retry) {
       // Another request may already have rotated the token while this one was in flight.
       if (headers.get("Authorization") === `Bearer ${this.token}`)
@@ -130,6 +143,7 @@ export class ApiClient {
   }
   async request<T>(path: string, options: Options = {}): Promise<T> {
     const response = await this.send(path, options);
+    if (options.method && options.method !== "GET" && !/\/(preview|parse|simulate|test|refresh|login|register|logout)$/.test(path.split("?")[0])) this.invalidate();
     if (response.status === 204) return undefined as T;
     try {
       return (await response.json()) as T;
@@ -154,7 +168,7 @@ export class ApiClient {
             throw new ApiError(401, "session_changed", "Сессия завершена.");
           this.token = token.access_token;
         } catch (error) {
-          if (generation === this.generation) this.lost();
+          if (generation === this.generation && error instanceof ApiError && error.status === 401) this.lost();
           throw error;
         }
       };
@@ -194,8 +208,7 @@ export class ApiClient {
   async logout() {
     this.generation++;
     await this.request<void>("/v1/auth/logout", { method: "POST" });
-    this.generation++;
-    this.lost();
+    this.clearSession();
   }
   createCompany(input: Schemas["CompanyCreate"]) {
     return this.request<Company>("/v1/companies", {
@@ -267,7 +280,7 @@ export class ApiClient {
     const deadline = Date.now() + 120_000;
     for (;;) {
       signal?.throwIfAborted();
-      if (job.status === "done") return job;
+      if (job.status === "done") { this.invalidate(); return job; }
       if (job.status === "failed")
         throw new ApiError(
           409,
@@ -304,6 +317,7 @@ export class ApiClient {
 
 export const api = new ApiClient();
 export function message(error: unknown) {
+  if (error instanceof ApiError && error.status === 409) return `${error.message} Обновите данные и повторите действие.`;
   return error instanceof Error
     ? error.message
     : "Не удалось выполнить действие.";

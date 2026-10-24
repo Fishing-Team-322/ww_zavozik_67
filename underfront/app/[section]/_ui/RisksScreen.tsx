@@ -1,4 +1,6 @@
 "use client";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { useSession } from "@/src/features/auth";
 import {
@@ -9,17 +11,21 @@ import {
   type Gap,
 } from "@/src/shared/api";
 import { useApiResource } from "@/src/shared/api/use-api-resource";
-import { Button } from "@/src/shared/ui";
+import { Button, ConfirmDialog, Checkbox } from "@/src/shared/ui";
 import { SectionCard } from "@/src/widgets/cabinet-shell";
 import { RiskCard, CashflowForecastChart } from "@/src/widgets/finance-panels";
 import { chartDays, riskView, rubles } from "@/src/entities/forecast";
+import { CashflowWaterfall } from "@/src/features/cash-gap-inspector/ui/CashflowWaterfall";
 import { FinanceState, ForecastNotice } from "./FinanceState";
 
 export function RisksScreen() {
   const { company } = useSession();
   const base = `/v1/companies/${company!.id}`;
-  const forecast = useApiResource<Forecast>(`${base}/forecast`);
-  const [selected, setSelected] = useState<string | null>(null);
+  const query = useSearchParams();
+  const horizon = ["30", "60", "90"].includes(query.get("horizon") ?? "") ? query.get("horizon")! : "30";
+  const forecast = useApiResource<Forecast>(`${base}/forecast?horizon=${horizon}`);
+  const [chosen, setSelected] = useState<string | null>(null);
+  const selected = chosen ?? query.get("gap");
   return (
     <>
       <FinanceState
@@ -31,6 +37,7 @@ export function RisksScreen() {
       {forecast.data?.gaps.length === 0 && (
         <RiskCard risk={null} status="clear" />
       )}
+      {selected && forecast.data && !forecast.data.gaps.some(gap => gap.id === selected) && <p role="status" className="my-3 text-sm">Этот разрыв больше не найден в текущем прогнозе. Выберите актуальный риск ниже.</p>}
       <div className="grid gap-4 lg:grid-cols-2">
         {forecast.data?.gaps.map((gap) => (
           <div key={gap.id}>
@@ -51,6 +58,7 @@ export function RisksScreen() {
           <GapDetails
             key={selected}
             base={base}
+            horizon={horizon}
             gap={forecast.data.gaps.find((gap) => gap.id === selected)!}
             forecast={forecast.data}
             onApplied={forecast.refresh}
@@ -61,28 +69,35 @@ export function RisksScreen() {
 }
 function GapDetails({
   base,
+  horizon,
   gap,
   forecast,
   onApplied,
 }: {
   base: string;
+  horizon: string;
   gap: Gap;
   forecast: Forecast;
   onApplied: () => void;
 }) {
   const detail = useApiResource<Schemas["GapDetail"]>(
-    `${base}/gaps/${encodeURIComponent(gap.id)}`,
+    `${base}/gaps/${encodeURIComponent(gap.id)}?horizon=${horizon}`,
   );
+  const [confirmAction, setConfirmAction] = useState<Schemas["Action"] | null>(null);
+  const [notice, setNotice] = useState("");
   const [ids, setIds] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const simulated = useApiResource<Schemas["GapSimulation"]>(
-    ids.length ? `${base}/gaps/${encodeURIComponent(gap.id)}/simulate` : null,
+    ids.length ? `${base}/gaps/${encodeURIComponent(gap.id)}/simulate?horizon=${horizon}` : null,
     { method: "POST", json: { action_ids: ids } },
   );
   return (
     <SectionCard className="mt-5 space-y-4 p-5">
-      <h2 className="text-lg font-semibold">Что влияет на разрыв</h2>
+      <h2 className="text-lg font-semibold">Что влияет на разрыв · {gap.date}</h2>
+      {forecast.points.length > 0 && <p className="text-sm">Минимальный остаток за период: {rubles(Math.min(...forecast.points.map(point => point.p50)))}</p>}
+      <p className="text-sm">Изменения относятся только к плану: кредит не оформляется, сообщения контрагентам не отправляются.</p>
+      {notice && <p role="status">{notice}</p>}
       <FinanceState
         loading={detail.loading || simulated.loading}
         error={detail.error || simulated.error || error}
@@ -93,10 +108,11 @@ function GapDetails({
       />
       {detail.data && (
         <>
+          <CashflowWaterfall contributions steps={detail.data.causes.map((cause, i) => ({ id: `${cause.component_key}:${i}`, title: cause.title, amount: cause.amount, before: 0, after: cause.amount, kind: cause.amount >= 0 ? "income" : "expense" }))} />
           <ul className="list-inside list-disc space-y-2 text-sm">
             {detail.data.causes.map((cause) => (
               <li key={cause.component_key}>
-                {cause.title}: {rubles(cause.amount)}
+                {cause.title}: {rubles(cause.amount)}{cause.items_ref && <Link className="ml-2 text-[color:var(--accent)] underline" href={`/calendar?event=${encodeURIComponent(cause.items_ref)}`}>Событие и источник</Link>}
               </li>
             ))}
           </ul>
@@ -110,8 +126,8 @@ function GapDetails({
               className="rounded-lg border border-[color:var(--border)] p-4"
             >
               <label className="flex items-start gap-3">
-                <input
-                  type="checkbox"
+                <Checkbox
+                  aria-label={action.title}
                   checked={ids.includes(action.id)}
                   onChange={(event) =>
                     setIds(
@@ -132,23 +148,12 @@ function GapDetails({
                 className="mt-3"
                 variant="outline"
                 loading={busy}
-                onClick={async () => {
-                  setBusy(true);
-                  setError(null);
-                  try {
-                    await api.request(`/v1/actions/${action.id}/apply`, {
-                      method: "POST",
-                    });
-                    onApplied();
-                  } catch (error) {
-                    setError(message(error));
-                  } finally {
-                    setBusy(false);
-                  }
-                }}
+                onClick={() => { setError(null); setConfirmAction(action); }}
               >
                 Применить к плану
               </Button>
+              <p className="mt-2 text-xs">Стоимость: {rubles(action.cost)} · ожидаемая нехватка после действия: {rubles(action.effect.new_shortfall)}</p>
+              {action.draft_message && <p className="mt-2 whitespace-pre-wrap text-sm">Черновик сообщения: {action.draft_message}</p>}
             </div>
           ))}
         </>
@@ -167,6 +172,7 @@ function GapDetails({
           />
         </>
       )}
+      <ConfirmDialog open={!!confirmAction} title="Применить действие к плану?" description={confirmAction?.description} loading={busy} onCancel={() => { if (!busy) setConfirmAction(null); }} onConfirm={async () => { if (!confirmAction) return; setBusy(true); setError(null); try { await api.request(`/v1/actions/${confirmAction.id}/apply`, { method: "POST" }); setConfirmAction(null); setIds([]); setNotice("План обновлён."); onApplied(); } catch (cause) { setError(message(cause)); } finally { setBusy(false); } }}>{error && <p role="alert">{error}</p>}</ConfirmDialog>
     </SectionCard>
   );
 }

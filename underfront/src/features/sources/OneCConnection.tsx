@@ -49,7 +49,7 @@ export function OneCConnection({ companyId, companyINN, sources, onChanged }: Pr
     const done = await api.waitForJob(job, controller.signal);
     const result = (done.result || {}) as Record<string, unknown>;
     setNotice(
-      `Синхронизация завершена. Новых операций: ${result.added ?? 0}, повторов: ${result.duplicates ?? 0}; новых счетов: ${result.plans_added ?? 0}, обновлено: ${result.plans_updated ?? 0}.`,
+      `Синхронизация завершена. Новых операций: ${result.added ?? "нет данных"}, повторов: ${result.duplicates ?? "нет данных"}; новых счетов: ${result.plans_added ?? "нет данных"}, обновлено: ${result.plans_updated ?? "нет данных"}.`,
     );
     onChanged();
   }
