@@ -1,0 +1,80 @@
+openapi: 3.1.0
+info:
+  title: Go Integration Hub
+  version: 1.0.0
+  description: Local single-company operator API. Backend calls require a trusted service credential.
+servers:
+  - url: http://127.0.0.1:8091
+security:
+  - operatorBearer: []
+components:
+  securitySchemes:
+    operatorBearer:
+      type: http
+      scheme: bearer
+paths:
+  /healthz:
+    get:
+      security: []
+      responses:
+        '200': {description: Process alive}
+  /readyz:
+    get:
+      security: []
+      responses:
+        '200': {description: PostgreSQL ready}
+        '503': {description: PostgreSQL unavailable}
+  /v1/integrations/capabilities:
+    get:
+      responses:
+        '200': {description: Configured source capabilities}
+  /v1/import/onec-bank:
+    post:
+      description: Multipart 1CClientBankExchange import; company_id, company_inn, company_account, file.
+      responses:
+        '200': {description: ImportBatch v1}
+  /v1/import/csv:
+    post:
+      description: Multipart file, company_id, mapping JSON, mode=preview or commit.
+      responses:
+        '200': {description: Preview or committed ImportBatch v1}
+        '422': {description: Row errors; nothing committed}
+  /v1/sync/onec-odata:
+    post:
+      responses:
+        '200': {description: Posted bank operations ImportBatch v1}
+  /v1/sync/onec-plans:
+    post:
+      responses:
+        '200': {description: Invoice obligations ImportBatch v1}
+  /v1/enrich/dadata-party:
+    post:
+      description: JSON identifier or inn; does not post bank operations.
+      responses:
+        '200': {description: Dated counterparty profile}
+  /v1/operations/{companyId}:
+    get:
+      parameters:
+        - {name: companyId, in: path, required: true, schema: {type: string}}
+      responses:
+        '200': {description: Stored executed operations}
+        '403': {description: Other company}
+  /v1/planned-events/{companyId}:
+    get:
+      parameters:
+        - {name: companyId, in: path, required: true, schema: {type: string}}
+      responses:
+        '200': {description: Stored planned obligations}
+        '403': {description: Other company}
+  /v1/batches/{companyId}:
+    get:
+      parameters:
+        - {name: companyId, in: path, required: true, schema: {type: string}}
+      responses:
+        '200': {description: Recent import batches}
+  /v1/sync-runs/{companyId}:
+    get:
+      parameters:
+        - {name: companyId, in: path, required: true, schema: {type: string}}
+      responses:
+        '200': {description: Recent synchronization outcomes}

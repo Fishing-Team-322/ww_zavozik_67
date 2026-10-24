@@ -1,0 +1,16 @@
+{
+  "schema_version": "1.0",
+  "company_id": "demo-company",
+  "source_kind": "onec_odata",
+  "source_mode": "fixture",
+  "import_id": "demo-sync-1",
+  "imported_at": "2026-10-24T12:00:00Z",
+  "operations": [
+    {"external_id":"payment-client-1","dedup_key":"onec:payment-client-1","date":"2026-11-05","amount_kopecks":10000000,"direction":"in","counterparty_inn":"","counterparty_name":"","purpose":"Частичная оплата","source_kind":"onec_odata","account":"","executed":true,"version":1}
+  ],
+  "planned_events": [
+    {"external_id":"invoice-client","date":"2026-11-19","amount_kopecks":25000000,"direction":"in","title":"Счёт клиента","source_kind":"onec_odata","status":"partially_paid","document_number":"42","document_date":"2026-10-24","due_date":"2026-11-19","date_quality":"source_document","total_kopecks":35000000,"paid_kopecks":10000000,"remaining_kopecks":25000000,"currency":"RUB","link_status":"linked","forecast_eligible":true,"data_mode":"fixture","observed_at":"2026-10-24T12:00:00Z","version":2}
+  ],
+  "issues": [],
+  "stats": {"parsed":2,"accepted":2,"duplicates":0,"rejected":0}
+}
