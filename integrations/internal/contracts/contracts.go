@@ -68,15 +68,33 @@ type Stats struct {
 	Rejected   int `json:"rejected"`
 }
 
-// PlannedEvent is reserved for future pullers. A bank statement never emits one.
+// PlannedEvent is a future cash-flow obligation. AmountKopecks is the unpaid
+// remainder and must never represent a posted bank operation.
 type PlannedEvent struct {
-	ExternalID    string `json:"external_id"`
-	Date          string `json:"date"`
-	AmountKopecks int64  `json:"amount_kopecks"`
-	Direction     string `json:"direction"`
-	Title         string `json:"title"`
-	SourceKind    string `json:"source_kind"`
-	Status        string `json:"status"`
+	ExternalID       string  `json:"external_id"`
+	Date             string  `json:"date"`
+	AmountKopecks    int64   `json:"amount_kopecks"`
+	Direction        string  `json:"direction"`
+	Title            string  `json:"title"`
+	SourceKind       string  `json:"source_kind"`
+	Status           string  `json:"status"`
+	DocumentNumber   string  `json:"document_number,omitempty"`
+	DocumentDate     string  `json:"document_date,omitempty"`
+	DueDate          *string `json:"due_date"`
+	DateQuality      string  `json:"date_quality"`
+	TotalKopecks     int64   `json:"total_kopecks"`
+	PaidKopecks      int64   `json:"paid_kopecks"`
+	RemainingKopecks int64   `json:"remaining_kopecks"`
+	Currency         string  `json:"currency"`
+	CounterpartyINN  string  `json:"counterparty_inn,omitempty"`
+	Account          string  `json:"account,omitempty"`
+	LinkStatus       string  `json:"link_status"`
+	ForecastEligible bool    `json:"forecast_eligible"`
+	RawReference     string  `json:"raw_reference,omitempty"`
+	DataMode         string  `json:"data_mode"`
+	ObservedAt       string  `json:"observed_at"`
+	SourceVersion    string  `json:"source_version,omitempty"`
+	Version          int64   `json:"version"`
 }
 
 type ImportBatch struct {

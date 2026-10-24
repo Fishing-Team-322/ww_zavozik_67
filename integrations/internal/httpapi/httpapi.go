@@ -20,11 +20,12 @@ import (
 const maxRequestBytes = onecbank.MaxFileBytes + 64<<10
 
 type API struct {
-	Store        *store.Memory
-	OneCConfig   *onecodata.Config
-	OneCClient   onecodata.Client
-	DaDataClient *dadata.Client
-	SyncToken    string
+	Store          *store.Memory
+	OneCConfig     *onecodata.Config
+	OneCPlanConfig *onecodata.PlanConfig
+	OneCClient     onecodata.Client
+	DaDataClient   *dadata.Client
+	SyncToken      string
 }
 
 func (a API) Handler() http.Handler {
@@ -37,9 +38,52 @@ func (a API) Handler() http.Handler {
 	})
 	mux.HandleFunc("POST /v1/import/onec-bank", a.importOneC)
 	mux.HandleFunc("POST /v1/sync/onec-odata", a.syncOneC)
+	mux.HandleFunc("POST /v1/sync/onec-plans", a.syncOneCPlans)
 	mux.HandleFunc("POST /v1/enrich/dadata-party", a.enrichDaData)
 	mux.HandleFunc("GET /v1/batches/{companyId}", a.batches)
+	mux.HandleFunc("GET /v1/planned-events/{companyId}", a.plannedEvents)
 	return mux
+}
+
+func (a API) syncOneCPlans(w http.ResponseWriter, r *http.Request) {
+	if a.OneCPlanConfig == nil || a.SyncToken == "" {
+		writeError(w, 503, "not_configured", "1C planned events are not configured")
+		return
+	}
+	if !authorized(r, a.SyncToken) {
+		writeError(w, 401, "unauthorized", "Invalid authorization")
+		return
+	}
+	if r.ContentLength > 0 {
+		writeError(w, 400, "invalid_request", "Request body must be empty")
+		return
+	}
+	batch, err := (service.Importer{Store: a.Store}).OneCPlans(r.Context(), a.OneCClient, *a.OneCPlanConfig)
+	if err != nil {
+		switch {
+		case errors.Is(err, onecodata.ErrAuth):
+			writeError(w, 502, "upstream_auth_failed", "1C authentication failed")
+		case errors.Is(err, onecodata.ErrLimit):
+			writeError(w, 502, "upstream_limit", "1C response exceeds limit")
+		default:
+			writeError(w, 502, "upstream_failed", "1C planned sync failed")
+		}
+		return
+	}
+	writeJSON(w, 200, batch)
+}
+
+func (a API) plannedEvents(w http.ResponseWriter, r *http.Request) {
+	if !authorized(r, a.SyncToken) {
+		writeError(w, 401, "unauthorized", "Invalid authorization")
+		return
+	}
+	id := r.PathValue("companyId")
+	if id == "" || len(id) > 128 || strings.TrimSpace(id) != id {
+		writeError(w, 400, "invalid_company_id", "Invalid company ID")
+		return
+	}
+	writeJSON(w, 200, map[string]any{"company_id": id, "planned_events": a.Store.Plans(id)})
 }
 
 func (a API) syncOneC(w http.ResponseWriter, r *http.Request) {

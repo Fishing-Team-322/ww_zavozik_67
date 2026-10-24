@@ -27,6 +27,14 @@ func main() {
 		api.OneCConfig = &cfg
 		api.OneCClient = onecodata.Client{Username: os.Getenv("ONEC_ODATA_USERNAME"), Password: os.Getenv("ONEC_ODATA_PASSWORD")}
 	}
+	if configPath := os.Getenv("ONEC_PLAN_CONFIG"); configPath != "" {
+		cfg, err := onecodata.LoadPlanConfig(configPath)
+		if err != nil {
+			log.Fatal("invalid OData plan configuration")
+		}
+		api.OneCPlanConfig = &cfg
+		api.OneCClient = onecodata.Client{Username: os.Getenv("ONEC_ODATA_USERNAME"), Password: os.Getenv("ONEC_ODATA_PASSWORD")}
+	}
 	if token := os.Getenv("DADATA_API_TOKEN"); token != "" {
 		api.DaDataClient = &dadata.Client{Token: token}
 	}
