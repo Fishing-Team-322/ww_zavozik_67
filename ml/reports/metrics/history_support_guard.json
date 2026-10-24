@@ -1,0 +1,22 @@
+{
+  "check": "Last-56-day observed calendar-eligible sampling support, using causal History.head and existing stress_history",
+  "flows_sha256": "21d1e925e6d9ca1450e9d5254dd3e57ea6a6c6ad72096eb6bd0a2da307c668c5",
+  "forecast_fit_or_audit_repeated": false,
+  "datasets": {
+    "final_development": {
+      "origin_scenario_inputs": 1920,
+      "newly_rejected_inputs": [],
+      "saved_predictions_sha256": "d3fa654bd2bd6ec69ac16b284878b47e0f366f0339f33396957befd543fbd7c7"
+    },
+    "final_audit": {
+      "origin_scenario_inputs": 86,
+      "newly_rejected_inputs": [],
+      "saved_predictions_sha256": "3892baa02a0da91bb67d942fb3fd3a70d1dba55cbbe8d4c4c3b9522133cf67b6"
+    },
+    "supplemental_cohort": {
+      "origin_scenario_inputs": 54,
+      "newly_rejected_inputs": [],
+      "saved_predictions_sha256": "c7bbea35b540061f6fce1c63010cd90b45480d910235f20efd3254a2f682ef0e"
+    }
+  }
+}

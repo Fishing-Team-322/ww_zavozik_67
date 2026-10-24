@@ -1,0 +1,15 @@
+{
+  "protocol": "development_only_causal_crossfit_calibration",
+  "folds": 3,
+  "minimum_calibration_companies": 20,
+  "calibration_unit": "latest completed 30-day error trajectory per other-fold company",
+  "scale": "mean observed inflow+outflow over trailing 91 days of the available scenario history, plus one",
+  "preserve_point": "subtract calibration median error at each horizon before resampling",
+  "future_information_used": false,
+  "same_fold_calibration_used": false,
+  "serving_model_changed": false,
+  "point_predictions_sha256": "d2ae644337dd2fa0cd9f0f0a028108707d78995495d48e8faa92e63651eca8bc",
+  "flows_sha256": "21d1e925e6d9ca1450e9d5254dd3e57ea6a6c6ad72096eb6bd0a2da307c668c5",
+  "script_sha256": "39428da11f2c4e183a7aad5eacdb5efa908c0eb9bc6aed0560b73d80da017375",
+  "limitation": "Internal research on inspected synthetic development data; subset with enough prior calibration companies only. Net-flow target, not gross inflow/outflow."
+}
