@@ -199,7 +199,9 @@ func writeProduct(ctx context.Context, tx pgx.Tx, cid, kind, id string, d Doc) e
 		return syncTaxEvents(ctx, tx, cid, id, d)
 	}
 	if kind == "recurring" {
-		_, err = tx.Exec(ctx, "DELETE FROM planned_events WHERE company_id=$1 AND extra->>'recurring_id'=$2 AND event_date>=current_date AND status='expected' AND COALESCE((extra->>'user_override')::boolean,false)=false", cid, id)
+		_, err = tx.Exec(ctx, `DELETE FROM planned_events WHERE company_id=$1 AND extra->>'recurring_id'=$2
+		 AND matched_operation_id IS NULL AND COALESCE((extra->>'user_override')::boolean,false)=false
+		 AND ((event_date>=current_date AND status='expected') OR ($3=false AND status IN ('expected','missed')))`, cid, id, d["confirmed"] == true)
 	}
 	if kind == "operation" {
 		_, err = tx.Exec(ctx, "INSERT INTO category_corrections(company_id,operation_id,category) VALUES($1,$2,$3)", cid, id, d["category"])

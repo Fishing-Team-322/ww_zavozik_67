@@ -446,6 +446,10 @@ func (s *Service) crud(ctx context.Context, uid, cid string, desc [3]string, r *
 	for k, v := range body {
 		d[k] = v
 	}
+	if !create && kind == "event" && text(d, "source_kind") == "recurring" && len(body) > 0 {
+		// An individual installment edited by the user survives pattern edits.
+		d["user_override"] = true
+	}
 	d["id"], d["company_id"] = id, cid
 	if e := s.prepare(ctx, uid, cid, kind, d, create); e != nil {
 		return Result{}, e

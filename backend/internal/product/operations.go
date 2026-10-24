@@ -461,7 +461,7 @@ func (s *Service) projectRecurring(ctx context.Context, uid, cid string) error {
 		exists[text(d, "id")] = true
 	}
 	for _, p := range patterns {
-		if !flag(p, "active") {
+		if !flag(p, "active") || !flag(p, "confirmed") {
 			continue
 		}
 		start, e := day(date(p["next_date"]))

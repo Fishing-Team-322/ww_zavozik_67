@@ -157,3 +157,26 @@ and do not overwrite historical facts. Matching repeats may fill a previously
 unknown closing balance, including an explicit zero.
 Payment matching, import-ID conflicts and settled contract terms compare amounts
 in rounded integer kopecks: a one-kopeck difference is not a full payment/duplicate.
+
+Planning integrity
+------------------
+Plan-fact uses the full invoice amount throughout partial/full payment, while
+calendar and forecast projections retain the unpaid balance. Document payment
+metadata never creates bank cash facts. Unexpected business payments exclude
+internal transfers and rows explicitly marked as duplicates.
+
+Recurring patterns require both active=true and confirmed=true before projection.
+Editing an individual recurring event marks a user override, preserving its date,
+amount and state across later pattern edits. Revoking confirmation removes unpaid
+automatic occurrences, including overdue ones, while preserving bank matches and
+explicit user overrides.
+
+Apply embedded migration 00008 with the normal migrate command before starting
+the new API/worker. It removes older unconfirmed automatic expected/missed events
+and queues affected companies for recomputation. Paid history and marked user
+overrides are preserved. Stop older API/workers before migration so they cannot
+regenerate the obsolete projections. No integration credentials are required.
+
+Regression coverage: planning_integrity_regressions_test.go (plan-fact in both
+directions, confirmation and bank matching, internal/duplicate exclusions,
+per-occurrence edits, revoked overdue schedules, migration preservation).

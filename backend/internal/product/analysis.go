@@ -36,6 +36,14 @@ func (s *Service) historyAnalysis(ctx context.Context, op, uid, cid string, r *h
 	}
 	switch op {
 	case "getPlanFact":
+		invoices, err := s.DB.ProductList(ctx, uid, cid, "invoice")
+		if err != nil {
+			return Result{}, err
+		}
+		invoiceAmounts := map[string]float64{}
+		for _, invoice := range invoices {
+			invoiceAmounts[text(invoice, "id")] = number(invoice, "amount")
+		}
 		gran := r.URL.Query().Get("granularity")
 		if gran == "" {
 			gran = "day"
@@ -89,7 +97,15 @@ func (s *Service) historyAnalysis(ctx context.Context, op, uid, cid string, r *h
 		}
 		for _, d := range events {
 			if text(d, "status") != "cancelled" {
-				add(date(d["event_date"]), "plan_"+text(d, "direction"), number(d, "amount"))
+				amount := number(d, "amount")
+				// Calendar/forecast projections contain the outstanding balance.
+				// Plan-fact compares bank facts with the full invoice obligation.
+				if text(d, "source_kind") == "invoice" {
+					if total, exists := invoiceAmounts[text(d, "document_id")]; exists {
+						amount = total
+					}
+				}
+				add(date(d["event_date"]), "plan_"+text(d, "direction"), amount)
 			}
 		}
 		out := []Doc{}
@@ -135,7 +151,7 @@ func (s *Service) historyAnalysis(ctx context.Context, op, uid, cid string, r *h
 		}
 		unexpected := []Doc{}
 		for _, d := range operations {
-			if !matched[text(d, "id")] && date(d["op_date"]) >= from && date(d["op_date"]) <= to {
+			if !flag(d, "is_internal") && !flag(d, "is_duplicate") && !matched[text(d, "id")] && date(d["op_date"]) >= from && date(d["op_date"]) <= to {
 				unexpected = append(unexpected, view("operation", d))
 			}
 		}
