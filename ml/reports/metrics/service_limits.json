@@ -8,5 +8,6 @@
   "classifier_version": "classifier-v1-dac291770bf320c9",
   "forecast_version": "seasonal_naive:code-ee49e0e8874d",
   "healthy_after_large_requests": true,
-  "limitation": "Single near-limit smoke on local Docker; not a production throughput or latency SLA."
+  "limitation": "Single near-limit smoke on local Docker; not a production throughput or latency SLA.",
+  "container_memory_peak_bytes": 234541056
 }
