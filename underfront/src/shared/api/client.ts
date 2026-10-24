@@ -40,10 +40,44 @@ export class ApiClient {
   private refreshing: Promise<void> | null = null;
   private generation = 0;
   private channel: BroadcastChannel | null = null;
+  private sessionBlocked = false;
+  private authQueue: Promise<unknown> = Promise.resolve();
+  private get logoutKey() { return `puls-logged-out:${this.origin}`; }
+  private isSessionBlocked() {
+    try { return this.sessionBlocked || (typeof window !== "undefined" && localStorage.getItem(this.logoutKey) === "1"); }
+    catch { return this.sessionBlocked; }
+  }
+  private blockSession(blocked: boolean) {
+    this.sessionBlocked = blocked;
+    // Only a logout flag is persisted, never credentials or profile data.
+    try {
+      if (blocked) localStorage.setItem(this.logoutKey, "1");
+      else localStorage.removeItem(this.logoutKey);
+    } catch { /* Storage may be disabled; the in-memory guard still applies. */ }
+  }
+  private assertSession(generation: number) {
+    if (generation !== this.generation || this.isSessionBlocked())
+      throw new ApiError(401, "session_changed", "Сессия завершена. Войдите снова.");
+  }
+  private serializeAuth<T>(action: () => Promise<T>): Promise<T> {
+    const pending = this.authQueue.catch(() => {}).then(() => {
+      if (typeof navigator !== "undefined" && navigator.locks)
+        return navigator.locks.request(`puls-refresh:${this.origin}`, action);
+      return action();
+    });
+    this.authQueue = pending;
+    return pending;
+  }
+  private observingSession = false;
   private ensureChannel() {
-    if (this.channel || typeof window === "undefined" || typeof BroadcastChannel === "undefined") return;
+    if (this.observingSession || typeof window === "undefined") return;
+    this.observingSession = true;
+    window.addEventListener("storage", event => {
+      if (event.key === this.logoutKey && event.newValue === "1") this.endLocalSession();
+    });
+    if (typeof BroadcastChannel === "undefined") return;
     this.channel = new BroadcastChannel(`puls-auth:${this.origin}`);
-    this.channel.onmessage = event => { if (event.data === "logout") { this.generation++; this.lost(); } };
+    this.channel.onmessage = event => { if (event.data === "logout") this.endLocalSession(); };
   }
   private dataListeners = new Set<() => void>();
   invalidate() { this.dataListeners.forEach(listener => listener()); }
@@ -74,13 +108,21 @@ export class ApiClient {
     };
   }
   clearSession() {
-    this.generation++;
-    this.lost();
+    this.blockSession(true);
+    this.endLocalSession();
     this.channel?.postMessage("logout");
   }
-  private lost() {
+  private endLocalSession() {
+    this.sessionBlocked = true;
+    this.generation++;
     this.token = null;
+    this.refreshing = null;
     this.listeners.forEach((listener) => listener());
+  }
+  /** Called only by the explicit OAuth completion route. */
+  allowSessionRestore() {
+    this.endLocalSession();
+    this.blockSession(false);
   }
   private async send(
     path: string,
@@ -91,7 +133,9 @@ export class ApiClient {
       throw new Error("Expected a relative /v1/ API path");
     const authenticated = options.authenticated !== false;
     const generation = this.generation;
+    if (authenticated) this.assertSession(generation);
     if (authenticated && !this.token) await this.refresh();
+    if (authenticated) this.assertSession(generation);
     options.signal?.throwIfAborted();
     const headers = new Headers(options.headers);
     if (authenticated && this.token)
@@ -121,15 +165,16 @@ export class ApiClient {
         "Не удалось связаться с сервером. Проверьте соединение и повторите запрос.",
       );
     }
-    if (authenticated && generation !== this.generation) throw new ApiError(401, "session_changed", "Сессия изменилась. Повторите запрос.");
+    if (authenticated) this.assertSession(generation);
     if (response.status === 401 && authenticated && retry) {
       // Another request may already have rotated the token while this one was in flight.
       if (headers.get("Authorization") === `Bearer ${this.token}`)
         await this.refresh();
+      this.assertSession(generation);
       return this.send(path, options, false);
     }
     if (!response.ok) {
-      if (response.status === 401 && authenticated) this.lost();
+      if (response.status === 401 && authenticated) this.clearSession();
       const payload = await response.json().catch(() => ({}));
       throw new ApiError(
         response.status,
@@ -142,44 +187,37 @@ export class ApiClient {
     return response;
   }
   async request<T>(path: string, options: Options = {}): Promise<T> {
+    const generation = this.generation;
     const response = await this.send(path, options);
-    if (options.method && options.method !== "GET" && !/\/(preview|parse|simulate|test|refresh|login|register|logout)$/.test(path.split("?")[0])) this.invalidate();
-    if (response.status === 204) return undefined as T;
-    try {
-      return (await response.json()) as T;
-    } catch {
-      throw new ApiError(
-        502,
-        "invalid_response",
-        "Сервер вернул ответ неизвестного формата.",
-      );
+    let result: T = undefined as T;
+    if (response.status !== 204) {
+      try { result = await response.json() as T; }
+      catch {
+        throw new ApiError(502, "invalid_response", "Сервер вернул ответ неизвестного формата.");
+      }
     }
+    // A body can finish downloading after logout or another account signs in.
+    if (options.authenticated !== false) this.assertSession(generation);
+    if (options.method && options.method !== "GET" && !/\/(preview|parse|simulate|test|refresh|login|register|logout)$/.test(path.split("?")[0])) this.invalidate();
+    return result;
   }
   refresh(): Promise<void> {
     if (!this.refreshing) {
       const generation = this.generation;
-      const refresh = async () => {
+      const pending: Promise<void> = this.serializeAuth(async () => {
+        this.assertSession(generation);
         try {
-          const token = await this.request<Schemas["Token"]>(
-            "/v1/auth/refresh",
-            { method: "POST", authenticated: false },
-          );
-          if (generation !== this.generation)
-            throw new ApiError(401, "session_changed", "Сессия завершена.");
+          const token = await this.request<Schemas["Token"]>("/v1/auth/refresh", { method: "POST", authenticated: false, signal: AbortSignal.timeout(15_000) });
+          this.assertSession(generation);
           this.token = token.access_token;
         } catch (error) {
-          if (generation === this.generation && error instanceof ApiError && error.status === 401) this.lost();
+          if (generation === this.generation && (this.token || error instanceof ApiError && error.status === 401)) this.clearSession();
           throw error;
         }
-      };
-      // Rotation is serialized across tabs sharing the same refresh cookie.
-      this.refreshing = (async () => {
-        if (typeof navigator !== "undefined" && navigator.locks)
-          await navigator.locks.request(`puls-refresh:${this.origin}`, refresh);
-        else await refresh();
-      })().finally(() => {
-        this.refreshing = null;
+      }).finally(() => {
+        if (this.refreshing === pending) this.refreshing = null;
       });
+      this.refreshing = pending;
     }
     return this.refreshing;
   }
@@ -189,26 +227,44 @@ export class ApiClient {
     password: string,
     consent = false,
   ) {
-    const token = await this.request<Schemas["Token"]>(`/v1/auth/${mode}`, {
-      method: "POST",
-      authenticated: false,
-      json: {
-        email,
-        password,
-        ...(mode === "register" ? { consent_pd: consent } : {}),
-      },
+    this.clearSession();
+    const generation = this.generation;
+    await this.serializeAuth(async () => {
+      if (generation !== this.generation) throw new ApiError(401, "session_changed", "Вход отменён.");
+      const token = await this.request<Schemas["Token"]>(`/v1/auth/${mode}`, {
+        method: "POST", authenticated: false, signal: AbortSignal.timeout(15_000),
+        json: { email, password, ...(mode === "register" ? { consent_pd: consent } : {}) },
+      });
+      if (generation !== this.generation) throw new ApiError(401, "session_changed", "Вход отменён.");
+      this.blockSession(false);
+      this.token = token.access_token;
     });
-    this.generation++;
-    this.token = token.access_token;
     return this.me();
   }
   me() {
     return this.request<Schemas["Profile"]>("/v1/me");
   }
   async logout() {
-    this.generation++;
-    await this.request<void>("/v1/auth/logout", { method: "POST" });
+    const token = this.token;
+    // Hide local data immediately, even if the server is offline or never responds.
     this.clearSession();
+    await this.serializeAuth(async () => {
+      // Explicit credentials avoid implicit refresh and restoring the local session.
+      const revoke = (accessToken: string | null) => this.request<void>("/v1/auth/logout", {
+        method: "POST", authenticated: false, signal: AbortSignal.timeout(15_000),
+        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
+      });
+      try { await revoke(token); }
+      catch (error) {
+        if (!(error instanceof ApiError && error.status === 401)) throw error;
+        try {
+          const refreshed = await this.request<Schemas["Token"]>("/v1/auth/refresh", { method: "POST", authenticated: false, signal: AbortSignal.timeout(15_000) });
+          await revoke(refreshed.access_token);
+        } catch (cause) {
+          if (!(cause instanceof ApiError && cause.status === 401)) throw cause;
+        }
+      }
+    });
   }
   createCompany(input: Schemas["CompanyCreate"]) {
     return this.request<Company>("/v1/companies", {
@@ -311,7 +367,10 @@ export class ApiClient {
     }
   }
   async download(path: string, signal?: AbortSignal) {
-    return (await this.send(path, { signal })).blob();
+    const generation = this.generation;
+    const blob = await (await this.send(path, { signal })).blob();
+    this.assertSession(generation);
+    return blob;
   }
 }
 

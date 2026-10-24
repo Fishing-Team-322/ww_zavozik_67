@@ -140,28 +140,28 @@ export function TransactionsScreen() {
       {summary.data && <details className="text-sm"><summary className="cursor-pointer">Сводка по категориям</summary><p className="my-2 text-xs text-[color:var(--text-secondary)]">Внутренние переводы исключены из поступлений и списаний. Переводы: {rubles(summary.data.internal_total)}.</p><Table><TableHeader><TableRow><TableHead>Категория</TableHead><TableHead>Пришло</TableHead><TableHead>Ушло</TableHead><TableHead>Операций</TableHead></TableRow></TableHeader><TableBody>{summary.data.by_category.map(row => <TableRow key={row.category}><TableCell>{categories.data?.find(c => c.key === row.category)?.title ?? row.category}</TableCell><TableCell>{rubles(row.in)}</TableCell><TableCell>{rubles(row.out)}</TableCell><TableCell>{row.count}</TableCell></TableRow>)}</TableBody></Table></details>}
       {rows.data && (
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead>
-              <tr className="border-b border-[color:var(--border)] text-xs text-[color:var(--text-secondary)]">
+          <Table unstyled className="w-full text-left text-sm">
+            <TableHeader unstyled>
+              <TableRow unstyled className="border-b border-[color:var(--border)] text-xs text-[color:var(--text-secondary)]">
                 {["Дата", "Контрагент / назначение", "Сумма", "Категория"].map(
                   (label) => (
-                    <th className="p-3" key={label}>
+                    <TableHead unstyled className="p-3" key={label}>
                       {label}
-                    </th>
+                    </TableHead>
                   ),
                 )}
-              </tr>
-            </thead>
-            <tbody>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {rows.data.items.map((row) => (
-                <tr
+                <TableRow unstyled
                   key={row.id}
                   className="border-b border-[color:var(--border)]"
                 >
-                  <td className="whitespace-nowrap p-3">
+                  <TableCell unstyled className="whitespace-nowrap p-3">
                     {displayDate(row.date)}
-                  </td>
-                  <td className="min-w-48 p-3">
+                  </TableCell>
+                  <TableCell unstyled className="min-w-48 p-3">
                     <p>{row.counterparty.id ? <Link className="text-[color:var(--accent)] underline" href={`/counterparties/${row.counterparty.id}`}>{row.counterparty.name}</Link> : row.counterparty.name || "Без контрагента"}</p><p className="text-xs">Источник: {row.source}</p>
                     <p className="mt-1 max-w-lg text-xs text-[color:var(--text-secondary)]">
                       {row.purpose}
@@ -169,12 +169,12 @@ export function TransactionsScreen() {
                     {row.is_internal && (
                       <p className="text-xs">Внутренний перевод</p>
                     )}
-                  </td>
-                  <td className="whitespace-nowrap p-3 tabular-nums">
+                  </TableCell>
+                  <TableCell unstyled className="whitespace-nowrap p-3 tabular-nums">
                     {row.direction === "in" ? "+" : "−"}
                     {rubles(row.amount)}
-                  </td>
-                  <td className="min-w-48 p-3">
+                  </TableCell>
+                  <TableCell unstyled className="min-w-48 p-3">
                     <Select
                       aria-label={`Категория операции ${row.id}`}
                       value={row.category}
@@ -202,11 +202,11 @@ export function TransactionsScreen() {
                     />
                     {row.counterparty.id && <Button variant="ghost" size="sm" disabled={busy} onClick={() => { setRule(row); setRuleCategory(row.category); }}>Правило для контрагента</Button>}
                     <p className="text-xs text-[color:var(--text-secondary)]">{row.category_method === "manual" ? "Указана вручную" : "Определена автоматически"}</p>
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
           {rows.data.items.length === 0 && (
             <p className="p-5 text-sm text-[color:var(--text-secondary)]">
               Операций по выбранным условиям нет.

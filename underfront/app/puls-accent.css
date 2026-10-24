@@ -46,6 +46,7 @@ html[data-theme="dark"] {
   --puls-border: #e5e4df;
   --puls-border-strong: #cac9c4;
   --puls-grid: #eae8e3;
+  --puls-event-shadow: 0 2px 4px rgba(30, 28, 20, 0.08);
   --puls-chart-primary: #16a984;
   --puls-chart-secondary: #7060d6;
   --puls-chart-zero: #ce655f;
@@ -83,6 +84,7 @@ html[data-theme="dark"] .puls-overview {
   --puls-border: #343434;
   --puls-border-strong: #505050;
   --puls-grid: #303030;
+  --puls-event-shadow: 0 2px 4px rgba(0, 0, 0, 0.28);
   --puls-chart-primary: #48d6a3;
   --puls-chart-secondary: #a58bff;
   --puls-chart-zero: #ff8c84;

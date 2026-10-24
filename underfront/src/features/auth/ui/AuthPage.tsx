@@ -31,7 +31,7 @@ function messageFor(cause: unknown, mode: AuthPageProps["mode"]) {
 
 export function AuthPage({ mode }: AuthPageProps) {
   const router = useRouter();
-  const { user, status, error: sessionError, sessionExpired, signIn, signUp, retry } = useAuth();
+  const { user, status, error: sessionError, sessionExpired, logoutWarning, signIn, signUp, retry } = useAuth();
   const submitLock = useRef(false);
   const tokenCaptured = useRef(false);
   const [providers, setProviders] = useState<Schemas["AuthProviders"]>([]);
@@ -112,7 +112,7 @@ export function AuthPage({ mode }: AuthPageProps) {
   const title = mode === "login" ? "Вход" : mode === "register" ? "Регистрация" : mode === "recover" ? "Восстановление пароля" : "Новый пароль";
   const description = mode === "login" ? "Войдите, чтобы продолжить работу с финансами." : mode === "register" ? step === "email" ? "Начните с адреса электронной почты." : "Придумайте пароль для завершения регистрации." : mode === "recover" ? "Введите email, на который зарегистрирован аккаунт." : "Установите новый пароль для своего аккаунта.";
 
-  return <main className="flex min-h-screen items-center justify-center bg-[color:var(--sidebar-bg)] px-4 py-16 text-[color:var(--text-primary)]" style={{ backgroundImage: "radial-gradient(ellipse 760px 560px at 50% 50%, var(--auth-glow), transparent 78%)" }}>
+  return <main className="flex min-h-screen items-center justify-center bg-[color:var(--sidebar-bg)] px-4 py-16 text-[color:var(--text-primary)] [background-image:radial-gradient(ellipse_760px_560px_at_50%_50%,var(--auth-glow),transparent_78%)]">
     <div className="w-full max-w-[420px]">
       <section className="rounded-[6px] border border-[color:var(--border)] bg-[color:var(--auth-card-bg)] p-6 text-[color:var(--nav-item-text)] [--input-label:var(--nav-item-text)] [--input-placeholder:var(--nav-item-text)] [--input-text:var(--nav-item-text)] sm:p-8">
         <h1 className="text-center text-2xl font-semibold tracking-tight text-[color:var(--nav-item-active-text)]">{title}</h1>
@@ -123,6 +123,7 @@ export function AuthPage({ mode }: AuthPageProps) {
         {(mode === "login" || mode === "register") && status === "error" && <div className="mt-7 text-center text-[13px]"><p role="alert">{sessionError ?? "Сервер недоступен."}</p><Button type="button" variant="outline" size="lg" className="mt-3" onClick={() => void retry()}>Повторить</Button></div>}
 
         {mode === "login" && status === "guest" && <form onSubmit={event => { event.preventDefault(); void submitCredentials("login"); }} className="mt-7">
+          {logoutWarning && <p role="status" className="mb-4 text-[12px]">{logoutWarning}</p>}
           {sessionExpired && <p role="status" className="mb-4 rounded-[5px] border border-[color:var(--border)] bg-[color:var(--surface-subtle)] px-3 py-2 text-[12px]">Срок сессии истёк. Войдите снова.</p>}
           <div className="space-y-4"><Input inputSize="lg" className={inputClass} aria-label="Электронная почта" type="email" placeholder="Электронная почта" autoComplete="email" required value={email} onChange={event => setEmail(event.target.value)} /><Input inputSize="lg" className={passwordClass} aria-label="Пароль" type="password" placeholder="Пароль" autoComplete="current-password" required value={password} onChange={event => setPassword(event.target.value)} secretToggle /></div>
           <div className="mt-3 text-right"><Link href="/forgot-password" className="text-xs font-medium underline-offset-4 hover:underline focus-visible:outline-none focus-visible:underline">Забыли пароль?</Link></div>
@@ -135,7 +136,7 @@ export function AuthPage({ mode }: AuthPageProps) {
           {error && <p role="alert" className="mt-3 text-[12px] text-[color:var(--danger)]">{error}</p>}
           <Button type="submit" size="lg" className={`mt-6 ${buttonClass}`}>Продолжить</Button>
         </form>}
-        {mode === "register" && status === "guest" && step === "password" && <><div className="mt-7 flex items-center justify-between gap-3 rounded-[6px] bg-[color:var(--sidebar-hover)] px-3 py-2 text-xs"><span className="min-w-0 truncate">{email}</span><button type="button" onClick={() => setStep("email")} className="shrink-0 font-medium text-[color:var(--nav-item-active-text)] underline-offset-4 hover:underline focus-visible:underline">Изменить</button></div>
+        {mode === "register" && status === "guest" && step === "password" && <><div className="mt-7 flex items-center justify-between gap-3 rounded-[6px] bg-[color:var(--sidebar-hover)] px-3 py-2 text-xs"><span className="min-w-0 truncate">{email}</span><Button type="button" variant="ghost" onClick={() => setStep("email")} className="h-auto! rounded-none! border-0! p-0! hover:bg-transparent! shrink-0 font-medium text-[color:var(--nav-item-active-text)] underline-offset-4 hover:underline focus-visible:underline">Изменить</Button></div>
           <form onSubmit={event => { event.preventDefault(); void submitCredentials("register"); }} className="mt-4">
             <div className="space-y-4"><Input inputSize="lg" className={passwordClass} aria-label="Пароль" type="password" minLength={8} required placeholder="Пароль" autoComplete="new-password" value={password} onChange={event => setPassword(event.target.value)} secretToggle /><Input inputSize="lg" className={passwordClass} aria-label="Повторите пароль" type="password" minLength={8} required placeholder="Повторите пароль" autoComplete="new-password" value={confirmation} onChange={event => setConfirmation(event.target.value)} secretToggle /></div>
             <p className="mt-2 text-[12px] leading-4">Минимум 8 символов. Длинная уникальная фраза надёжнее.</p>
