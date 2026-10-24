@@ -1306,7 +1306,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Object'
+                $ref: '#/components/schemas/ForecastDay'
   /v1/companies/{companyId}/forecast/preview:
     post:
       tags:
@@ -2327,7 +2327,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Object'
+                $ref: '#/components/schemas/AdminCompanyDetail'
   /v1/admin/integrations:
     get:
       tags:
@@ -2415,7 +2415,7 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/Object'
+                  $ref: '#/components/schemas/AdminModel'
   /v1/admin/models/drift:
     get:
       tags:
@@ -2532,7 +2532,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Object'
+                $ref: '#/components/schemas/SignalDetail'
     patch:
       tags:
       - admin
@@ -4817,3 +4817,272 @@ components:
       - items
       - mean_absolute_error
       - samples
+    AdminModel:
+      allOf:
+      - $ref: '#/components/schemas/ModelQuality'
+      - type: object
+        required:
+        - is_default
+        - trained_at
+        - companies
+        - metrics
+        properties:
+          is_default:
+            type: boolean
+          trained_at:
+            type: string
+            format: date-time
+            nullable: true
+          companies:
+            type: integer
+            nullable: true
+          metrics:
+            type: object
+            required:
+            - wape_7
+            - wape_14
+            - wape_30
+            - coverage
+            - gap_brier
+            - gap_auc
+            - gap_lead_days
+            properties:
+              wape_7:
+                type: number
+                format: double
+                nullable: true
+              wape_14:
+                type: number
+                format: double
+                nullable: true
+              wape_30:
+                type: number
+                format: double
+                nullable: true
+              coverage:
+                type: number
+                format: double
+                nullable: true
+              gap_brier:
+                type: number
+                format: double
+                nullable: true
+              gap_auc:
+                type: number
+                format: double
+                nullable: true
+              gap_lead_days:
+                type: number
+                format: double
+                nullable: true
+    AdminCompanyDetail:
+      type: object
+      required:
+      - company
+      - sources
+      - operations_stats
+      - forecast
+      - signals
+      properties:
+        company:
+          $ref: '#/components/schemas/Company'
+        sources:
+          type: array
+          items:
+            $ref: '#/components/schemas/Source'
+        operations_stats:
+          $ref: '#/components/schemas/Object'
+        forecast:
+          type: object
+          required:
+          - as_of
+          - horizon
+          - model_used
+          - model_version
+          - flow_scope
+          - fallback_used
+          - warnings
+          - low_confidence
+          - opening_balance
+          - safe_to_spend
+          - status
+          - headline
+          - history
+          - points
+          - markers
+          - gaps
+          properties:
+            as_of:
+              type: string
+              format: date
+            horizon:
+              type: integer
+            model_used:
+              type: string
+            model_version:
+              type: string
+            flow_scope:
+              type: string
+            fallback_used:
+              type: boolean
+            warnings:
+              type: array
+              items:
+                type: string
+            low_confidence:
+              type: boolean
+            opening_balance:
+              type: number
+              format: double
+            safe_to_spend:
+              type: number
+              format: double
+            status:
+              type: string
+            headline:
+              type: string
+            history:
+              type: array
+              items:
+                type: object
+                required:
+                - date
+                - balance
+                properties:
+                  date:
+                    type: string
+                    format: date
+                  balance:
+                    type: number
+                    format: double
+                    nullable: true
+            points:
+              type: array
+              items:
+                type: object
+                required:
+                - date
+                - p10
+                - p50
+                - p90
+                - is_workday
+                properties:
+                  date:
+                    type: string
+                    format: date
+                  p10:
+                    type: number
+                    format: double
+                  p50:
+                    type: number
+                    format: double
+                  p90:
+                    type: number
+                    format: double
+                  is_workday:
+                    type: boolean
+            markers:
+              type: array
+              items:
+                type: object
+                required:
+                - date
+                - title
+                - amount
+                - kind
+                properties:
+                  date:
+                    type: string
+                    format: date
+                  title:
+                    type: string
+                  amount:
+                    type: number
+                    format: double
+                  kind:
+                    type: string
+            gaps:
+              type: array
+              items:
+                $ref: '#/components/schemas/Gap'
+          nullable: true
+        signals:
+          type: array
+          items:
+            $ref: '#/components/schemas/Object'
+    SignalDetail:
+      allOf:
+      - $ref: '#/components/schemas/Signal'
+      - type: object
+        required:
+        - operations
+        - counterparty
+        - company_history
+        properties:
+          operations:
+            type: array
+            items:
+              $ref: '#/components/schemas/Operation'
+          counterparty:
+            type: object
+            required:
+            - id
+            - name
+            properties:
+              id:
+                type: string
+                format: uuid
+                nullable: true
+              name:
+                type: string
+            nullable: true
+          company_history:
+            type: array
+            items:
+              $ref: '#/components/schemas/Signal'
+    ForecastDay:
+      type: object
+      required:
+      - date
+      - p10
+      - p50
+      - p90
+      - is_workday
+      - components
+      - components_basis
+      properties:
+        date:
+          type: string
+          format: date
+        p10:
+          type: number
+          format: double
+        p50:
+          type: number
+          format: double
+        p90:
+          type: number
+          format: double
+        is_workday:
+          type: boolean
+        components:
+          type: array
+          items:
+            type: object
+            required:
+            - title
+            - amount
+            - kind
+            - source
+            properties:
+              title:
+                type: string
+              amount:
+                type: number
+                format: double
+              kind:
+                type: string
+              source:
+                type: string
+        components_basis:
+          type: string

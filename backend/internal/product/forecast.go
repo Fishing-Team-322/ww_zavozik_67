@@ -334,12 +334,21 @@ func (s *Service) financial(ctx context.Context, op, uid, cid string, r *http.Re
 		for _, p := range docs(out["points"]) {
 			if text(p, "date") == dt {
 				parts := []Doc{}
+				dayDate, _ := day(dt)
+				dayIndex := res.DayIndex(dayDate)
+				mean := float64(0)
+				for path := range res.Stochastic.Inflow {
+					mean += res.Stochastic.Inflow[path][dayIndex] - res.Stochastic.Outflow[path][dayIndex]
+				}
+				mean /= float64(len(res.Stochastic.Inflow))
+				parts = append(parts, Doc{"title": "Ожидаемый поток бизнеса по модели", "amount": money(mean), "kind": "model", "source": out["model_used"]})
 				for _, c := range res.Deterministic {
 					if c.Date.Format(domain.DateLayout) == dt {
 						parts = append(parts, Doc{"title": c.Title, "amount": c.Amount.Float(), "kind": "event", "source": string(c.Source)})
 					}
 				}
 				p["components"] = parts
+				p["components_basis"] = "mean_daily_flows; balance_quantiles_are_path_quantiles"
 				return ok(p)
 			}
 		}
