@@ -9,15 +9,17 @@ import (
 
 // Memory is process-local. All writes and reads are synchronized.
 type Memory struct {
-	mu      sync.RWMutex
-	seen    map[string]map[string]contracts.Operation
-	plans   map[string]map[string]contracts.PlannedEvent
-	batches map[string][]contracts.ImportBatch
-	runs    map[string][]SyncRun
+	mu          sync.RWMutex
+	seen        map[string]map[string]contracts.Operation
+	plans       map[string]map[string]contracts.PlannedEvent
+	batches     map[string][]contracts.ImportBatch
+	runs        map[string][]SyncRun
+	marketplace map[string]map[string]MarketplaceEntry
+	risks       map[string]map[string]RiskSignal
 }
 
 func NewMemory() *Memory {
-	return &Memory{seen: make(map[string]map[string]contracts.Operation), plans: make(map[string]map[string]contracts.PlannedEvent), batches: make(map[string][]contracts.ImportBatch), runs: make(map[string][]SyncRun)}
+	return &Memory{seen: make(map[string]map[string]contracts.Operation), plans: make(map[string]map[string]contracts.PlannedEvent), batches: make(map[string][]contracts.ImportBatch), runs: make(map[string][]SyncRun), marketplace: make(map[string]map[string]MarketplaceEntry), risks: make(map[string]map[string]RiskSignal)}
 }
 
 func (m *Memory) Add(batch contracts.ImportBatch) contracts.ImportBatch {
@@ -121,4 +123,77 @@ func (m *Memory) GetRuns(companyID string) ([]SyncRun, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return append([]SyncRun{}, m.runs[companyID]...), nil
+}
+
+func (m *Memory) SaveMarketplace(companyID string, entries []MarketplaceEntry) (int, int, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.marketplace[companyID] == nil {
+		m.marketplace[companyID] = make(map[string]MarketplaceEntry)
+	}
+	changed, duplicates := 0, 0
+	for _, entry := range entries {
+		key := entry.SourceKind + "\x00" + entry.ExternalID
+		if old, ok := m.marketplace[companyID][key]; ok {
+			before, after := old, entry
+			before.Version, after.Version = 0, 0
+			before.ObservedAt, after.ObservedAt = "", ""
+			if reflect.DeepEqual(before, after) {
+				duplicates++
+				continue
+			}
+			entry.Version = old.Version + 1
+		} else {
+			entry.Version = 1
+		}
+		m.marketplace[companyID][key] = entry
+		changed++
+	}
+	return changed, duplicates, nil
+}
+
+func (m *Memory) GetMarketplace(companyID string) ([]MarketplaceEntry, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	out := make([]MarketplaceEntry, 0, len(m.marketplace[companyID]))
+	for _, entry := range m.marketplace[companyID] {
+		out = append(out, entry)
+	}
+	return out, nil
+}
+
+func (m *Memory) SaveRisks(companyID string, signals []RiskSignal) (int, int, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.risks[companyID] == nil {
+		m.risks[companyID] = make(map[string]RiskSignal)
+	}
+	changed, duplicates := 0, 0
+	for _, signal := range signals {
+		key := signal.SourceKind + "\x00" + signal.ExternalID
+		if old, ok := m.risks[companyID][key]; ok {
+			before, after := old, signal
+			before.Version, after.Version = 0, 0
+			before.RetrievedAt, after.RetrievedAt = "", ""
+			if reflect.DeepEqual(before, after) {
+				duplicates++
+				continue
+			}
+			signal.Version = old.Version + 1
+		} else {
+			signal.Version = 1
+		}
+		m.risks[companyID][key] = signal
+		changed++
+	}
+	return changed, duplicates, nil
+}
+func (m *Memory) GetRisks(companyID string) ([]RiskSignal, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	out := make([]RiskSignal, 0, len(m.risks[companyID]))
+	for _, signal := range m.risks[companyID] {
+		out = append(out, signal)
+	}
+	return out, nil
 }

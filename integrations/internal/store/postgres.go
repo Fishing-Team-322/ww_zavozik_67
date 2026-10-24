@@ -21,6 +21,12 @@ var migration1 string
 //go:embed migrations/002_actual_versions.sql
 var migration2 string
 
+//go:embed migrations/003_marketplace_entries.sql
+var migration3 string
+
+//go:embed migrations/004_risk_versions.sql
+var migration4 string
+
 type Postgres struct{ DB *sql.DB }
 
 func OpenPostgres(ctx context.Context, dsn string) (*Postgres, error) {
@@ -42,6 +48,14 @@ func OpenPostgres(ctx context.Context, dsn string) (*Postgres, error) {
 		return nil, errors.New("database migration failed")
 	}
 	if _, err := db.ExecContext(ctx, migration2); err != nil {
+		db.Close()
+		return nil, errors.New("database migration failed")
+	}
+	if _, err := db.ExecContext(ctx, migration3); err != nil {
+		db.Close()
+		return nil, errors.New("database migration failed")
+	}
+	if _, err := db.ExecContext(ctx, migration4); err != nil {
 		db.Close()
 		return nil, errors.New("database migration failed")
 	}
@@ -225,6 +239,158 @@ func (p *Postgres) GetRuns(companyID string) ([]SyncRun, error) {
 		run.Status, _ = strconv.Atoi(code)
 		run.StartedAt = at.UTC().Format(time.RFC3339)
 		out = append(out, run)
+	}
+	return out, rows.Err()
+}
+
+func (p *Postgres) SaveMarketplace(companyID string, entries []MarketplaceEntry) (int, int, error) {
+	if companyID == "" {
+		return 0, 0, errors.New("company_id required")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	tx, err := p.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, 0, errors.New("marketplace transaction failed")
+	}
+	defer tx.Rollback()
+	if _, err = tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtext($1))`, companyID); err != nil {
+		return 0, 0, errors.New("marketplace lock failed")
+	}
+	changed, duplicates := 0, 0
+	for _, entry := range entries {
+		if entry.ExternalID == "" || (entry.SourceKind != "wildberries_finance" && entry.SourceKind != "ozon_finance") || entry.Currency != "RUB" || entry.ForecastEligible {
+			return 0, 0, errors.New("invalid marketplace entry")
+		}
+		var raw []byte
+		err := tx.QueryRowContext(ctx, `SELECT payload FROM marketplace_entries WHERE company_id=$1 AND source_kind=$2 AND external_id=$3 FOR UPDATE`, companyID, entry.SourceKind, entry.ExternalID).Scan(&raw)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return 0, 0, errors.New("read marketplace entry failed")
+		}
+		if err == nil {
+			var old MarketplaceEntry
+			if json.Unmarshal(raw, &old) != nil {
+				return 0, 0, errors.New("invalid stored marketplace entry")
+			}
+			before, after := old, entry
+			before.Version, after.Version = 0, 0
+			before.ObservedAt, after.ObservedAt = "", ""
+			if reflect.DeepEqual(before, after) {
+				duplicates++
+				continue
+			}
+			entry.Version = old.Version + 1
+		} else {
+			entry.Version = 1
+		}
+		payload, e := json.Marshal(entry)
+		if e != nil {
+			return 0, 0, e
+		}
+		_, e = tx.ExecContext(ctx, `INSERT INTO marketplace_entries(company_id,source_kind,external_id,version,payload) VALUES($1,$2,$3,$4,$5) ON CONFLICT(company_id,source_kind,external_id) DO UPDATE SET version=EXCLUDED.version,payload=EXCLUDED.payload,updated_at=now()`, companyID, entry.SourceKind, entry.ExternalID, entry.Version, payload)
+		if e != nil {
+			return 0, 0, errors.New("save marketplace entry failed")
+		}
+		changed++
+	}
+	if err = tx.Commit(); err != nil {
+		return 0, 0, errors.New("commit marketplace entries failed")
+	}
+	return changed, duplicates, nil
+}
+
+func (p *Postgres) GetMarketplace(companyID string) ([]MarketplaceEntry, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	rows, err := p.DB.QueryContext(ctx, `SELECT payload FROM marketplace_entries WHERE company_id=$1 ORDER BY source_kind,external_id LIMIT 10000`, companyID)
+	if err != nil {
+		return nil, errors.New("read marketplace entries failed")
+	}
+	defer rows.Close()
+	out := make([]MarketplaceEntry, 0)
+	for rows.Next() {
+		var raw []byte
+		var entry MarketplaceEntry
+		if rows.Scan(&raw) != nil || json.Unmarshal(raw, &entry) != nil {
+			return nil, errors.New("decode marketplace entry failed")
+		}
+		out = append(out, entry)
+	}
+	return out, rows.Err()
+}
+
+func (p *Postgres) SaveRisks(companyID string, signals []RiskSignal) (int, int, error) {
+	if companyID == "" {
+		return 0, 0, errors.New("company_id required")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	tx, err := p.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, 0, errors.New("risk transaction failed")
+	}
+	defer tx.Rollback()
+	if _, err = tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtext($1))`, companyID); err != nil {
+		return 0, 0, errors.New("risk lock failed")
+	}
+	changed, duplicates := 0, 0
+	for _, signal := range signals {
+		if signal.ExternalID == "" || signal.SourceKind != "fns_debt_snapshot" || len(signal.SubjectINN) != 10 || signal.DatasetAsOf == "" || signal.SourceURL == "" || signal.AmountKopecks < 0 {
+			return 0, 0, errors.New("invalid risk signal")
+		}
+		var raw []byte
+		err := tx.QueryRowContext(ctx, `SELECT payload FROM risk_signals WHERE company_id=$1 AND source_kind=$2 AND external_id=$3 FOR UPDATE`, companyID, signal.SourceKind, signal.ExternalID).Scan(&raw)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return 0, 0, errors.New("read risk signal failed")
+		}
+		if err == nil {
+			var old RiskSignal
+			if json.Unmarshal(raw, &old) != nil {
+				return 0, 0, errors.New("invalid stored risk signal")
+			}
+			before, after := old, signal
+			before.Version, after.Version = 0, 0
+			before.RetrievedAt, after.RetrievedAt = "", ""
+			if reflect.DeepEqual(before, after) {
+				duplicates++
+				continue
+			}
+			signal.Version = old.Version + 1
+		} else {
+			signal.Version = 1
+		}
+		payload, e := json.Marshal(signal)
+		if e != nil {
+			return 0, 0, e
+		}
+		_, e = tx.ExecContext(ctx, `INSERT INTO risk_signals(company_id,source_kind,external_id,version,payload) VALUES($1,$2,$3,$4,$5) ON CONFLICT(company_id,source_kind,external_id) DO UPDATE SET version=EXCLUDED.version,payload=EXCLUDED.payload,updated_at=now()`, companyID, signal.SourceKind, signal.ExternalID, signal.Version, payload)
+		if e != nil {
+			return 0, 0, errors.New("save risk signal failed")
+		}
+		changed++
+	}
+	if err = tx.Commit(); err != nil {
+		return 0, 0, errors.New("commit risks failed")
+	}
+	return changed, duplicates, nil
+}
+
+func (p *Postgres) GetRisks(companyID string) ([]RiskSignal, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	rows, err := p.DB.QueryContext(ctx, `SELECT payload FROM risk_signals WHERE company_id=$1 ORDER BY source_kind,external_id LIMIT 10000`, companyID)
+	if err != nil {
+		return nil, errors.New("read risks failed")
+	}
+	defer rows.Close()
+	out := make([]RiskSignal, 0)
+	for rows.Next() {
+		var raw []byte
+		var signal RiskSignal
+		if rows.Scan(&raw) != nil || json.Unmarshal(raw, &signal) != nil {
+			return nil, errors.New("decode risk signal failed")
+		}
+		out = append(out, signal)
 	}
 	return out, rows.Err()
 }

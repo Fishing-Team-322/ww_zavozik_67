@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/Fishing-Team-322/ww_zavozik_67/integrations/internal/contracts"
 	"github.com/Fishing-Team-322/ww_zavozik_67/integrations/internal/importcsv"
@@ -15,6 +16,8 @@ import (
 	"github.com/Fishing-Team-322/ww_zavozik_67/integrations/internal/providers/dadata"
 	"github.com/Fishing-Team-322/ww_zavozik_67/integrations/internal/providers/onecbank"
 	"github.com/Fishing-Team-322/ww_zavozik_67/integrations/internal/providers/onecodata"
+	"github.com/Fishing-Team-322/ww_zavozik_67/integrations/internal/providers/ozon"
+	"github.com/Fishing-Team-322/ww_zavozik_67/integrations/internal/providers/wb"
 	"github.com/Fishing-Team-322/ww_zavozik_67/integrations/internal/service"
 	"github.com/Fishing-Team-322/ww_zavozik_67/integrations/internal/store"
 )
@@ -29,6 +32,8 @@ type API struct {
 	OneCPlanConfig *onecodata.PlanConfig
 	OneCClient     onecodata.Client
 	DaDataClient   *dadata.Client
+	WBClient       *wb.Client
+	OzonClient     *ozon.Client
 	SyncToken      string
 }
 
@@ -45,7 +50,7 @@ func (a API) Handler() http.Handler {
 		writeJSON(w, 200, map[string]string{"status": "ready"})
 	})
 	mux.HandleFunc("GET /v1/providers", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, http.StatusOK, providers.List(a.OneCConfig != nil, a.DaDataClient != nil))
+		writeJSON(w, http.StatusOK, providers.List(a.OneCConfig != nil, a.DaDataClient != nil, a.WBClient != nil, a.OzonClient != nil))
 	})
 	mux.HandleFunc("GET /v1/integrations/capabilities", func(w http.ResponseWriter, r *http.Request) {
 		if !authorized(r, a.SyncToken) {
@@ -58,12 +63,131 @@ func (a API) Handler() http.Handler {
 	mux.HandleFunc("POST /v1/import/csv", a.importCSV)
 	mux.HandleFunc("POST /v1/sync/onec-odata", a.trackSync("onec_odata", a.syncOneC))
 	mux.HandleFunc("POST /v1/sync/onec-plans", a.trackSync("onec_plans", a.syncOneCPlans))
+	mux.HandleFunc("POST /v1/sync/wb-finance", a.trackSync("wildberries_finance", a.syncWB))
+	mux.HandleFunc("POST /v1/sync/ozon-finance", a.trackSync("ozon_finance", a.syncOzon))
 	mux.HandleFunc("POST /v1/enrich/dadata-party", a.enrichDaData)
 	mux.HandleFunc("GET /v1/batches/{companyId}", a.batches)
 	mux.HandleFunc("GET /v1/operations/{companyId}", a.operations)
 	mux.HandleFunc("GET /v1/planned-events/{companyId}", a.plannedEvents)
 	mux.HandleFunc("GET /v1/sync-runs/{companyId}", a.syncRuns)
+	mux.HandleFunc("GET /v1/marketplace-entries/{companyId}", a.marketplaceEntries)
+	mux.HandleFunc("GET /v1/risk-signals/{companyId}", a.riskSignals)
 	return mux
+}
+
+type periodRequest struct {
+	From string `json:"from"`
+	To   string `json:"to"`
+}
+
+func readPeriod(w http.ResponseWriter, r *http.Request) (periodRequest, bool) {
+	r.Body = http.MaxBytesReader(w, r.Body, 1024)
+	dec := json.NewDecoder(r.Body)
+	dec.DisallowUnknownFields()
+	var input periodRequest
+	if dec.Decode(&input) != nil || dec.Decode(new(any)) != io.EOF {
+		writeError(w, 400, "invalid_request", "Expected from/to JSON dates")
+		return input, false
+	}
+	if _, err := time.Parse("2006-01-02", input.From); err != nil {
+		writeError(w, 400, "invalid_period", "Invalid from date")
+		return input, false
+	}
+	if _, err := time.Parse("2006-01-02", input.To); err != nil {
+		writeError(w, 400, "invalid_period", "Invalid to date")
+		return input, false
+	}
+	return input, true
+}
+
+func (a API) syncWB(w http.ResponseWriter, r *http.Request) {
+	if !authorized(r, a.SyncToken) {
+		writeError(w, 401, "unauthorized", "Invalid authorization")
+		return
+	}
+	if a.WBClient == nil || a.CompanyID == "" {
+		writeError(w, 503, "not_configured", "WB Finance is not configured")
+		return
+	}
+	period, ok := readPeriod(w, r)
+	if !ok {
+		return
+	}
+	items, err := a.WBClient.Fetch(r.Context(), period.From, period.To)
+	if err != nil {
+		writeError(w, 502, "upstream_failed", "WB Finance sync failed")
+		return
+	}
+	observed := time.Now().UTC().Format(time.RFC3339)
+	entries := make([]store.MarketplaceEntry, 0, len(items))
+	for _, item := range items {
+		entries = append(entries, store.MarketplaceEntry{ExternalID: item.ExternalID, SourceKind: item.Source, Category: item.Category, AmountKopecks: item.AmountKopecks, Components: map[string]int64{"acquiring": item.AcquiringKopecks, "delivery": item.DeliveryKopecks}, Currency: item.Currency, ObservedAt: observed, DataMode: item.DataMode})
+	}
+	changed, duplicates, err := a.Store.SaveMarketplace(a.CompanyID, entries)
+	if err != nil {
+		writeError(w, 500, "storage_error", "Cannot save WB report")
+		return
+	}
+	writeJSON(w, 200, map[string]any{"company_id": a.CompanyID, "source": "wildberries_finance", "fetched": len(items), "changed": changed, "duplicates": duplicates})
+}
+
+func (a API) syncOzon(w http.ResponseWriter, r *http.Request) {
+	if !authorized(r, a.SyncToken) {
+		writeError(w, 401, "unauthorized", "Invalid authorization")
+		return
+	}
+	if a.OzonClient == nil || a.CompanyID == "" {
+		writeError(w, 503, "not_configured", "Ozon Finance is not configured")
+		return
+	}
+	period, ok := readPeriod(w, r)
+	if !ok {
+		return
+	}
+	from, _ := time.Parse("2006-01-02", period.From)
+	to, _ := time.Parse("2006-01-02", period.To)
+	items, err := a.OzonClient.Fetch(r.Context(), from, to.Add(24*time.Hour-time.Nanosecond))
+	if err != nil {
+		writeError(w, 502, "upstream_failed", "Ozon Finance sync failed")
+		return
+	}
+	observed := time.Now().UTC().Format(time.RFC3339)
+	entries := make([]store.MarketplaceEntry, 0, len(items))
+	for _, item := range items {
+		entries = append(entries, store.MarketplaceEntry{ExternalID: item.ExternalID, SourceKind: item.Source, Category: item.Category, AmountKopecks: item.AmountKopecks, Components: map[string]int64{"accruals": item.AccrualsKopecks, "sale_commission": item.SaleCommissionKopecks, "delivery_charge": item.DeliveryChargeKopecks}, Currency: item.Currency, OccurredAt: item.OperationDate, ObservedAt: observed, DataMode: item.DataMode})
+	}
+	changed, duplicates, err := a.Store.SaveMarketplace(a.CompanyID, entries)
+	if err != nil {
+		writeError(w, 500, "storage_error", "Cannot save Ozon report")
+		return
+	}
+	writeJSON(w, 200, map[string]any{"company_id": a.CompanyID, "source": "ozon_finance", "fetched": len(items), "changed": changed, "duplicates": duplicates})
+}
+
+func (a API) marketplaceEntries(w http.ResponseWriter, r *http.Request) {
+	if !a.companyAllowed(w, r) {
+		return
+	}
+	id := r.PathValue("companyId")
+	items, err := a.Store.GetMarketplace(id)
+	if err != nil {
+		writeError(w, 500, "storage_error", "Cannot read marketplace entries")
+		return
+	}
+	writeJSON(w, 200, map[string]any{"company_id": id, "marketplace_entries": items})
+}
+
+func (a API) riskSignals(w http.ResponseWriter, r *http.Request) {
+	if !a.companyAllowed(w, r) {
+		return
+	}
+	id := r.PathValue("companyId")
+	items, err := a.Store.GetRisks(id)
+	if err != nil {
+		writeError(w, 500, "storage_error", "Cannot read risk signals")
+		return
+	}
+	writeJSON(w, 200, map[string]any{"company_id": id, "risk_signals": items})
 }
 
 type statusWriter struct {
