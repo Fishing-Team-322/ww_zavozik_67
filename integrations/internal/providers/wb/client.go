@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/Fishing-Team-322/ww_zavozik_67/integrations/internal/money"
@@ -46,6 +47,37 @@ type Client struct {
 	Token       string
 	EndpointURL string // test override; production uses Endpoint
 	MinInterval time.Duration
+	Limiter     *Limiter
+}
+
+type Limiter struct {
+	mu   sync.Mutex
+	next time.Time
+}
+
+func (l *Limiter) Wait(ctx context.Context, interval time.Duration) error {
+	if interval <= 0 {
+		return ctx.Err()
+	}
+	l.mu.Lock()
+	now := time.Now()
+	start := now
+	if l.next.After(start) {
+		start = l.next
+	}
+	l.next = start.Add(interval)
+	l.mu.Unlock()
+	if !start.After(now) {
+		return ctx.Err()
+	}
+	timer := time.NewTimer(start.Sub(now))
+	select {
+	case <-ctx.Done():
+		timer.Stop()
+		return ctx.Err()
+	case <-timer.C:
+		return ctx.Err()
+	}
 }
 
 func (c Client) Fetch(ctx context.Context, from, to string) ([]Entry, error) {
@@ -79,7 +111,11 @@ func (c Client) Fetch(ctx context.Context, from, to string) ([]Entry, error) {
 	seen := map[string]bool{}
 	var rrdID int64
 	for page := 0; page < 100; page++ {
-		if page > 0 && interval > 0 {
+		if c.Limiter != nil {
+			if err := c.Limiter.Wait(ctx, interval); err != nil {
+				return nil, err
+			}
+		} else if page > 0 && interval > 0 {
 			timer := time.NewTimer(interval)
 			select {
 			case <-ctx.Done():

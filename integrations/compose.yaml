@@ -25,6 +25,7 @@ services:
       INTEGRATIONS_COMPANY_ID: demo-company
       INTEGRATIONS_SYNC_TOKEN: ${INTEGRATIONS_SYNC_TOKEN:?set INTEGRATIONS_SYNC_TOKEN before starting}
       DATABASE_URL: postgres://integrations:${INTEGRATIONS_DB_PASSWORD}@postgres:5432/integrations?sslmode=disable
+      DADATA_API_TOKEN: ${DADATA_API_TOKEN:-}
       WB_API_TOKEN: ${WB_API_TOKEN:-}
       OZON_CLIENT_ID: ${OZON_CLIENT_ID:-}
       OZON_API_KEY: ${OZON_API_KEY:-}

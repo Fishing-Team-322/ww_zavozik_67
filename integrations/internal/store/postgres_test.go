@@ -97,4 +97,18 @@ func TestPostgresDurabilityAndCorrection(t *testing.T) {
 	if err != nil || len(risks) != 1 || risks[0].Version != 2 || risks[0].AmountKopecks != 663437 {
 		t.Fatalf("risk stored: %+v %v", risks, err)
 	}
+	party := Counterparty{ExternalID: "9723161623", SourceKind: "dadata", INN: "9723161623", OGRN: "1234567890123", Name: "Test LLC", Type: "LEGAL", Status: "ACTIVE", CheckedAt: "2026-10-24T00:00:00Z", SourceURL: "https://dadata.ru/api/find-party/", DataMode: "mock"}
+	firstParty, err := p.SaveCounterparty(company, party)
+	if err != nil || firstParty.Version != 1 {
+		t.Fatalf("counterparty first: %+v %v", firstParty, err)
+	}
+	party.Name = "Changed LLC"
+	changedParty, err := p.SaveCounterparty(company, party)
+	if err != nil || changedParty.Version != 2 {
+		t.Fatalf("counterparty correction: %+v %v", changedParty, err)
+	}
+	parties, err := p.GetCounterparties(company)
+	if err != nil || len(parties) != 1 || parties[0].Name != "Changed LLC" {
+		t.Fatalf("counterparty stored: %+v %v", parties, err)
+	}
 }

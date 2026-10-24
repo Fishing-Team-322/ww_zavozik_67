@@ -72,6 +72,7 @@ func (a API) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/sync-runs/{companyId}", a.syncRuns)
 	mux.HandleFunc("GET /v1/marketplace-entries/{companyId}", a.marketplaceEntries)
 	mux.HandleFunc("GET /v1/risk-signals/{companyId}", a.riskSignals)
+	mux.HandleFunc("GET /v1/counterparties/{companyId}", a.counterparties)
 	return mux
 }
 
@@ -188,6 +189,19 @@ func (a API) riskSignals(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, 200, map[string]any{"company_id": id, "risk_signals": items})
+}
+
+func (a API) counterparties(w http.ResponseWriter, r *http.Request) {
+	if !a.companyAllowed(w, r) {
+		return
+	}
+	id := r.PathValue("companyId")
+	items, err := a.Store.GetCounterparties(id)
+	if err != nil {
+		writeError(w, 500, "storage_error", "Cannot read counterparties")
+		return
+	}
+	writeJSON(w, 200, map[string]any{"company_id": id, "counterparties": items})
 }
 
 type statusWriter struct {
@@ -437,6 +451,13 @@ func (a API) enrichDaData(w http.ResponseWriter, r *http.Request) {
 			writeError(w, 502, "upstream_failed", "DaData lookup failed")
 		}
 		return
+	}
+	if a.CompanyID != "" {
+		_, err = a.Store.SaveCounterparty(a.CompanyID, store.Counterparty{ExternalID: party.INN, SourceKind: "dadata", INN: party.INN, KPP: party.KPP, OGRN: party.OGRN, Name: party.Name, Type: party.Type, Status: party.Status, CheckedAt: party.CheckedAt, SourceURL: party.SourceURL, DataMode: party.DataMode})
+		if err != nil {
+			writeError(w, 500, "storage_error", "Cannot save counterparty")
+			return
+		}
 	}
 	writeJSON(w, 200, party)
 }

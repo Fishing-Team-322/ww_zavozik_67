@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 )
 
 func TestFetchFinancialRows(t *testing.T) {
@@ -39,6 +40,18 @@ func TestFetchFinancialRows(t *testing.T) {
 	}
 	if got[0].AmountKopecks != 10005 || got[0].AcquiringKopecks != 201 || got[0].DeliveryKopecks != 500 || got[1].AmountKopecks != -3000 || got[1].Category != "return" || got[0].ForecastEligible {
 		t.Fatalf("wrong classification: %+v", got)
+	}
+}
+
+func TestLimiterHonorsCancellation(t *testing.T) {
+	l := &Limiter{}
+	if err := l.Wait(context.Background(), time.Second); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+	defer cancel()
+	if err := l.Wait(ctx, time.Second); err == nil {
+		t.Fatal("rate limiter ignored context")
 	}
 }
 

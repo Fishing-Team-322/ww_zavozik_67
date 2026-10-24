@@ -27,6 +27,9 @@ var migration3 string
 //go:embed migrations/004_risk_versions.sql
 var migration4 string
 
+//go:embed migrations/005_counterparty_versions.sql
+var migration5 string
+
 type Postgres struct{ DB *sql.DB }
 
 func OpenPostgres(ctx context.Context, dsn string) (*Postgres, error) {
@@ -56,6 +59,10 @@ func OpenPostgres(ctx context.Context, dsn string) (*Postgres, error) {
 		return nil, errors.New("database migration failed")
 	}
 	if _, err := db.ExecContext(ctx, migration4); err != nil {
+		db.Close()
+		return nil, errors.New("database migration failed")
+	}
+	if _, err := db.ExecContext(ctx, migration5); err != nil {
 		db.Close()
 		return nil, errors.New("database migration failed")
 	}
@@ -391,6 +398,73 @@ func (p *Postgres) GetRisks(companyID string) ([]RiskSignal, error) {
 			return nil, errors.New("decode risk signal failed")
 		}
 		out = append(out, signal)
+	}
+	return out, rows.Err()
+}
+
+func (p *Postgres) SaveCounterparty(companyID string, party Counterparty) (Counterparty, error) {
+	if companyID == "" || party.ExternalID == "" || party.SourceKind != "dadata" || party.INN == "" || party.Name == "" || party.CheckedAt == "" {
+		return party, errors.New("invalid counterparty")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	tx, err := p.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return party, errors.New("counterparty transaction failed")
+	}
+	defer tx.Rollback()
+	if _, err = tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtext($1))`, companyID); err != nil {
+		return party, errors.New("counterparty lock failed")
+	}
+	var raw []byte
+	err = tx.QueryRowContext(ctx, `SELECT payload FROM counterparties WHERE company_id=$1 AND source_kind=$2 AND external_id=$3 FOR UPDATE`, companyID, party.SourceKind, party.ExternalID).Scan(&raw)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return party, errors.New("read counterparty failed")
+	}
+	if err == nil {
+		var old Counterparty
+		if json.Unmarshal(raw, &old) != nil {
+			return party, errors.New("invalid stored counterparty")
+		}
+		before, after := old, party
+		before.Version, after.Version = 0, 0
+		if reflect.DeepEqual(before, after) {
+			return old, nil
+		}
+		party.Version = old.Version + 1
+	} else {
+		party.Version = 1
+	}
+	payload, e := json.Marshal(party)
+	if e != nil {
+		return party, e
+	}
+	_, e = tx.ExecContext(ctx, `INSERT INTO counterparties(company_id,source_kind,external_id,version,payload) VALUES($1,$2,$3,$4,$5) ON CONFLICT(company_id,source_kind,external_id) DO UPDATE SET version=EXCLUDED.version,payload=EXCLUDED.payload,updated_at=now()`, companyID, party.SourceKind, party.ExternalID, party.Version, payload)
+	if e != nil {
+		return party, errors.New("save counterparty failed")
+	}
+	if err = tx.Commit(); err != nil {
+		return party, errors.New("commit counterparty failed")
+	}
+	return party, nil
+}
+
+func (p *Postgres) GetCounterparties(companyID string) ([]Counterparty, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	rows, err := p.DB.QueryContext(ctx, `SELECT payload FROM counterparties WHERE company_id=$1 ORDER BY source_kind,external_id LIMIT 10000`, companyID)
+	if err != nil {
+		return nil, errors.New("read counterparties failed")
+	}
+	defer rows.Close()
+	out := make([]Counterparty, 0)
+	for rows.Next() {
+		var raw []byte
+		var party Counterparty
+		if rows.Scan(&raw) != nil || json.Unmarshal(raw, &party) != nil {
+			return nil, errors.New("decode counterparty failed")
+		}
+		out = append(out, party)
 	}
 	return out, rows.Err()
 }

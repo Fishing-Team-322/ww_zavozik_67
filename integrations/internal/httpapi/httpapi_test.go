@@ -217,7 +217,7 @@ func TestDaDataEnrichmentRequiresToken(t *testing.T) {
 	}))
 	defer upstream.Close()
 	client := dadata.Client{Token: "api-secret", Endpoint: upstream.URL}
-	h := (API{Store: store.NewMemory(), DaDataClient: &client, SyncToken: "local-token"}).Handler()
+	h := (API{Store: store.NewMemory(), CompanyID: "demo-company", DaDataClient: &client, SyncToken: "local-token"}).Handler()
 	request := func(token, body string) *httptest.ResponseRecorder {
 		r := httptest.NewRequest("POST", "/v1/enrich/dadata-party", strings.NewReader(body))
 		if token != "" {
@@ -236,6 +236,13 @@ func TestDaDataEnrichmentRequiresToken(t *testing.T) {
 	rec := request("local-token", `{"inn":"7707083893"}`)
 	if rec.Code != 200 || !strings.Contains(rec.Body.String(), `"source_kind":"dadata"`) || !strings.Contains(rec.Body.String(), `"status":"ACTIVE"`) {
 		t.Fatalf("%d %s", rec.Code, rec.Body.String())
+	}
+	storedRequest := httptest.NewRequest("GET", "/v1/counterparties/demo-company", nil)
+	storedRequest.Header.Set("Authorization", "Bearer local-token")
+	stored := httptest.NewRecorder()
+	h.ServeHTTP(stored, storedRequest)
+	if stored.Code != 200 || !strings.Contains(stored.Body.String(), `"name":"ПАО СБЕРБАНК"`) {
+		t.Fatalf("counterparty storage: %d %s", stored.Code, stored.Body.String())
 	}
 	status := httptest.NewRecorder()
 	h.ServeHTTP(status, httptest.NewRequest("GET", "/v1/providers", nil))
