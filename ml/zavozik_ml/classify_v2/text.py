@@ -6,12 +6,19 @@ import math
 import re
 
 from zavozik_ml.classify.text import (
-    Op, _DATE, _MONTHS, _MONEY, _NUM, _VAT, _WORD, _fix_word,
+    Op, _DATE, _MONTHS, _MONEY, _NUM, _WORD, _fix_word,
     counterparty_type, norm_direction,
 )
 
-NORMALIZER_VERSION = "v2-preserve-payment-channel-1"
+NORMALIZER_VERSION = "v2-preserve-payment-channel-2"
 _LEGAL = re.compile(r"\b(?:ооо|оао|зао|пао|ао|ип|нко|ано|муп|гуп|фгуп)\b")
+# Unlike v1's greedy VAT tail removal, this bounded grammar must not erase a
+# payment rail or meaningful words appended after the VAT amount.
+_VAT_RATE = r"\(?\d{1,2}\)?\s*%\s*[-:]?\s*(?:\d[\d\s.,\u00a0]*)?"
+VAT_BOILERPLATE = re.compile(
+    r"(?:в\s+т\.?\s*ч\.?|в\s+том\s+числе)\s*ндс\b\s*(?:" + _VAT_RATE + r")?"
+    r"|ндс\s+не\s+облагается|без\s+налога\s*\(?ндс\)?|без\s+ндс"
+    r"|\bндс\s+" + _VAT_RATE, re.I)
 
 
 @dataclass(frozen=True)
@@ -33,7 +40,7 @@ def normalize(text: str) -> str:
     """Same substitutions as v1 except digital-ruble mentions are preserved."""
     s = str(text or "").lower().replace("ё", "е")
     s = " ".join(_fix_word(w) for w in s.split())
-    s = _VAT.sub(" ", s)
+    s = VAT_BOILERPLATE.sub(" ", s)
     s = _MONTHS.sub(" мес ", s)
     s = _DATE.sub(" дата ", s)
     s = _MONEY.sub(" сумма ", s)

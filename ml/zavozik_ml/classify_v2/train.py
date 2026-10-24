@@ -171,7 +171,7 @@ def main():
     # Save only the files that determine fitting/calibration. New serving/tests
     # may be written while this run is active without obscuring fit provenance.
     fit_files = [Path(__file__).with_name(name) for name in (
-        "train.py", "network.py", "calibration.py", "data.py", "text.py", "weak_labels.py", "taxonomy.py", "taxonomy.json")]
+        "train.py", "network.py", "model.py", "calibration.py", "data.py", "text.py", "weak_labels.py", "taxonomy.py", "taxonomy.json")]
     fit_files += [ML_DIR / "zavozik_ml/classify" / name for name in ("augment.py", "labels.py", "text.py")]
     cfg["training_files_sha256"] = {str(p.relative_to(ML_DIR)): sha256_file(p) for p in fit_files}
     for epoch in range(1, args.epochs + 1):

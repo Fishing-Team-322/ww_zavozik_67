@@ -10,8 +10,8 @@ from dataclasses import dataclass
 import re
 
 from .taxonomy import Taxonomy
-from .text import Operation
-from zavozik_ml.classify.text import _fix_word, _VAT
+from .text import Operation, VAT_BOILERPLATE
+from zavozik_ml.classify.text import _fix_word
 
 
 def _rx(pattern: str):
@@ -27,7 +27,8 @@ _DIGITAL = _rx(r"цифров\w*\s+(?:форм\w*\s+)?рубл\w*|\bцр\b|\bц�
 _SBP = _rx(r"\bсбп\b|систем\w*\s+быстр\w*\s+платеж\w*|\bqr\b|\bc2b\b|\bb2b-?qr\b")
 _CASH = _rx(r"\bналичн\w*|\bналичк\w*|инкассац\w*|самоинкассац\w*|\bcash[ -]?in\b")
 _CARD = _rx(r"эквайр\w*|\bpos\b|карточн\w*\s+(?:покуп\w*|продаж\w*|транзакц\w*|операц\w*|выруч\w*)|"
-            r"(?:выручк\w*|оплат\w*)[^.;]{0,35}(?:банковск\w*\s+)?карт\w*|\b(?:sberpay|t-pay|mir\s*pay)\b")
+            r"выручк\w*[^.;]{0,35}(?:банковск\w*\s+)?карт\w*|"
+            r"оплат\w*\s+(?:банковск\w*\s+)?картой|\b(?:sberpay|t-pay|mir\s*pay)\b")
 _MARKET = _rx(r"маркетплейс\w*|wildberries|вайлдберриз|\bozon\b|озон|яндекс\s*маркет")
 _MARKET_PAYOUT = _rx(r"выплат\w*|перечислен\w*|выручк\w*|продавц\w*|реализац\w*|поступлен\w*|продаж\w*")
 _BANK_FEE = _rx(r"\bрко\b|расчетно[ -]кассов\w*|(?:комис\w*|вознагражден\w*)[^.;]{0,60}(?:банк\w*|эквайр\w*|перевод\w*|счет\w*|валютн\w*|выдач\w*\s+наличн\w*)|"
@@ -45,7 +46,7 @@ _TAG_RULES = {
     "final_payment": _rx(r"окончательн\w*\s+расчет\w*|\bдоплат\w*|финальн\w*\s+(?:оплат\w*|платеж\w*|расчет\w*)"),
     "budget_payment": _rx(r"казначейств\w*|\bуфк\b|\bифнс\b|\bфнс\b|\bсфр\b|\bенп\b|\bенс\b|\bндфл\b|\bусн\b|"
                            r"\bналог\w*|страхов\w*\s+взнос\w*|взнос\w*\s+на\s+травматизм|госпошлин\w*|государственн\w*\s+пошлин\w*|"
-                           r"\bндс\s+за\b|перечислен\w*\s+в\s+бюджет"),
+                           r"\bндс\b|перечислен\w*\s+в\s+бюджет"),
     "owner_money": _rx(r"собственн\w*\s+(?:денежн\w*\s+)?средств\w*|собств\.\s*средств\w*|между\s+своими|"
                         r"(?:свой|своего|собственн\w*)\s+(?:кошелек|кошельк\w*|счет\w*)|"
                         r"личн\w*\s+(?:счет\w*|карт\w*|кошел\w*)|учредител\w*|участник\w*|уставн\w*\s+капитал|дивиденд\w*|"
@@ -62,7 +63,7 @@ _TAG_RULES = {
 class WeakLabels:
     channel: str
     tags: tuple[str, ...]
-    source: str = "text_regex_v2.2_weak_not_gold"
+    source: str = "text_regex_v2.3_weak_not_gold"
 
 
 def annotate(op: Operation, taxonomy: Taxonomy | None = None) -> WeakLabels:
@@ -72,6 +73,10 @@ def annotate(op: Operation, taxonomy: Taxonomy | None = None) -> WeakLabels:
         channel = "digital_ruble"
     elif _SBP.search(p):
         channel = "sbp"
+    elif op.direction == "in" and _CARD.search(p):
+        # The payout is still acquiring when its description mentions the
+        # bank's deducted commission. That fee is not this operation's rail.
+        channel = "card_acquiring"
     elif _BANK_FEE.search(p) or _INTERNAL_BANK.search(p):
         channel = "internal_bank"
     elif _CASH.search(p):
@@ -88,7 +93,7 @@ def annotate(op: Operation, taxonomy: Taxonomy | None = None) -> WeakLabels:
     # a generic bank or marketplace does not imply any economic category.
     # "Без налога (НДС)" / "в том числе НДС" are invoice boilerplate, not
     # evidence of remittance to the treasury. Keep actual "НДС за квартал".
-    evidence = {"budget_payment": _VAT.sub(" ", text), "owner_money": text, "enforcement": text}
+    evidence = {"budget_payment": VAT_BOILERPLATE.sub(" ", text), "owner_money": text, "enforcement": text}
     tags = tuple(k for k, rx in _TAG_RULES.items() if rx.search(evidence.get(k, p)))
     # Returning a loan / tax overpayment is not a commercial refund tag. The
     # refund axis denotes customer/supplier refunds, not every use of the verb.

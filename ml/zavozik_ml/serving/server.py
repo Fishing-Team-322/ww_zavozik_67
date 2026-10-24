@@ -211,14 +211,25 @@ def main() -> None:
         # Explicit configuration must fail startup on invalid/missing weights;
         # do not silently serve another model with a different contract.
         from zavozik_ml.classify_v2.model import EncoderClassifier
-        clf_v2 = EncoderClassifier.load(Path(path_v2), backend=os.environ.get("ML_CLASSIFIER_V2_BACKEND") or None)
+        import json
+        config_v2 = json.loads((Path(path_v2) / "config.json").read_text())
+        backend_v2 = os.environ.get("ML_CLASSIFIER_V2_BACKEND") or config_v2.get("runtime", "onnx")
+        if backend_v2 == "torch":
+            from zavozik_ml.serving.torch_process import load_isolated_classifier
+            clf_v2 = load_isolated_classifier(Path(path_v2))
+        else:
+            clf_v2 = EncoderClassifier.load(Path(path_v2), backend=backend_v2)
         log.info("classifier_v2: %s taxonomy=%s", clf_v2.model_version, clf_v2.taxonomy.version)
     server, _ = build_server(addr, classifier=clf, classifier_v2=clf_v2)
     server.start()
     log.info("ml listening on %s, ready models: %s, auto=%s", addr,
              [m.name for m in forecasters.all_models() if m.ready], forecasters.default_model())
     signal.signal(signal.SIGTERM, lambda *_: server.stop(5))
-    server.wait_for_termination()
+    try:
+        server.wait_for_termination()
+    finally:
+        if clf_v2 is not None and hasattr(clf_v2.encode, "close"):
+            clf_v2.encode.close()
 
 
 if __name__ == "__main__":

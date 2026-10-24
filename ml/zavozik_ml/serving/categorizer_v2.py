@@ -53,6 +53,8 @@ class CategorizerService(pb_grpc.CategorizerServiceServicer):
             ) for o, p in zip(ops, predicted)]
         except (ValueError, FloatingPointError):
             context.abort(grpc.StatusCode.INTERNAL, "v2 model produced invalid output")
+        except RuntimeError:
+            context.abort(grpc.StatusCode.UNAVAILABLE, "v2 neural worker unavailable")
         log.info("classify_v2 n=%d model=%s taxonomy=%s ms=%.0f", len(ops), self.clf.model_version,
                  self.clf.taxonomy.version, (time.perf_counter() - started) * 1000)
         return pb.ClassifyResponse(results=results, model_version=self.clf.model_version,

@@ -110,7 +110,7 @@ class TorchEncoder:
         from transformers import AutoModel, AutoTokenizer
         self.torch = torch
         self.model = AutoModel.from_pretrained(directory / "encoder", local_files_only=True,
-                                                trust_remote_code=False).eval().cpu()
+                                                trust_remote_code=False, attn_implementation="eager").eval().cpu()
         self.tokenizer = AutoTokenizer.from_pretrained(directory / "encoder", local_files_only=True,
                                                         trust_remote_code=False)
         torch.set_num_threads(config.get("cpu_threads", 4))

@@ -35,6 +35,10 @@ from zavozik_ml.classify_v2.weak_labels import annotate
     ("Оплата товара. В том числе НДС 20% 100.00", "", "out", "unknown", set()),
     ("Перечисление остатка в связи с закрытием счета", "Банк", "out", "unknown", {"owner_money"}),
     ("Возврат остатка с собственного счета", "", "in", "unknown", {"owner_money"}),
+    ("Выручка от эквайринга за вычетом комиссии банка", "Банк", "in", "card_acquiring", set()),
+    ("Оплата труда на банковские карты сотрудников", "Банк", "out", "unknown", set()),
+    ("Оплата топлива по топливным картам", "", "out", "unknown", set()),
+    ("НДС", "", "out", "unknown", {"budget_payment"}),
 ])
 def test_weak_channel_and_tags(purpose, name, direction, channel, tags):
     result = annotate(Operation(direction, purpose, name), Taxonomy.load())
@@ -71,6 +75,18 @@ def test_template_dedupe_removes_document_and_name_shortcuts():
     b = Operation("out", "Оплата товара №456 от 02.02.2026", "ООО Второй", amount=20000)
     assert dedupe_key(a) == dedupe_key(b)
     assert dedupe_key(Operation("out", "", "Энергосбыт")) != dedupe_key(Operation("out", "", "Банк"))
+
+
+@pytest.mark.parametrize("vat", ["В т.ч. НДС 20% - 100", "В том числе НДС (22%) 22.50 руб.", "НДС 20% 100,00", "Без налога (НДС)"])
+@pytest.mark.parametrize("rail", ["цифровыми рублями", "через СБП", "через cash-in", "по QR-коду"])
+def test_vat_boilerplate_cannot_erase_a_following_payment_rail(vat, rail):
+    out = normalize(f"Оплата товара. {vat} {rail}")
+    assert normalize(rail) in out
+    assert "ндс" not in out
+
+
+def test_actual_tax_nds_remains_economic_signal():
+    assert "ндс" in normalize("НДС за октябрь")
 
 
 def test_frozen_fixture_integrity():
