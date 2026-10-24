@@ -46,10 +46,13 @@ def main():
     args = ap.parse_args()
     source = source_fingerprint()
     df = labels.load_dataset(args.data)
-    df = labels.teacher_labels(df, labels.go_rule_labels(args.data, REPO, ML_DIR/"data/rule_labels.csv"))
-    keys, calibration, test = split_templates(df, args.seed)
-    tr, ca, te = df[~keys.isin(calibration|test)], df[keys.isin(calibration)], df[keys.isin(test)]
-    print(f"templates train={keys[tr.index].nunique()} calibration={len(calibration)} test={len(test)}; "
+    go = labels.go_rule_labels(args.data, REPO, ML_DIR/"data/rule_labels.csv")
+    keys, calibration, test = split_templates(labels.teacher_labels(df, go), args.seed)
+    train_templates = keys[~keys.isin(calibration|test)].nunique()
+    parts = labels.teacher_label_partitions({"train": df[~keys.isin(calibration|test)],
+        "calibration": df[keys.isin(calibration)], "test": df[keys.isin(test)]}, go)
+    tr, ca, te = parts["train"], parts["calibration"], parts["test"]
+    print(f"templates train={train_templates} calibration={len(calibration)} test={len(test)}; "
           f"operations {len(tr)}/{len(ca)}/{len(te)}", flush=True)
     clf = train_model(real_rows(tr), args.seed, 60000, 1500, 3e-6,
                       dev_rows=real_rows(ca), excluded_purposes=calibration|test)
@@ -63,7 +66,7 @@ def main():
     stats = {name: evaluate.scores(te.label, pred, te.amount) for name, pred in
              [("rules", te.rule), ("model", model), ("hybrid", hybrid), ("model_without_counterparty", blinded)]}
     stats["confidence"] = evaluate.confidence_metrics(te.label, model, conf)
-    stats["protocol"] = {"seed": args.seed, "train_templates": int(keys[tr.index].nunique()),
+    stats["protocol"] = {"seed": args.seed, "train_templates": int(train_templates), "weak_label_scope": "partition_only",
         "calibration_templates": sorted(calibration), "test_templates": sorted(test),
         "source_sha256": source, "data_sha256": hashlib.sha256(args.data.read_bytes()).hexdigest(),
         "source_changed_during_run": source != source_fingerprint(), "temperature": clf.temperature}
@@ -77,10 +80,11 @@ def main():
     args.report.write_text(f"""# Обобщение классификатора на новые шаблоны
 
 Шаблон = направление + нормализованное назначение (без дат, сумм и номеров).
-Целые шаблоны разделены 60/20/20 внутри категорий: {keys[tr.index].nunique()} обучение,
+Целые шаблоны разделены 60/20/20 внутри категорий: {train_templates} обучение,
 {len(calibration)} калибровка, {len(test)} тест. Seed {args.seed}.
 Точные совпадения с calibration/test удалены также из обучающей аугментации.
 Температура калибрована только по calibration, оценка выполнена после save/load артефакта.
+Метки пустых назначений по контрагентам строятся отдельно внутри каждой группы.
 
 {table}
 

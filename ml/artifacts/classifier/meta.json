@@ -5,15 +5,16 @@
   "perturb": 60000,
   "synth": 1500,
   "seed": 42,
+  "name_dropout": 0.25,
   "holdout_eval": {
     "holdout": {
       "n": 50148,
-      "rules_acc": 0.9194584031267449,
-      "model_acc": 0.9988035415171094,
-      "chain_acc": 0.9987836005423946,
-      "rules_f1": 0.9149156077595281,
-      "model_f1": 0.9914605908921432,
-      "chain_f1": 0.9913902498400425
+      "rules_acc": 0.9194982850761745,
+      "model_acc": 0.9987437185929648,
+      "chain_acc": 0.9987237776182499,
+      "rules_f1": 0.915927053374036,
+      "model_f1": 0.9912106812580397,
+      "chain_f1": 0.9911403399250881
     },
     "novel": {
       "n": 280,
@@ -21,7 +22,7 @@
       "model_acc": 0.9785714285714285,
       "chain_acc": 0.9357142857142857,
       "rules_f1": 0.4380042576994527,
-      "model_f1": 0.9773942771898166,
+      "model_f1": 0.9767853778923928,
       "chain_f1": 0.9309480790175991
     }
   },
@@ -90,7 +91,9 @@
     "C149"
   ],
   "evaluation_protocol": "company_train_calibration_test_60_20_20",
+  "weak_label_scope": "partition_only_for_evaluation_all_companies_for_final_fit",
   "source_sha256": "28d7a2ebc6d4d65f31f93e59e24659a04c76990d20833337b9351316fd445472",
+  "training_code_sha256": "2a5898b19472cbb81d9300d066c79991d050a1cfb6db33881b145cb2277691db",
   "novel_usage": "regression_set_previously_inspected_not_external_test",
   "version": 1,
   "categories": [

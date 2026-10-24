@@ -23,14 +23,15 @@ from zavozik_ml.data import DEFAULT_FLOWS  # noqa: E402
 REPORTS = Path(__file__).resolve().parents[2] / "reports"
 
 # Палитра: категориальные слоты в фиксированном порядке, цвет закреплён за
-# моделью; у линий прямые подписи. Текст и сетка — нейтральные чернила.
-SERIES = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100"]
+# моделью. Текст и сетка — нейтральные чернила.
+SERIES = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#8652b5"]
 INK, INK_2, GRID, SURFACE = "#0b0b0b", "#52514e", "#e4e3df", "#fcfcfb"
 LABELS = {
     "seasonal_naive": "Seasonal naive",
     "ets": "ETS (Holt-Winters)",
     "gbm_global": "LightGBM глобальная",
     "ensemble": "Ансамбль LightGBM + naive",
+    "auto": "Auto (выбор по истории)",
 }
 
 
@@ -46,27 +47,23 @@ def _style(ax) -> None:
 
 
 def wape_by_horizon(df: pd.DataFrame, out: Path, column: str = "actual") -> None:
-    fig, ax = plt.subplots(figsize=(8, 4.2), dpi=160, facecolor=SURFACE)
+    fig, ax = plt.subplots(figsize=(8, 4.8), dpi=160, facecolor=SURFACE)
     _style(ax)
-    ends = []
     for color, m in zip(SERIES, LABELS):
         if m not in set(df.model):
             continue
-        g = df[df.model == m].groupby("h").apply(lambda x: (x[column] - x.p50).abs().sum() / x[column].abs().sum())
-        ax.plot(g.index, g.values * 100, color=color, linewidth=2)
-        ends.append([g.values[-1] * 100, LABELS[m], g.index[-1]])
-    # Прямые подписи у концов линий, разнесённые, чтобы не наезжали.
-    ends.sort()
-    for i in range(1, len(ends)):
-        ends[i][0] = max(ends[i][0], ends[i - 1][0] + 3.5)
-    for y, label, x in ends:
-        ax.annotate(label, (x, y), xytext=(6, 0), textcoords="offset points", va="center", fontsize=9, color=INK)
+        subset = df[df.model == m]
+        g = subset.assign(error=(subset[column]-subset.p50).abs(), denominator=subset[column].abs()).groupby("h")[["error", "denominator"]].sum()
+        values = g.error / g.denominator.replace(0, np.nan)
+        ax.plot(g.index, values * 100, color=color, linewidth=2,
+                linestyle="--" if m == "auto" else "-", label=LABELS[m])
     ax.set_xlabel("Горизонт, дней", color=INK_2, fontsize=9)
-    ax.set_ylabel("WAPE остатка, %", color=INK_2, fontsize=9)
-    ax.set_xlim(1, 30)
+    ax.set_ylabel(("Business " if column == "adjusted" else "Account ")+"WAPE остатка, %", color=INK_2, fontsize=9)
+    ax.set_xlim(1, max(df.h))
     ax.set_ylim(bottom=0)
     ax.set_title("Ошибка прогноза остатка по горизонту (меньше — лучше)", loc="left", color=INK, fontsize=11)
-    fig.subplots_adjust(right=0.74)
+    ax.legend(frameon=False, fontsize=9, labelcolor=INK, loc="upper center", bbox_to_anchor=(.5, -.18), ncol=2)
+    fig.subplots_adjust(left=.11, right=.97, bottom=.28, top=.88)
     fig.savefig(out, facecolor=SURFACE)
     plt.close(fig)
 

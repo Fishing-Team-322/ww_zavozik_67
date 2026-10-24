@@ -148,3 +148,21 @@ def teacher_labels(df: pd.DataFrame, go: pd.DataFrame) -> pd.DataFrame:
             out.at[i, "label"] = top[k]
     assert set(out.label) <= set(CATEGORIES)
     return out
+
+
+def teacher_label_partitions(partitions: dict[str, pd.DataFrame], go: pd.DataFrame) -> dict[str, pd.DataFrame]:
+    """Infer missing-purpose labels within each split, never across its boundary.
+
+    Counterparty majority labels depend on data, unlike the fixed regex rules.
+    Constructing them on the full dataset before splitting can leak test rows
+    into training targets. Test labels are still weak labels, not human gold.
+    """
+    seen: set[str] = set()
+    result = {}
+    for name, part in partitions.items():
+        ids = set(part.operation_id)
+        if seen & ids:
+            raise ValueError("operation appears in multiple classifier partitions")
+        seen.update(ids)
+        result[name] = teacher_labels(part, go)
+    return result

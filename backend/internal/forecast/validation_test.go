@@ -94,3 +94,30 @@ func TestAssemblerRejectsDateShift(t *testing.T) {
 		t.Fatalf("got %v", err)
 	}
 }
+
+func TestRecomputeRejectsInvalidMoneyWithoutReplacingBalances(t *testing.T) {
+	day := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	cases := map[string]func(*Result){
+		"opening":       func(r *Result) { r.OpeningBalance = domain.Money(math.NaN()) },
+		"component":     func(r *Result) { r.Deterministic = []ComponentFlow{{Date: day, Amount: domain.Money(math.NaN())}} },
+		"path":          func(r *Result) { r.Stochastic.Inflow[0][0] = math.Inf(1) },
+		"negative flow": func(r *Result) { r.Stochastic.Outflow[0][0] = -1 },
+		"overflow": func(r *Result) {
+			r.OpeningBalance = domain.Money(math.MaxFloat64)
+			r.Stochastic.Inflow[0][0] = math.MaxFloat64
+		},
+	}
+	for name, mutate := range cases {
+		t.Run(name, func(t *testing.T) {
+			r := Result{Dates: []time.Time{day}, OpeningBalance: 100, Balances: [][]float64{{120}},
+				Stochastic: StochasticForecast{Inflow: [][]float64{{30}}, Outflow: [][]float64{{10}}}}
+			mutate(&r)
+			if err := r.Recompute(); err == nil {
+				t.Fatal("invalid money produced a forecast")
+			}
+			if r.Balances[0][0] != 120 {
+				t.Fatal("failed recomputation replaced a valid balance")
+			}
+		})
+	}
+}

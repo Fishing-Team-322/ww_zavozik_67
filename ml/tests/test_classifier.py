@@ -144,6 +144,33 @@ def test_extra_rules_valid():
         r.compile()
 
 
+def test_counterparty_weak_labels_do_not_cross_partitions():
+    # Only the test partition knows what this name usually means. The empty
+    # training operation must not inherit that held-out information.
+    df = pd.DataFrame([
+        dict(operation_id="train", company_id="A", direction="out", payment_purpose="", counterparty_name="ООО Вектор"),
+        dict(operation_id="test", company_id="B", direction="out", payment_purpose="Оплата услуг", counterparty_name="ООО Вектор"),
+    ])
+    go = pd.DataFrame([dict(id="train", category="other"), dict(id="test", category="services")])
+    assert labels.teacher_labels(df, go).iloc[0].label == "services"
+    parts = labels.teacher_label_partitions({"train": df.iloc[:1], "test": df.iloc[1:]}, go)
+    assert parts["train"].iloc[0].label == "other"
+    assert parts["test"].iloc[0].label == "services"
+    with pytest.raises(ValueError, match="multiple"):
+        labels.teacher_label_partitions({"train": df, "test": df.iloc[1:]}, go)
+
+
+def test_counterparty_dropout_preserves_only_informative_labels():
+    from zavozik_ml.classify.train import counterparty_dropout
+    rows = [dict(purpose="Оплата электроэнергии", name="Энергосбыт", inn="0123456789", label="utilities"),
+            dict(purpose="", name="Энергосбыт", inn="0123456789", label="utilities")]
+    out = counterparty_dropout(rows, 42, rate=1)
+    assert len(out) == 3
+    assert out[-1] == dict(purpose="Оплата электроэнергии", name="", inn="", inn_type="none", label="utilities")
+    assert rows[0]["name"] == "Энергосбыт"  # no mutation of the original data
+    assert counterparty_dropout(rows, 42, rate=0) == rows
+
+
 @pytest.fixture(scope="module")
 def stub(clf):
     server, port = build_server("127.0.0.1:0", workers=2, classifier=clf)
