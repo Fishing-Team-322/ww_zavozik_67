@@ -35,6 +35,7 @@ type API struct {
 	WBClient       *wb.Client
 	OzonClient     *ozon.Client
 	SyncToken      string
+	FNSSync        *service.FNSSync
 }
 
 func (a API) Handler() http.Handler {
@@ -57,7 +58,7 @@ func (a API) Handler() http.Handler {
 			writeError(w, 401, "unauthorized", "Invalid authorization")
 			return
 		}
-		writeJSON(w, 200, map[string]any{"schema_version": contracts.SchemaVersion, "company_id": a.CompanyID, "sources": []string{"onec_bank_file", "onec_odata", "dadata_party", "fns_debt_snapshot", "tax_calendar", "wildberries_finance", "ozon_finance", "csv"}, "storage": "postgresql"})
+		writeJSON(w, 200, map[string]any{"schema_version": contracts.SchemaVersion, "company_id": a.CompanyID, "sources": []string{"onec_bank_file", "onec_odata", "dadata_party", "fns_debt_snapshot", "fns_registry_file", "tax_calendar", "wildberries_finance", "ozon_finance", "csv"}, "storage": "postgresql"})
 	})
 	mux.HandleFunc("POST /v1/import/onec-bank", a.importOneC)
 	mux.HandleFunc("POST /v1/import/csv", a.importCSV)
@@ -73,6 +74,14 @@ func (a API) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/marketplace-entries/{companyId}", a.marketplaceEntries)
 	mux.HandleFunc("GET /v1/risk-signals/{companyId}", a.riskSignals)
 	mux.HandleFunc("GET /v1/counterparties/{companyId}", a.counterparties)
+	mux.HandleFunc("POST /v1/fns/egrul/import", a.importRegistryPDF("FNS_EGRUL"))
+	mux.HandleFunc("POST /v1/fns/egrip/import", a.importRegistryPDF("FNS_EGRIP"))
+	mux.HandleFunc("POST /v1/fns/xml/import", a.importRegistryXML)
+	mux.HandleFunc("GET /v1/fns/counterparties/{inn}", a.registryCurrent)
+	mux.HandleFunc("GET /v1/fns/counterparties/{inn}/history", a.registryHistory)
+	mux.HandleFunc("GET /v1/counterparty-intelligence/{inn}", a.intelligence)
+	mux.HandleFunc("POST /v1/fns/opendata/sync", a.syncFNS)
+	mux.HandleFunc("GET /v1/fns/opendata/status", a.fnsStatus)
 	return mux
 }
 

@@ -10,7 +10,12 @@ import (
 // Run starts an independent periodic source loop. A failed source backs off
 // without delaying the others. Work is cancelled on service shutdown.
 func Run(ctx context.Context, interval, timeout time.Duration, job func(context.Context) error) {
-	if interval <= 0 || timeout <= 0 || job == nil {
+	RunWithRetryFloor(ctx, interval, timeout, time.Second, job)
+}
+
+// RunWithRetryFloor keeps slow public sources from being polled aggressively.
+func RunWithRetryFloor(ctx context.Context, interval, timeout, retryFloor time.Duration, job func(context.Context) error) {
+	if interval <= 0 || timeout <= 0 || retryFloor <= 0 || job == nil {
 		return
 	}
 	go func() {
@@ -18,7 +23,7 @@ func Run(ctx context.Context, interval, timeout time.Duration, job func(context.
 		for {
 			delay := interval
 			if failures > 0 {
-				delay = time.Second
+				delay = retryFloor
 				for i := 1; i < failures && delay < interval; i++ {
 					delay *= 2
 				}
