@@ -219,3 +219,19 @@ def test_time_budget_sets_steps(tmp_path, shard):
     run(args)
     ck = torch.load(tmp_path / "r" / "last.pt", weights_only=False)
     assert 220 < ck["args"]["max_steps"] < 10000000 and ck["step"] == ck["args"]["max_steps"]
+
+
+def test_amount_cap_and_top_p_limit_generated_sums(shard):
+    src = Source(shard)
+    vocab = build_vocab([src])
+    model = tiny_model(len(vocab))
+    tok = shard.slice(0)
+    origin = day_number(date(2025, 9, 30))
+    upto = int(np.searchsorted(tok["day"], origin, side="right"))
+    ctx = context_tokens({k: v[:upto] for k, v in tok.items()}, src.remap, "case")
+    hist_max = float(np.power(10.0, ctx["log_amount"].astype(float) * schema.AMOUNT_LOG_MAX).max())
+    g = generate(model, ctx, vocab, origin, horizon=20, n_paths=16, seed=2, cap_mult=1.0, amount_top_p=0.9)
+    day_max = max(g.business_in.max(), g.business_out.max(), np.abs(g.internal_net).max())
+    assert g.n_ops.sum() > 0
+    # Потолок — по интервалу суммы: не больше верхней границы интервала максимума истории (×1,18) на операцию.
+    assert day_max <= hist_max * 1.2 * g.n_ops.max()

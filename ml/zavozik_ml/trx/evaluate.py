@@ -25,6 +25,7 @@ import torch
 
 from zavozik_ml import calendar as cal
 
+from .dataset import seq_bucket
 from .generate import context_tokens, generate
 from .shards import Shard
 from .train import load_model, pick_device
@@ -84,18 +85,95 @@ def metrics(rows: list[dict], name: str, threshold: float) -> dict:
     return m
 
 
+def select_companies(shard: Shard, flows: dict, roles: set[str], buckets: tuple[int, int] | None,
+                     max_companies: int = 0) -> list[tuple[int, str]]:
+    seqs = [(i, s["id"]) for i, s in enumerate(shard.sequences)
+            if s.get("role") in roles and s["id"] in flows
+            and (buckets is None or buckets[0] <= seq_bucket(s["id"]) < buckets[1])]
+    return seqs[:max_companies] if max_companies else seqs
+
+
+def backtest(model, vocab, shard: Shard, flows: dict, seqs: list[tuple[int, str]], min_origin: int, horizon: int,
+             step: int, origins: int, paths: int, device, gen_kw: dict | None = None, verbose: bool = True) -> list[dict]:
+    """Точки старта по компаниям → пути остатка TrxGPT и naive + факт.
+
+    В строке хранятся сами пути (`trx_bal`, `naive_bal`), чтобы tune_gen.py мог
+    смешивать модели без повторной генерации, и итоги приходов/расходов за
+    горизонт — для диагностики смещения."""
+    remap = np.array([vocab.get(n) for n in shard.vocab.names], dtype=np.int64)
+    rng = np.random.default_rng(0)
+    rows = []
+    for n_done, (si, cid) in enumerate(seqs, 1):
+        f = flows[cid]
+        n = len(f)
+        tok = shard.slice(si)
+        for k in range(origins):
+            o = n - 1 - horizon - k * step
+            if o < 56 or f["day"].iloc[o] < min_origin:
+                continue
+            win = f.iloc[o : o + horizon + 1]
+            if win["missing"].any() or np.isnan(win["balance"].iloc[0]):
+                continue
+            origin_day = int(f["day"].iloc[o])
+            upto = int(np.searchsorted(tok["day"], origin_day, side="right"))
+            if upto < 16:
+                continue
+            ctx = context_tokens({k2: v[:upto] for k2, v in tok.items()}, remap, "case")
+            start_balance = float(f["balance"].iloc[o])
+            future = f.iloc[o + 1 : o + horizon + 1]
+            actual = start_balance + np.cumsum((future["inflow"] - future["outflow"]).to_numpy())
+
+            g = generate(model, ctx, vocab, origin_day, horizon, paths, "case", seed=si * 1000 + k, device=device,
+                         **(gen_kw or {}))
+            rows.append({
+                "company_id": cid, "as_of": str(np.datetime64(origin_day, "D")), "actual": actual,
+                "gap_true": bool((actual < 0).any()),
+                "trx_bal": start_balance + np.cumsum(g.business_in - g.business_out, axis=1),
+                "start": start_balance, "trx_cin": np.cumsum(g.business_in, axis=1),
+                "trx_cout": np.cumsum(g.business_out, axis=1),
+                "naive_bal": start_balance + np.cumsum(naive_paths(f, o, horizon, paths, rng), axis=1),
+                "act_in": float(future["inflow"].sum()), "act_out": float(future["outflow"].sum()),
+                "gen_in": float(np.median(g.business_in.sum(1))), "gen_out": float(np.median(g.business_out.sum(1))),
+                "act_ops": int(np.searchsorted(tok["day"], origin_day + horizon, side="right") - upto),
+                "trx_ops_per_path": float(g.n_ops.mean()),
+            })
+        if verbose:
+            print(f"[{n_done}/{len(seqs)}] {cid}: точек старта всего {len(rows)}", flush=True)
+    return rows
+
+
+def summarize(rows: list[dict], name: str, threshold: float) -> dict:
+    """Метрики по путям остатка `<name>_bal` (квантили и вероятность разрыва — из путей)."""
+    for r in rows:
+        bal = r[f"{name}_bal"]
+        r[f"{name}_q"] = np.quantile(bal, [0.1, 0.5, 0.9], axis=0)
+        r[f"{name}_gap_prob"] = float((bal.min(axis=1) < 0).mean())
+    return metrics(rows, name, threshold)
+
+
+def bias(rows: list[dict]) -> dict:
+    """Во сколько раз сгенерированное больше факта за горизонт (по сумме точек; 1 — идеально)."""
+    s = lambda k: sum(r[k] for r in rows)
+    return {"in_ratio": s("gen_in") / max(s("act_in"), 1.0), "out_ratio": s("gen_out") / max(s("act_out"), 1.0),
+            "ops_ratio": s("trx_ops_per_path") / max(s("act_ops"), 1)}
+
+
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--model", type=Path, required=True)
     p.add_argument("--shard", type=Path, default=ML_DIR / "data" / "trx" / "case")
     p.add_argument("--flows", type=Path, default=ML_DIR / "data" / "flows.csv")
     p.add_argument("--roles", default="audit")
+    p.add_argument("--buckets", default="", help="корзины хеша компаний, например 80-100")
     p.add_argument("--min-origin", default="2026-07-01")
     p.add_argument("--horizon", type=int, default=30)
     p.add_argument("--step", type=int, default=30)
     p.add_argument("--origins", type=int, default=6)
     p.add_argument("--paths", type=int, default=200)
     p.add_argument("--temperature", type=float, default=1.0)
+    p.add_argument("--amount-temp", type=float, default=0, help="температура суммы (0 — как --temperature)")
+    p.add_argument("--amount-top-p", type=float, default=1.0)
+    p.add_argument("--cap-mult", type=float, default=0, help="потолок суммы: × крупнейшая операция истории (0 — нет)")
     p.add_argument("--gap-threshold", type=float, default=0.3)
     p.add_argument("--max-companies", type=int, default=0)
     p.add_argument("--device", default="auto")
@@ -106,57 +184,23 @@ def main() -> None:
     model, vocab, _ = load_model(args.model, map_location="cpu")
     model.to(device)
     shard = Shard(args.shard)
-    remap = np.array([vocab.get(n) for n in shard.vocab.names], dtype=np.int64)
     flows = load_flows(args.flows)
-    roles = set(args.roles.split(","))
-    min_origin = int(np.datetime64(args.min_origin, "D").astype(np.int64))
-    rng = np.random.default_rng(0)
-
-    seqs = [(i, s["id"]) for i, s in enumerate(shard.sequences) if s.get("role") in roles and s["id"] in flows]
-    if args.max_companies:
-        seqs = seqs[: args.max_companies]
-    rows = []
-    for n_done, (si, cid) in enumerate(seqs, 1):
-        f = flows[cid]
-        n = len(f)
-        tok = shard.slice(si)
-        for k in range(args.origins):
-            o = n - 1 - args.horizon - k * args.step
-            if o < 56 or f["day"].iloc[o] < min_origin:
-                continue
-            win = f.iloc[o : o + args.horizon + 1]
-            if win["missing"].any() or np.isnan(win["balance"].iloc[0]):
-                continue
-            origin_day = int(f["day"].iloc[o])
-            upto = int(np.searchsorted(tok["day"], origin_day, side="right"))
-            if upto < 16:
-                continue
-            ctx = context_tokens({k2: v[:upto] for k2, v in tok.items()}, remap, "case")
-            start_balance = float(f["balance"].iloc[o])
-            future = f.iloc[o + 1 : o + args.horizon + 1]
-            actual = start_balance + np.cumsum((future["inflow"] - future["outflow"]).to_numpy())
-
-            g = generate(model, ctx, vocab, origin_day, args.horizon, args.paths, "case",
-                         temperature=args.temperature, seed=si * 1000 + k, device=device)
-            trx_bal = start_balance + np.cumsum(g.business_in - g.business_out, axis=1)
-            nv_bal = start_balance + np.cumsum(naive_paths(f, o, args.horizon, args.paths, rng), axis=1)
-            row = {"company_id": cid, "as_of": str(np.datetime64(origin_day, "D")), "actual": actual,
-                   "gap_true": bool((actual < 0).any())}
-            for name, bal in (("trx", trx_bal), ("naive", nv_bal)):
-                row[f"{name}_q"] = np.quantile(bal, [0.1, 0.5, 0.9], axis=0)
-                row[f"{name}_gap_prob"] = float((bal.min(axis=1) < 0).mean())
-            row["trx_ops_per_path"] = float(g.n_ops.mean())
-            rows.append(row)
-        print(f"[{n_done}/{len(seqs)}] {cid}: точек старта всего {len(rows)}")
-
+    buckets = tuple(int(x) for x in args.buckets.split("-")) if args.buckets else None
+    seqs = select_companies(shard, flows, set(args.roles.split(",")), buckets, args.max_companies)
+    gen_kw = {"temperature": args.temperature, "amount_temperature": args.amount_temp or None,
+              "amount_top_p": args.amount_top_p, "cap_mult": args.cap_mult}
+    rows = backtest(model, vocab, shard, flows, seqs, int(np.datetime64(args.min_origin, "D").astype(np.int64)),
+                    args.horizon, args.step, args.origins, args.paths, device, gen_kw)
     if not rows:
         raise SystemExit("нет подходящих точек старта: проверьте --roles и --min-origin")
-    summary = pd.DataFrame([metrics(rows, "trx", args.gap_threshold), metrics(rows, "naive", args.gap_threshold)])
+    summary = pd.DataFrame([summarize(rows, "trx", args.gap_threshold), summarize(rows, "naive", args.gap_threshold)])
     args.out.parent.mkdir(parents=True, exist_ok=True)
     summary.to_csv(args.out, index=False)
     pd.set_option("display.width", 200)
     print(summary.round(3).to_string(index=False))
-    print(f"в среднем операций на путь: {np.mean([r['trx_ops_per_path'] for r in rows]):.1f}; отчёт: {args.out}")
+    b = bias(rows)
+    print(f"смещение генерации (сгенерировано / факт за горизонт): приходы {b['in_ratio']:.2f}, "
+          f"расходы {b['out_ratio']:.2f}, операций {b['ops_ratio']:.2f}; отчёт: {args.out}")
 
 
 if __name__ == "__main__":

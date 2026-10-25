@@ -7,7 +7,11 @@
   * если в истории компании нет операций в нерабочие дни, нерабочие дни по
     производственному календарю запрещены (как в данных кейса);
   * тип — только из типов того же источника (для кейса — наши категории),
-    направление «неизвестно» не сэмплируется.
+    направление «неизвестно» не сэмплируется;
+  * сумма (по желанию): своя температура и top-p — без редких огромных сумм из
+    хвоста распределения, — и потолок cap_mult × крупнейшая разовая операция
+    компании того же направления в истории. Одна случайная выплата на десятки
+    миллионов иначе уводит весь путь остатка (подбор — tune_gen.py).
 
 Результат — дневные приходы и расходы бизнеса по каждому пути (внутренние
 переводы владельца отдельно) — то же, что отдаёт ML-сервис для Go.
@@ -25,11 +29,13 @@ from zavozik_ml import calendar as cal
 from .dataset import INPUT_FIELDS, SOURCE_IDS
 from .model import TrxGPT
 from .schema import (
+    AMOUNT_LOG_MAX,
     DELTA_FAR,
     DIR_IN,
     DIR_UNKNOWN,
     INTERNAL_TYPES,
     MAX_DELTA,
+    N_AMOUNT,
     TypeVocab,
     amount_bin,
     amount_from_bin,
@@ -58,15 +64,34 @@ def context_tokens(tokens: dict[str, np.ndarray], remap: np.ndarray | None, sour
     return out
 
 
-def _sample(logits: torch.Tensor, gen: torch.Generator, temperature: float) -> torch.Tensor:
+def _sample(logits: torch.Tensor, gen: torch.Generator, temperature: float, top_p: float = 1.0) -> torch.Tensor:
     probs = torch.softmax(logits.float() / temperature, dim=-1)
+    if top_p < 1.0:
+        # Только самые вероятные варианты с суммарной вероятностью top_p (первый — всегда).
+        sp, si = probs.sort(dim=-1, descending=True)
+        drop = sp.cumsum(-1) - sp > top_p
+        sp[drop] = 0.0
+        probs = torch.zeros_like(probs).scatter_(-1, si, sp)
     return torch.multinomial(probs, 1, generator=gen).squeeze(-1)
+
+
+def amount_caps(context: dict[str, np.ndarray], cap_mult: float) -> dict[int, int]:
+    """Наибольший допустимый интервал суммы по направлению: cap_mult × максимум истории."""
+    if cap_mult <= 0:
+        return {}
+    amounts = np.power(10.0, np.asarray(context["log_amount"], dtype=np.float64) * AMOUNT_LOG_MAX)
+    caps = {}
+    for d in np.unique(context["dir"]):
+        m = context["dir"] == d
+        caps[int(d)] = int(amount_bin(np.array([amounts[m].max() * cap_mult]))[0])
+    return caps
 
 
 @torch.no_grad()
 def generate(model: TrxGPT, context: dict[str, np.ndarray], vocab: TypeVocab, origin_day: int, horizon: int,
              n_paths: int, source: str = "case", temperature: float = 1.0, seed: int = 0,
-             max_ops_per_day: int = 40, device: torch.device | str = "cpu") -> GeneratedPaths:
+             max_ops_per_day: int = 40, device: torch.device | str = "cpu", amount_temperature: float | None = None,
+             amount_top_p: float = 1.0, cap_mult: float = 0.0) -> GeneratedPaths:
     if len(context["delta"]) == 0:
         raise ValueError("пустая история: нечего продолжать")
     device = torch.device(device)
@@ -82,6 +107,8 @@ def generate(model: TrxGPT, context: dict[str, np.ndarray], vocab: TypeVocab, or
     type_mask = torch.full((len(vocab),), float("-inf"))
     type_mask[allowed_types] = 0.0
     internal = np.array([n in INTERNAL_TYPES for n in vocab.names])
+    caps = amount_caps(context, cap_mult)
+    cap_mask = {d: torch.where(torch.arange(N_AMOUNT) > b, float("-inf"), 0.0) for d, b in caps.items()}
 
     # Состояние: последовательность каждого пути (общая история + сгенерированное).
     seq = {k: torch.as_tensor(np.asarray(v)[-(max_len - 1):]).unsqueeze(0).repeat(n_paths, *([1] * (np.ndim(v)))) for k, v in context.items()
@@ -133,7 +160,10 @@ def generate(model: TrxGPT, context: dict[str, np.ndarray], vocab: TypeVocab, or
         lt, h_type = model.logits_type(h_dir, direction.to(device))
         typ = _sample(lt.float().cpu() + type_mask, gen, temperature)
         la = model.logits_amount(h_type, typ.to(device)).float().cpu()
-        abin = _sample(la, gen, temperature).numpy()
+        for d, m in cap_mask.items():
+            sel = direction == d
+            la[sel] = la[sel] + m
+        abin = _sample(la, gen, amount_temperature or temperature, amount_top_p).numpy()
         amount = amount_from_bin(abin, rng)
 
         # Записать операцию в дневные потоки активных путей.
