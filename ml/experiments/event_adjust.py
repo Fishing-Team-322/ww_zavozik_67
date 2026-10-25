@@ -28,7 +28,7 @@ import event_benchmark as eb
 from zavozik_ml import data
 from zavozik_ml.forecasters import base, ensemble, gbm  # noqa: F401
 
-BASE_MODELS = ("seasonal_naive", "gbm_global", "blocks", "hybrid", "count_bootstrap")
+BASE_MODELS = ("seasonal_naive", "gbm_global", "ensemble", "blocks", "hybrid", "count_bootstrap")
 MIX_MEMBERS = ("blocks", "hybrid", "gbm_global")
 SPREAD_GRID = np.round(np.arange(0.5, 1.81, 0.1), 2)
 TARGET_COVERAGE = 0.80
