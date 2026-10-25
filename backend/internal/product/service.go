@@ -18,6 +18,7 @@ import (
 	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/categorize"
 	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/domain"
 	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/forecast"
+	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/llm"
 	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/platform"
 	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/store"
 	"github.com/google/uuid"
@@ -31,6 +32,7 @@ type Result struct {
 	Filename, MIME string
 }
 type Service struct {
+	CashflowNarrator *llm.CashflowNarrator
 	// Now supplies the current date for schedules and risk countdowns; nil uses wall time.
 	Now                                                 func() time.Time
 	IntegrationSandbox                                  bool

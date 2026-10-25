@@ -9,6 +9,7 @@ import { AccountGate, useSession } from "@/src/features/auth";
 import { useApiResource } from "@/src/shared/api/use-api-resource";
 import type { Schemas } from "@/src/shared/api";
 import { Button, Dialog } from "@/src/shared/ui";
+import { CashflowSuggestions } from "@/src/widgets/finance-panels/ui/CashflowSuggestions";
 import { ForecastDayDetails } from "@/src/widgets/finance-panels";
 import { overviewDelayStep, overviewForecastPoints } from "@/src/entities/forecast/model/overview-adapters";
 
@@ -111,6 +112,7 @@ export function PulsOverviewHome() {
         onOpenCalendar={() => router.push("/calendar")}
         onOpenScenarios={() => router.push("/scenarios")}
       />}
+      {company && topGap && <CashflowSuggestions key={`${company.id}:${horizon}:${topGap.id}`} companyId={company.id} gap={topGap} horizon={horizon} />}
       <Dialog open={day !== null} title={`Прогноз на ${day ?? ""}`} onClose={() => setDay(null)} className="max-w-xl"
         headerActions={<Button variant="ghost" onClick={() => setDay(null)} aria-label="Закрыть детализацию дня">Закрыть</Button>}>
         {day && company && <ForecastDayDetails companyId={company.id} date={day} horizon={horizon} />}

@@ -3968,6 +3968,20 @@ components:
       - draft_message
       - refs
       properties:
+        explanation:
+          type: string
+          description: Explanation of the action mechanism, without financial calculations.
+        explanation_source:
+          type: string
+          enum: [rules, llm]
+        conditions:
+          type: string
+        original_date:
+          type: string
+          format: date
+          nullable: true
+        deferred_beyond_horizon:
+          type: boolean
         date:
           type: string
           format: date
@@ -3994,6 +4008,20 @@ components:
           - new_probability
           - new_shortfall
           properties:
+            baseline_shortfall:
+              type: number
+            baseline_shortfall_p90:
+              type: number
+            shortfall_reduction:
+              type: number
+            shortfall_p90_reduction:
+              type: number
+            baseline_min_balance:
+              type: number
+            new_min_balance:
+              type: number
+            baseline_probability:
+              type: number
             new_gap_date:
               type: string
               format: date

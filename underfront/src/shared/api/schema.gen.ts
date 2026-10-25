@@ -2070,6 +2070,14 @@ export interface components {
             component_key?: string;
         };
         Action: {
+            /** @description Explanation of the action mechanism, without financial calculations. */
+            explanation?: string;
+            /** @enum {string} */
+            explanation_source?: "rules" | "llm";
+            conditions?: string;
+            /** Format: date */
+            original_date?: string | null;
+            deferred_beyond_horizon?: boolean;
             /** Format: date */
             date?: string;
             amount?: number;
@@ -2082,6 +2090,13 @@ export interface components {
             /** Format: double */
             cost: number;
             effect: {
+                baseline_shortfall?: number;
+                baseline_shortfall_p90?: number;
+                shortfall_reduction?: number;
+                shortfall_p90_reduction?: number;
+                baseline_min_balance?: number;
+                new_min_balance?: number;
+                baseline_probability?: number;
                 /** Format: date */
                 new_gap_date?: string | null;
                 new_shortfall_p90?: number;

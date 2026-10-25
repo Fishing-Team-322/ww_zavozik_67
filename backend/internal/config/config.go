@@ -12,6 +12,7 @@ import (
 )
 
 type Config struct {
+	CashflowLLMBaseURL, CashflowLLMAPIKey, CashflowLLMModel                                                          string
 	IntegrationSandbox                                                                                               bool
 	FNSHubURL, FNSHubToken, FNSHubCompany                                                                            string
 	TrustedProxyCIDRs                                                                                                []string
@@ -32,6 +33,7 @@ type Config struct {
 
 func Load() Config {
 	return Config{
+		CashflowLLMBaseURL: env("CASHFLOW_LLM_BASE_URL", ""), CashflowLLMAPIKey: env("CASHFLOW_LLM_API_KEY", ""), CashflowLLMModel: env("CASHFLOW_LLM_MODEL", ""),
 		IntegrationSandbox: env("INTEGRATION_SANDBOX", "false") == "true",
 		FNSHubURL:          env("FNS_HUB_URL", ""), FNSHubToken: env("FNS_HUB_TOKEN", ""), FNSHubCompany: env("FNS_HUB_COMPANY", ""),
 		TrustedProxyCIDRs: strings.FieldsFunc(env("TRUSTED_PROXY_CIDRS", ""), func(r rune) bool { return r == ',' || r == ' ' }),

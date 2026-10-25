@@ -23,6 +23,12 @@ const (
 	BearerAuthScopes = "bearerAuth.Scopes"
 )
 
+// Defines values for ActionExplanationSource.
+const (
+	Llm   ActionExplanationSource = "llm"
+	Rules ActionExplanationSource = "rules"
+)
+
 // Defines values for CalendarDaysRisk.
 const (
 	CalendarDaysRiskDanger  CalendarDaysRisk = "danger"
@@ -382,25 +388,42 @@ const (
 
 // Action defines model for Action.
 type Action struct {
-	Amount       *float32            `json:"amount,omitempty"`
-	Cost         float64             `json:"cost"`
-	CostKnown    *bool               `json:"cost_known,omitempty"`
-	Date         *openapi_types.Date `json:"date,omitempty"`
-	Description  string              `json:"description"`
-	DraftMessage *string             `json:"draft_message"`
-	Effect       struct {
-		ClosesGap           bool                `json:"closes_gap"`
-		NewGapDate          *openapi_types.Date `json:"new_gap_date"`
-		NewProbability      float64             `json:"new_probability"`
-		NewShortfall        float64             `json:"new_shortfall"`
-		NewShortfallP90     *float32            `json:"new_shortfall_p90,omitempty"`
-		ProbabilityReliable *bool               `json:"probability_reliable,omitempty"`
+	Amount                *float32            `json:"amount,omitempty"`
+	Conditions            *string             `json:"conditions,omitempty"`
+	Cost                  float64             `json:"cost"`
+	CostKnown             *bool               `json:"cost_known,omitempty"`
+	Date                  *openapi_types.Date `json:"date,omitempty"`
+	DeferredBeyondHorizon *bool               `json:"deferred_beyond_horizon,omitempty"`
+	Description           string              `json:"description"`
+	DraftMessage          *string             `json:"draft_message"`
+	Effect                struct {
+		BaselineMinBalance    *float32            `json:"baseline_min_balance,omitempty"`
+		BaselineProbability   *float32            `json:"baseline_probability,omitempty"`
+		BaselineShortfall     *float32            `json:"baseline_shortfall,omitempty"`
+		BaselineShortfallP90  *float32            `json:"baseline_shortfall_p90,omitempty"`
+		ClosesGap             bool                `json:"closes_gap"`
+		NewGapDate            *openapi_types.Date `json:"new_gap_date"`
+		NewMinBalance         *float32            `json:"new_min_balance,omitempty"`
+		NewProbability        float64             `json:"new_probability"`
+		NewShortfall          float64             `json:"new_shortfall"`
+		NewShortfallP90       *float32            `json:"new_shortfall_p90,omitempty"`
+		ProbabilityReliable   *bool               `json:"probability_reliable,omitempty"`
+		ShortfallP90Reduction *float32            `json:"shortfall_p90_reduction,omitempty"`
+		ShortfallReduction    *float32            `json:"shortfall_reduction,omitempty"`
 	} `json:"effect"`
-	Id    openapi_types.UUID     `json:"id"`
-	Kind  string                 `json:"kind"`
-	Refs  map[string]interface{} `json:"refs"`
-	Title string                 `json:"title"`
+
+	// Explanation Explanation of the action mechanism, without financial calculations.
+	Explanation       *string                  `json:"explanation,omitempty"`
+	ExplanationSource *ActionExplanationSource `json:"explanation_source,omitempty"`
+	Id                openapi_types.UUID       `json:"id"`
+	Kind              string                   `json:"kind"`
+	OriginalDate      *openapi_types.Date      `json:"original_date"`
+	Refs              map[string]interface{}   `json:"refs"`
+	Title             string                   `json:"title"`
 }
+
+// ActionExplanationSource defines model for Action.ExplanationSource.
+type ActionExplanationSource string
 
 // AdminCompanyDetail defines model for AdminCompanyDetail.
 type AdminCompanyDetail struct {
