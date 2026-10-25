@@ -28,7 +28,7 @@ class DailyFlow(_message.Message):
     def __init__(self, date: _Optional[str] = ..., inflow: _Optional[float] = ..., outflow: _Optional[float] = ..., missing: _Optional[bool] = ..., by_category: _Optional[_Mapping[str, float]] = ...) -> None: ...
 
 class ForecastRequest(_message.Message):
-    __slots__ = ("model", "company_id", "industry", "history", "horizon_days", "n_paths", "seed", "flow_scope")
+    __slots__ = ("model", "company_id", "industry", "history", "horizon_days", "n_paths", "seed", "flow_scope", "transactions")
     MODEL_FIELD_NUMBER: _ClassVar[int]
     COMPANY_ID_FIELD_NUMBER: _ClassVar[int]
     INDUSTRY_FIELD_NUMBER: _ClassVar[int]
@@ -37,6 +37,7 @@ class ForecastRequest(_message.Message):
     N_PATHS_FIELD_NUMBER: _ClassVar[int]
     SEED_FIELD_NUMBER: _ClassVar[int]
     FLOW_SCOPE_FIELD_NUMBER: _ClassVar[int]
+    TRANSACTIONS_FIELD_NUMBER: _ClassVar[int]
     model: str
     company_id: str
     industry: str
@@ -45,7 +46,26 @@ class ForecastRequest(_message.Message):
     n_paths: int
     seed: int
     flow_scope: str
-    def __init__(self, model: _Optional[str] = ..., company_id: _Optional[str] = ..., industry: _Optional[str] = ..., history: _Optional[_Iterable[_Union[DailyFlow, _Mapping]]] = ..., horizon_days: _Optional[int] = ..., n_paths: _Optional[int] = ..., seed: _Optional[int] = ..., flow_scope: _Optional[str] = ...) -> None: ...
+    transactions: _containers.RepeatedCompositeFieldContainer[HistoryTransaction]
+    def __init__(self, model: _Optional[str] = ..., company_id: _Optional[str] = ..., industry: _Optional[str] = ..., history: _Optional[_Iterable[_Union[DailyFlow, _Mapping]]] = ..., horizon_days: _Optional[int] = ..., n_paths: _Optional[int] = ..., seed: _Optional[int] = ..., flow_scope: _Optional[str] = ..., transactions: _Optional[_Iterable[_Union[HistoryTransaction, _Mapping]]] = ...) -> None: ...
+
+class HistoryTransaction(_message.Message):
+    __slots__ = ("id", "date", "amount", "direction", "category", "counterparty_id", "purpose")
+    ID_FIELD_NUMBER: _ClassVar[int]
+    DATE_FIELD_NUMBER: _ClassVar[int]
+    AMOUNT_FIELD_NUMBER: _ClassVar[int]
+    DIRECTION_FIELD_NUMBER: _ClassVar[int]
+    CATEGORY_FIELD_NUMBER: _ClassVar[int]
+    COUNTERPARTY_ID_FIELD_NUMBER: _ClassVar[int]
+    PURPOSE_FIELD_NUMBER: _ClassVar[int]
+    id: str
+    date: str
+    amount: float
+    direction: str
+    category: str
+    counterparty_id: str
+    purpose: str
+    def __init__(self, id: _Optional[str] = ..., date: _Optional[str] = ..., amount: _Optional[float] = ..., direction: _Optional[str] = ..., category: _Optional[str] = ..., counterparty_id: _Optional[str] = ..., purpose: _Optional[str] = ...) -> None: ...
 
 class Path(_message.Message):
     __slots__ = ("inflow", "outflow")

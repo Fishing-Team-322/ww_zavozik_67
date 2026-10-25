@@ -59,6 +59,11 @@ def to_history(req: pb.ForecastRequest) -> forecasters.History:
         missing=np.fromiter((f.missing for f in h), dtype=bool, count=len(h)),
         industry=req.industry,
         categories=categories_from(h),
+        transactions=tuple(
+            {"id": t.id, "date": t.date, "amount": t.amount, "direction": t.direction, "category": t.category,
+             "counterparty_id": t.counterparty_id, "purpose": t.purpose}
+            for t in req.transactions
+        ),
     )
 
 
