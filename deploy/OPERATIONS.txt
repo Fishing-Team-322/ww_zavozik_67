@@ -1,0 +1,108 @@
+PULS production: suck-and-see.net
+================================
+
+Automatic release
+-----------------
+A successful ci run on the current main commit starts deploy production.
+The workflow builds five linux/amd64 images in GitHub Actions, pushes immutable
+commit-SHA tags to GHCR, and sends a release request over pinned-host-key SSH.
+Manual workflow_dispatch also requires successful CI for the current main SHA.
+Concurrent releases are serialized. The server does not build application images.
+
+Repository Actions secrets (no passwords/keys are committed):
+PULS_DEPLOY_HOST, PULS_DEPLOY_USER, PULS_DEPLOY_KEY, PULS_DEPLOY_KNOWN_HOSTS.
+The registry uses the run's temporary GITHUB_TOKEN with packages:write/read.
+The production GitHub environment records deployment history and the site URL.
+
+Server layout
+-------------
+/opt/puls/compose.yml         reviewed deploy/compose.production.yml
+/opt/puls/runtime.env         database password, JWT/encryption keys; mode 0600
+/opt/puls/bin/deploy-release.py  fixed root-owned SSH entry point
+/opt/puls/current-release     healthy deployed Git SHA
+/opt/puls/previous-release    preceding healthy SHA
+/opt/puls/backups/            ten most recent pre-migration pg_dump archives
+
+The dedicated SSH key is restricted to the entry point, without forwarding or
+PTY. It cannot execute an arbitrary supplied SSH command. Requests require a
+40-character commit SHA and the SHA256 of the fixed production Compose file.
+Infrastructure changes therefore require an explicit server configuration update.
+Registry authentication is stored only in a temporary Docker config during pull.
+
+Compose project: puls-production; database volume: puls-production_pgdata.
+Only 127.0.0.1:18080 (API) and 127.0.0.1:13000 (frontend) bind host ports.
+PostgreSQL and gRPC have no published ports. Application resource limits total
+about 1.7 GiB; Go GC memory budgets stay below their container limits. Logs rotate
+at 3 x 10 MiB per service. Sandbox integrations are off.
+
+The existing edge-proxy-caddy-1 is connected to the additional external puls-edge
+network. Its Compose definition retains its previous networks and adds that one.
+The root Caddyfile imports /config/puls-sites/site.caddy from its existing config
+volume. Only suck-and-see.net uses the new route. Caddy validates and reloads
+gracefully; unrelated containers are not recreated. Cloudflare provides DNS only:
+the canonical A record points to 85.159.231.68 with proxying disabled. Caddy
+obtains the public certificate and serves HTTPS directly.
+
+Direct HTTPS fallback: https://puls-85-159-231-68.sslip.io. Its DNS resolves directly
+to this server.
+The exact fallback frontend Origin is mapped to the canonical allowed Origin;
+arbitrary Origin headers are not replaced. This preserves the existing CSRF
+restriction for all other sites. Both addresses use the same application/DB.
+Some local networks terminate larger Cloudflare downloads with
+ERR_HTTP2_PROTOCOL_ERROR before the React application can initialize. The local
+check reproduced that failure, while a pinned direct-origin browser check and
+the fallback completed normally. On 2026-10-25 the domain owner disabled
+Cloudflare proxying; canonical browser login and session restoration then passed.
+Cloudflare's documented service disruption:
+https://developers.cloudflare.com/support/troubleshooting/general-troubleshooting/service-disruption/
+
+Health and recovery
+-------------------
+Before migration, pg_dump creates a database backup. A release starts the fixed
+Compose project, runs migrations, and checks API/ML readiness, frontend revision
+and the frontend-to-API proxy. The workflow also checks the public HTTPS domain.
+If local health fails, the preceding API/worker/ML/frontend images are restored.
+Database migrations are not automatically reversed. A schema-incompatible
+downgrade requires reviewing/restoring the saved database backup deliberately.
+The script never prunes global Docker images/caches or touches other projects.
+
+Commands on the server (do not print runtime.env or docker compose config):
+
+  release=$(cat /opt/puls/current-release)
+  PULS_RELEASE="$release" docker compose --project-name puls-production --env-file /opt/puls/runtime.env -f /opt/puls/compose.yml ps
+  curl -fsS http://127.0.0.1:18080/readyz
+  curl -fsS http://127.0.0.1:13000/build-info.json
+
+To restore the retained preceding images, submit a local request as root:
+
+  python3 - <<'PY'
+  import hashlib,json,pathlib,subprocess
+  root=pathlib.Path('/opt/puls')
+  request={'release':(root/'previous-release').read_text().strip(),
+           'compose_sha256':hashlib.sha256((root/'compose.yml').read_bytes()).hexdigest()}
+  subprocess.run(['python3',str(root/'bin/deploy-release.py')],input=json.dumps(request).encode(),check=True)
+  PY
+
+Additional provider/SMTP/OAuth/training settings belong in runtime.env. They are
+initially absent rather than replaced with synthetic production responses.
+The default application forecast is the existing serving model; connecting the
+new TrxGPT is a separate model release, not part of this deployment bootstrap.
+
+Validation
+----------
+CI validates the production Compose manifest and runs deploy/tests/test_release.py.
+Recovery tests cover invalid manifests/tags, failed health rollback, successful
+release pointers, removal of temporary registry credentials on pull failure,
+and the distinct /readyz and /healthz contracts.
+After deployment, real browser tests check anonymous redirection, login and
+cookie-backed restoration on the canonical domain and direct HTTPS fallback.
+The public CI browser uses TCP (E2E_DISABLE_QUIC=1), because the hosted runner's
+Cloudflare HTTP/3 requests failed with ERR_QUIC_PROTOCOL_ERROR. This does not
+change application/browser settings or resolve ISP-specific Cloudflare access;
+the direct HTTPS fallback remains available for affected networks.
+Canonical application pages are served directly on https://suck-and-see.net.
+The sslip.io address remains an optional fallback; the canonical domain does
+not redirect visitors there.
+To apply deploy/Caddyfile, back up /config/puls-sites/site.caddy in the edge
+proxy's config volume, replace only that file, validate the complete root
+Caddyfile, then reload Caddy gracefully. Restore the backup on failure.

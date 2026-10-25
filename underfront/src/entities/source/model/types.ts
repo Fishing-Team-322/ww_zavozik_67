@@ -1,5 +1,7 @@
 export type SourceKind = "upload" | "onec_bank_file" | "excel" | "gsheets" | "onec_odata" | "bank_api" | "tax_api" | "fns" | "wb" | "ozon" | "manual";
 
+export const SYNCABLE_SOURCE_KINDS: readonly string[] = ["gsheets", "onec_odata", "bank_api", "tax_api", "fns", "wb", "ozon"];
+
 export interface DataSource {
   id: string;
   kind: SourceKind;

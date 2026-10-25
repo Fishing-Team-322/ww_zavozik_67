@@ -75,6 +75,7 @@ function GapDetails({
   const actions = [...new Map((detail.data?.actions ?? []).map(action => [`${action.kind}:${String(action.refs?.event_id ?? action.id)}`, action])).values()];
   const simulatedGap = simulated.data?.gaps.find(item => item.id === gap.id) ?? simulated.data?.gaps[0];
   const effectVisible = simulationIds.length > 0 && ids.length === simulationIds.length && ids.every(id => simulationIds.includes(id));
+  const explanationDate = detail.data?.explanation?.date ?? detail.data?.worst_date ?? gap.explanation?.date ?? gap.worst_date;
   const actionTitle = (action: Schemas["Action"]) => {
     if (action.kind !== "shift_supplier_payment") return action.title;
     const event = events.data?.find(item => item.id === action.refs?.event_id);
@@ -95,7 +96,7 @@ function GapDetails({
     {notice && <ContentText variant="description" role="status">{notice}</ContentText>}
     <FinanceState loading={detail.loading} error={detail.error || events.error || error} retry={() => { detail.refresh(); events.refresh(); }} />
     <div className="grid items-start gap-5 lg:grid-cols-2">
-      <section className="min-w-0 space-y-3"><div><ContentHeading level={2}>Почему не хватает денег</ContentHeading><ContentText variant="description" tone="muted">Платежи до даты риска. Их сумма не равна итоговой нехватке.</ContentText></div>
+      <section className="min-w-0 space-y-3"><div><ContentHeading level={2}>Почему не хватает денег</ContentHeading><ContentText variant="description" tone="muted">{explanationDate ? `Состав остатка к ${displayDate(explanationDate)} — дню минимального прогнозного остатка после начала риска. Первая возможная нехватка: ${displayDate(gap.date)}.` : "Поступления, расходы и резерв по данным прогноза. Дата объяснения пока недоступна."}</ContentText></div>
         {detail.data && detail.data.causes.length > 0 ? <SectionCard className="space-y-4">
           <CashflowWaterfall contributions height={Math.min(220, Math.max(150, Math.min(detail.data.causes.length, 5) * 36))} steps={detail.data.causes.slice(0, 5).map((cause, index) => ({ id: `${cause.component_key}:${index}`, title: cause.title, amount: cause.amount, before: 0, after: cause.amount, kind: cause.amount >= 0 ? "income" : "expense" }))} />
           <div className="divide-y divide-[color:var(--border)]">{detail.data.causes.map((cause, index) => { const event = events.data?.find(item => item.id === cause.items_ref); return <div key={`${cause.component_key}:${index}`} className="flex flex-wrap items-start justify-between gap-2 py-3 text-sm"><div className="min-w-0"><strong className="block font-medium">{cause.title}</strong><span className="text-xs text-[color:var(--text-secondary)]">{event?.counterparty.name || "Контрагент не указан"} · {event?.date ? displayDate(event.date) : "Дата не указана"} · {event ? sourceLabels[event.source] ?? event.source : "Источник не указан"}</span>{cause.items_ref && <Link href={`/calendar?event=${encodeURIComponent(cause.items_ref)}`} className="mt-1 block text-xs text-[color:var(--accent)] underline">Открыть событие</Link>}</div><strong className="shrink-0 font-medium tabular-nums">{rubles(cause.amount)}</strong></div>; })}</div>

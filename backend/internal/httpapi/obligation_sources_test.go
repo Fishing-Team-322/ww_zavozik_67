@@ -91,6 +91,10 @@ func TestExternalBankAndTaxObligationsReachForecast(t *testing.T) {
 				if len(taxes["obligations"].([]any)) != 1 {
 					t.Fatal(taxes)
 				}
+				liability := taxes["obligations"].([]any)[0].(map[string]any)
+				if liability["editable"] != false || liability["source"] != "tax_api" {
+					t.Fatal("UI must retain external ownership", liability)
+				}
 			}
 			// Foreign-company and incomplete feeds must not replace committed plans.
 			mu.Lock()

@@ -250,7 +250,7 @@ export function ScenariosScreen() {
           {error && <p role="alert" className="text-sm text-[color:var(--danger)]">{error}</p>}
           <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" disabled={saving} onClick={() => setSaveOpen(false)}>Отмена</Button>
-            <Button type="submit" loading={saving} disabled={!title.trim()}>Сохранить</Button>
+            <Button type="submit" loading={saving} disabled={!title.trim() || !steps.length || missingClient || !comparison.data || comparison.loading}>Сохранить</Button>
           </div>
         </form>
       </Dialog>

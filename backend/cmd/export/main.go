@@ -12,6 +12,7 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/csv"
 	"encoding/json"
 	"flag"
@@ -34,7 +35,11 @@ func main() {
 	companiesPath := flag.String("companies-file", "", "companies.csv для колонки industry (по умолчанию ../companies.csv рядом с -data)")
 	companies := flag.String("companies", "", "список id через запятую (пусто — все)")
 	outPath := flag.String("out", "flows.csv", "куда писать")
+	transactionsPath := flag.String("transactions-out", "", "необязательная выгрузка нормализованных операций бизнеса для экспериментов")
 	flag.Parse()
+	if err := validateOutputPaths(*outPath, *transactionsPath); err != nil {
+		fail(err)
+	}
 	ctx := context.Background()
 
 	if *companiesPath == "" {
@@ -55,6 +60,18 @@ func main() {
 	}
 	if err := os.MkdirAll(filepath.Dir(*outPath), 0o755); err != nil {
 		fail(err)
+	}
+	var transactions *csvout.File
+	if *transactionsPath != "" {
+		if err := os.MkdirAll(filepath.Dir(*transactionsPath), 0o755); err != nil {
+			fail(err)
+		}
+		f, err := os.OpenFile(*transactionsPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o600)
+		if err != nil {
+			fail(err)
+		}
+		transactions = csvout.New(f)
+		transactions.Write([]string{"company_id", "date", "direction", "amount", "category", "counterparty"})
 	}
 	out, err := os.Create(*outPath)
 	if err != nil {
@@ -79,6 +96,13 @@ func main() {
 		}
 		if len(c.Ops) == 0 {
 			continue
+		}
+		if transactions != nil {
+			for _, op := range c.Ops {
+				if dataset.NotInternal(op) {
+					transactions.Write([]string{c.ID, op.Date.Format(domain.DateLayout), string(op.Direction), op.Amount.String(), string(op.Category), counterpartyKey(c.ID, op)})
+				}
+			}
 		}
 		first, last := c.Ops[0].Date, c.Ops[len(c.Ops)-1].Date
 		flows, detected := ingest.DailyFlowsWithDetection(c.Ops, first, last, dataset.NotInternal)
@@ -113,6 +137,11 @@ func main() {
 	if err := w.Close(); err != nil {
 		fail(fmt.Errorf("write output %s: %w", *outPath, err))
 	}
+	if transactions != nil {
+		if err := transactions.Close(); err != nil {
+			fail(fmt.Errorf("write transactions: %w", err))
+		}
+	}
 	meta, err := json.MarshalIndent(map[string]any{"schema_version": 2, "target": "business_without_internal_transfers", "companies": quality}, "", "  ")
 	if err != nil {
 		fail(err)
@@ -121,6 +150,75 @@ func main() {
 		fail(err)
 	}
 	fmt.Printf("companies: %d, rows: %d, out: %s\n", len(files), rows, *outPath)
+}
+
+// counterpartyKey preserves within-company relationships without exporting names
+// or tax identifiers. Missing identity stays missing, not one shared counterparty.
+func counterpartyKey(companyID string, op domain.Operation) string {
+	identity := strings.TrimSpace(string(op.CounterpartyINN))
+	if identity == "" {
+		identity = strings.ToLower(strings.Join(strings.Fields(string(op.CounterpartyName)), " "))
+	}
+	if identity == "" {
+		return ""
+	}
+	digest := sha256.Sum256([]byte(companyID + "\x00" + identity))
+	return fmt.Sprintf("%x", digest)
+}
+
+// validateOutputPaths runs before any file is truncated. Resolve existing
+// parent symlinks too, so two not-yet-created outputs cannot alias through one.
+func validateOutputPaths(flows, transactions string) error {
+	paths := []string{flows, flows + ".quality.json"}
+	if transactions != "" {
+		paths = append(paths, transactions)
+	}
+	resolved := make([]string, len(paths))
+	infos := make([]os.FileInfo, len(paths))
+	for i, path := range paths {
+		// Preserve component order: cleaning link/../file before resolving
+		// link can inspect a different file from the subsequent open.
+		prefix, suffix := path, ""
+		for {
+			real, err := filepath.EvalSymlinks(prefix)
+			if err == nil {
+				resolved[i], err = filepath.Abs(filepath.Join(real, suffix))
+				if err != nil {
+					return err
+				}
+				break
+			}
+			if !os.IsNotExist(err) {
+				return err
+			}
+			if info, statErr := os.Lstat(prefix); statErr == nil && info.Mode()&os.ModeSymlink != 0 {
+				return fmt.Errorf("output path contains an unresolved symlink: %s", prefix)
+			}
+			parent, base := filepath.Split(prefix)
+			if base == "" || base == "." || base == ".." {
+				return err // an unresolved traversal is not an existing parent
+			}
+			suffix = filepath.Join(base, suffix)
+			prefix = strings.TrimSuffix(parent, string(os.PathSeparator))
+			if prefix == "" {
+				prefix = "."
+				if filepath.IsAbs(parent) {
+					prefix = string(os.PathSeparator)
+				}
+			}
+		}
+		info, err := os.Stat(path)
+		infos[i] = info
+		if err != nil && !os.IsNotExist(err) {
+			return err
+		}
+		for j := 0; j < i; j++ {
+			if resolved[i] == resolved[j] || (infos[i] != nil && infos[j] != nil && os.SameFile(infos[i], infos[j])) {
+				return fmt.Errorf("flow, quality and transaction outputs must be distinct")
+			}
+		}
+	}
+	return nil
 }
 
 // loadIndustries читает companies.csv датасета кейса: company_id → industry.

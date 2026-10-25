@@ -215,7 +215,7 @@ export function TransactionsScreen() {
                       <Button variant="outline" size="icon" className="relative z-10 mt-0.5 !size-5 shrink-0 border !border-[color:var(--accent)] !text-[color:var(--accent)] hover:!bg-[color:var(--accent-soft)] [&>svg]:!size-3.5" aria-label={`Изменить категорию операции ${row.id}`} title="Изменить категорию" disabled={busy} onClick={() => { setEditingCategory(row); setOperationCategory(row.category); setError(null); }}><Settings2 aria-hidden="true" /></Button>
                       <div>
                         <p className="font-medium leading-6">{categories.data?.find(item => item.key === row.category)?.title ?? row.category}</p>
-                        <ContentText variant="meta">{row.category_method === "manual" ? "Указана вручную" : "Определена автоматически"}</ContentText>
+                        <ContentText variant="meta">{["manual", "user"].includes(row.category_method) ? "Указана вручную" : "Определена автоматически"}</ContentText>
                       </div>
                     </div>
                   </TableCell>

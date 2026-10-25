@@ -227,7 +227,7 @@ export function SidebarShell({children, navItems = defaultCabinetNav, appTitle =
           <NotificationBell key={companyId} />
           <div className="hidden items-center gap-4 sm:flex">
             <span className="whitespace-nowrap text-[12px] font-medium leading-4 tracking-normal tabular-nums text-[color:var(--nav-item-text)]">{selectedCompany?.data_as_of ? `Данные на ${new Date(selectedCompany.data_as_of).toLocaleDateString("ru-RU")}` : "Данные ещё не загружены"}</span>
-            <Button type="button" variant="outline" size="md" onClick={() => router.push("/calendar")}>
+            <Button type="button" variant="outline" size="md" onClick={() => router.push(`/calendar?new=${Date.now()}`)}>
               <span className="">+ Событие</span>
             </Button>
           </div>

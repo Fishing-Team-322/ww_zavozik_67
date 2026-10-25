@@ -290,15 +290,13 @@ func (s *Service) build(ctx context.Context, uid, cid string, h int, model strin
 	for i, dt := range res.Dates {
 		points = append(points, Doc{"date": dt.Format(domain.DateLayout), "p10": money(q10[i]), "p50": money(q50[i]), "p90": money(q90[i]), "is_workday": isWorkday(dt)})
 	}
-	gaps := []Doc{}
+	gaps := s.gapDocuments(res, company.Reserve)
 	state, headline := "ok", "По прогнозу денег хватает"
-	for _, g := range risk.FindGaps(res, domain.Money(company.Reserve)) {
+	for _, g := range gaps {
 		state = "warning"
-		if g.Probability >= .5 {
+		if number(g, "probability") >= .5 {
 			state = "danger"
 		}
-		explanation, causes := explainGap(res, g.Date, company.Reserve)
-		gaps = append(gaps, Doc{"id": g.ID, "date": g.Date.Format(domain.DateLayout), "shortfall": money(g.Shortfall.Float()), "shortfall_p90": money(g.ShortfallP90.Float()), "probability": g.Probability, "days_left": int(g.Date.Sub(asOf).Hours() / 24), "headline": "Остаток может опуститься ниже резерва", "worst_date": explanation["date"], "probability_on_date": explanation["probability_on_first_date"], "explanation": explanation, "causes": causes})
 		headline = "Есть риск, что денег не хватит"
 	}
 	history := []Doc{}

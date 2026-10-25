@@ -323,6 +323,8 @@ export function TaxesScreen() {
               {obligation.status === "active" ? (
                 <Button
                   variant="ghost"
+                  disabled={obligation.editable === false || obligation.source === "tax_api"}
+                  title={obligation.editable === false || obligation.source === "tax_api" ? "Измените обязательство в учётной системе и синхронизируйте источник" : undefined}
                   onClick={() => setCancelling(obligation)}
                 >
                   Отменить оставшиеся платежи

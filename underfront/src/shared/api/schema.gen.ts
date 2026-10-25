@@ -1974,7 +1974,10 @@ export interface components {
             is_workday: boolean;
         };
         Gap: {
-            /** Format: date */
+            /**
+             * Format: date
+             * @description Date of the lowest median balance after the first risk date. The explanation and causes cover flows through this date.
+             */
             worst_date?: string;
             /** @description Probability of falling below reserve on the first risk date. probability is the risk anywhere in the horizon. */
             probability_on_date?: number;
@@ -1988,6 +1991,7 @@ export interface components {
             shortfall_p90: number;
             /** Format: double */
             probability: number;
+            /** @description Calendar days from the current UTC date to the first risk date. Zero means today; negative means the date has passed. Independent of statement as_of. */
             days_left: number;
             headline: string;
         };
@@ -2828,6 +2832,10 @@ export interface components {
             payments: components["schemas"]["TaxPayment"][];
         };
         TaxObligation: components["schemas"]["TaxDraft"] & {
+            /** @description Owning system; tax_api obligations are changed through their source. */
+            source?: string;
+            /** @description False for synchronized obligations managed by their accounting source. */
+            editable?: boolean;
             /** Format: uuid */
             id: string;
             /** Format: date-time */

@@ -1,0 +1,65 @@
+{
+  "documentation": {
+    "cohorts": {
+      "unseen": "Companies never used to fit the model (test companies from the count reference). Out-of-fit benchmarks additionally require the 30-day target window to end after the fit cutoff.",
+      "seen_future": "The same companies the models were fitted on, evaluated at later dates. This measures temporal robustness only and is in-sample by company; do not present it as generalization."
+    },
+    "metrics": {
+      "net_mae_vs_naive": "Ratio of cumulative net-flow MAE to seasonal naive on identical origins. Below 1 means better than naive; the only cross-model number comparable within a cohort.",
+      "net_path_mae": "Mean absolute error of cumulative net flow in rubles, averaged over days and origins.",
+      "flow_wape": "Pooled weighted absolute percentage error of daily gross inflow/outflow; not comparable with balance-relative WAPE.",
+      "business_path_wape": "Path error relative to the business balance magnitude.",
+      "net_coverage": "Share of actual cumulative net flow inside the predicted p10-p90 band; nominal target 0.80. Higher is not automatically better: 0.98 means intervals are too wide.",
+      "net_width": "Mean p10-p90 span in rubles; read together with coverage.",
+      "net_pinball": "Quantile (pinball) loss in rubles across p10/p50/p90.",
+      "gap_brier": "Brier score of the probability that the business balance drops below zero within 30 days.",
+      "gap_precision_0.5": "Gap alarm metrics at probability threshold 0.5; also available at 0.3 and 0.1. Accuracy is dominated by the negative class and should be read with the base rate.",
+      "flow_mse": "Mean squared daily gross-flow error, in rubles squared.",
+      "net_mse": "Mean squared cumulative net-flow error, in rubles squared.",
+      "count_crps": "Empirical-sample CRPS of daily transaction counts; only defined for event generators, null for aggregate models.",
+      "marked_count_crps": "CRPS of direction-by-category counts per day; event generators only.",
+      "amount_bin_count_crps": "CRPS of direction-by-amount-bin counts per day, including an exact-zero bin and an unbounded upper tail; event generators only."
+    },
+    "caveats": [
+      "All runs use the synthetic case corpus, which was explored during earlier development; none is an independent external audit.",
+      "The unseen cohort is small (9-12 companies), and out-of-fit gap metrics rest on about six events.",
+      "Month-end origins produce overlapping 30-day windows that share future data, so company-origin rows are correlated; bootstrap intervals are approximate.",
+      "Origins whose window ends on or before the 2026-03-31 fit cutoff are in-sample. Use the *_out_of_fit benchmark for headline comparisons.",
+      "Gap probabilities over-predict out-of-fit and have negative Brier skill versus a constant base-rate forecast; they are not calibrated.",
+      "Aggregate models (naive, gbm_global, ensemble) have no count or marked-event outputs, so their event rows are null rather than zero.",
+      "No transformer checkpoint was trained or compared in these runs; research code is not on the serving path."
+    ]
+  },
+  "runs": [
+    {
+      "name": "case_counts_60",
+      "dir": "ml/data/case_reference_60",
+      "cohorts": ["unseen", "seen_future"],
+      "note": "Count bootstrap + naive on the 36/12/12 split, two test origins (2026-04-30, 2026-05-30), 300 paths.",
+      "conclusion": "Count prediction improved over naive while cumulative cash flow got worse (ratio 1.259 unseen), which motivated evaluating full event generators instead of counts alone."
+    },
+    {
+      "name": "event_models_2_origins",
+      "dir": "ml/data/event_benchmark_v3",
+      "cohorts": ["unseen", "seen_future"],
+      "note": "Five event generators vs naive, gbm_global, ensemble and the count bootstrap on the same two origins, 300 paths.",
+      "conclusion": "Blocks and hybrid had the lowest cumulative net-flow error; renewal and the GRU did not; with only 18 unseen origins the differences were not yet trustworthy."
+    },
+    {
+      "name": "event_adjust_11_origins_pooled",
+      "dir": "ml/data/event_adjust_v4",
+      "summary": "summary.csv",
+      "cohorts": ["unseen", "seen_future"],
+      "note": "Month-end origins 2025-07..2026-05; eight in-sample dates and three out-of-fit dates pooled. Includes mixture and spread variants.",
+      "conclusion": "Pooled rows mix in-sample and out-of-fit windows; kept for comparison, not for claims. Spread calibration was fitted here on 20 calibration company-origins."
+    },
+    {
+      "name": "event_adjust_11_origins_out_of_fit",
+      "dir": "ml/data/event_adjust_v4",
+      "summary": "summary_out_of_fit.csv",
+      "cohorts": ["unseen", "seen_future"],
+      "note": "Only the out-of-fit origins 2026-03-31, 2026-04-30 and 2026-05-31 (27 unseen company-origins, 9 companies, 6 gap events).",
+      "conclusion": "Headline comparison. Blocks is best by point estimate (0.784 vs naive), three models keep their bootstrap interval below parity with the ensemble, mixture adds nothing, one-scalar spread calibration failed for blocks, and gap probabilities are uncalibrated."
+    }
+  ]
+}

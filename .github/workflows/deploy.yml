@@ -1,0 +1,129 @@
+name: deploy production
+
+on:
+  workflow_run:
+    workflows: [ci]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+  actions: read
+
+concurrency:
+  group: puls-production
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_repository.full_name == github.repository)
+    runs-on: ubuntu-latest
+    outputs:
+      sha: ${{ steps.release.outputs.sha }}
+      current: ${{ steps.release.outputs.current }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - name: Select only the current main commit with successful CI
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE: ${{ github.event.workflow_run.head_sha || github.sha }}
+        run: |
+          current=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq .object.sha)
+          if [ "$current" != "$RELEASE" ]; then
+            echo 'A newer main commit exists; this run will not overwrite it.'
+            echo 'current=false' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          success=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?branch=main&head_sha=$RELEASE&status=completed&per_page=20" --jq '[.workflow_runs[] | select(.head_sha == env.RELEASE and .conclusion == "success")] | length')
+          test "$success" -ge 1
+          echo "sha=$RELEASE" >> "$GITHUB_OUTPUT"
+          echo 'current=true' >> "$GITHUB_OUTPUT"
+
+  images:
+    needs: release
+    if: needs.release.outputs.current == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - { component: api, context: ., file: backend/Dockerfile, command: api }
+          - { component: worker, context: ., file: backend/Dockerfile, command: worker }
+          - { component: migrate, context: ., file: backend/Dockerfile, command: migrate }
+          - { component: frontend, context: underfront, file: underfront/Dockerfile, command: unused }
+          - { component: ml, context: ml, file: ml/Dockerfile, command: unused }
+    steps:
+      - uses: actions/checkout@v4
+        with: { ref: '${{ needs.release.outputs.sha }}' }
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.file }}
+          push: true
+          platforms: linux/amd64
+          tags: ghcr.io/fishing-team-322/puls-${{ matrix.component }}:${{ needs.release.outputs.sha }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ needs.release.outputs.sha }}
+          build-args: |
+            CMD=${{ matrix.command }}
+            GIT_SHA=${{ needs.release.outputs.sha }}
+            BACKEND_ORIGIN=http://api:8080
+          cache-from: type=gha,scope=puls-${{ matrix.component }}
+          cache-to: type=gha,mode=max,scope=puls-${{ matrix.component }}
+
+  deploy:
+    needs: [release, images]
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment:
+      name: production
+      url: https://suck-and-see.net
+    steps:
+      - uses: actions/checkout@v4
+        with: { ref: '${{ needs.release.outputs.sha }}' }
+      - name: Deploy immutable images using the restricted server entry point
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PULS_RELEASE: ${{ needs.release.outputs.sha }}
+          PULS_DEPLOY_HOST: ${{ secrets.PULS_DEPLOY_HOST }}
+          PULS_DEPLOY_USER: ${{ secrets.PULS_DEPLOY_USER }}
+          PULS_DEPLOY_KEY: ${{ secrets.PULS_DEPLOY_KEY }}
+          PULS_DEPLOY_KNOWN_HOSTS: ${{ secrets.PULS_DEPLOY_KNOWN_HOSTS }}
+        run: python deploy/dispatch.py
+      - name: Verify the public Cloudflare origin and deployed revision
+        env:
+          RELEASE: ${{ needs.release.outputs.sha }}
+        run: |
+          curl --fail --silent --show-error --retry 6 --retry-delay 5 https://suck-and-see.net/login >/dev/null
+          curl --fail --silent --show-error --retry 6 --retry-delay 5 "https://suck-and-see.net/build-info.json?release=$RELEASE" | python -c 'import json,os,sys; assert json.load(sys.stdin)["revision"] == os.environ["RELEASE"]'
+          curl --fail --silent --show-error https://suck-and-see.net/v1/auth/providers | python -c 'import json,sys; assert isinstance(json.load(sys.stdin), list)'
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - name: Verify real browser session recovery on the public deployment
+        working-directory: underfront
+        env:
+          E2E_PUBLIC_URL: https://suck-and-see.net
+          E2E_PUBLIC_FALLBACK_URL: https://puls-85-159-231-68.sslip.io
+          E2E_DISABLE_QUIC: '1'
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+          npm run test:e2e -- tests/e2e/production-smoke.spec.mjs
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: production-browser-diagnostics
+          path: underfront/test-results/
