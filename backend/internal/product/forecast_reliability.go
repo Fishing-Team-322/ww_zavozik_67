@@ -25,6 +25,10 @@ func annotateForecast(out Doc, now time.Time, unconfirmed int) {
 	if flag(out, "fallback_used") || flag(out, "low_confidence") {
 		reasons = append(reasons, "limited_forecast")
 	}
+	incomplete := hasIncompleteHistory(out)
+	if incomplete {
+		reasons = append(reasons, "incomplete_history")
+	}
 	if unconfirmed > 0 {
 		reasons = append(reasons, "unconfirmed_recurring")
 	}
@@ -32,7 +36,7 @@ func annotateForecast(out Doc, now time.Time, unconfirmed int) {
 	out["unconfirmed_recurring"] = unconfirmed
 	out["spending_available"] = len(reasons) == 0
 	out["spending_restrictions"] = reasons
-	out["probability_reliable"] = age >= 0 && age <= 7 && !flag(out, "fallback_used") && !flag(out, "low_confidence")
+	out["probability_reliable"] = age >= 0 && age <= 7 && !flag(out, "fallback_used") && !flag(out, "low_confidence") && !incomplete
 	if len(reasons) > 0 {
 		out["safe_to_spend"] = float64(0)
 		if text(out, "status") == "ok" {
@@ -51,6 +55,11 @@ func annotateForecast(out Doc, now time.Time, unconfirmed int) {
 }
 
 func reliableProbability(out Doc) bool {
+	// Older snapshots can carry the warning without low_confidence or even
+	// retain a previously computed true flag. Missing observations take precedence.
+	if hasIncompleteHistory(out) {
+		return false
+	}
 	if value, exists := out["probability_reliable"]; exists {
 		return value == true
 	}
@@ -64,6 +73,15 @@ func reliableProbability(out Doc) bool {
 		}
 	}
 	return true
+}
+
+func hasIncompleteHistory(out Doc) bool {
+	for _, warning := range stringsList(out["warnings"]) {
+		if warning == "incomplete_history" {
+			return true
+		}
+	}
+	return false
 }
 
 func stringsList(value any) []string {

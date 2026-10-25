@@ -53,7 +53,7 @@ test('cashflow suggestions show calculated effects and apply a receipt plan afte
   await receipt.getByRole('checkbox').focus();
   await receipt.getByRole('checkbox').press('Space');
   await page.getByRole('button', { name: 'Посмотреть эффект', exact: true }).click();
-  await expect(page.getByText('Нехватка устранена', { exact: true })).toBeVisible();
+  await expect(page.getByText('Риск ниже порога предупреждения модели; это не гарантия', { exact: true })).toBeVisible();
   const before = await (await request.get(`${base}/invoices`, { headers })).json();
   expect(before.find(item => item.id === iid).expected_pay_at).toBe(dateAt(10));
   await receipt.getByText('Черновик сообщения', { exact: true }).click();

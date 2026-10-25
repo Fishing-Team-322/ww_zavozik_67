@@ -4,7 +4,7 @@ export function forecastReliability(forecast: Forecast, today = new Date().toISO
   const age = Math.round((Date.parse(today) - Date.parse(forecast.as_of)) / 86400000);
   const stale = age > 7 || forecast.warnings.includes("stale_statement_forecast_starts_after_data_as_of");
   const future = age < 0;
-  const limited = forecast.fallback_used || forecast.low_confidence;
+  const limited = forecast.fallback_used || forecast.low_confidence || forecast.warnings.includes("incomplete_history");
   const unconfirmed = forecast.unconfirmed_recurring ?? 0;
   return {
     age, stale, future, limited, unconfirmed,
