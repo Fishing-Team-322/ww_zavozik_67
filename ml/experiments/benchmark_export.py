@@ -62,6 +62,10 @@ def export(spec_path: Path, out: Path) -> dict:
     runs = spec["runs"]
     if not runs:
         raise ValueError("no runs in spec")
+    documentation = spec.get("documentation", {})
+    for key in ("cohorts", "metrics", "caveats"):
+        if key not in documentation:
+            raise ValueError(f"spec documentation must define {key!r}")
     frames, provenance = [], []
     for run in runs:
         directory = Path(run["dir"])
@@ -75,7 +79,7 @@ def export(spec_path: Path, out: Path) -> dict:
             raise ValueError(f"{run['name']}: no rows after cohort filter")
         frames.append(normalise(run["name"], summary))
         entry = dict(name=run["name"], dir=str(directory), summary_sha256=_sha256(summary_path),
-                     note=run.get("note", ""))
+                     note=run.get("note", ""), conclusion=run.get("conclusion", ""))
         if meta_path.exists():
             entry["metadata_sha256"] = _sha256(meta_path)
             meta = json.loads(meta_path.read_text())
@@ -86,7 +90,7 @@ def export(spec_path: Path, out: Path) -> dict:
     combined.to_csv(out / "model_benchmarks.csv", index=False)
     record = dict(generated_from=spec_path.name, git_head=_git_head(),
                   spec_sha256=_sha256(spec_path), runs=provenance,
-                  rows=int(len(combined)),
+                  rows=int(len(combined)), documentation=documentation,
                   note="Values are copied from completed runs; see each run's metadata.json for config, "
                        "split and hashes. Cohorts differ between benchmarks and must not be pooled.")
     (out / "provenance.json").write_text(json.dumps(record, indent=2) + "\n")
