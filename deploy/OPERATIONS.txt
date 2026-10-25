@@ -106,3 +106,41 @@ not redirect visitors there.
 To apply deploy/Caddyfile, back up /config/puls-sites/site.caddy in the edge
 proxy's config volume, replace only that file, validate the complete root
 Caddyfile, then reload Caddy gracefully. Restore the backup on failure.
+
+Real Qwen + structural_m6 release
+--------------------------------
+Production uses structural_m6 for both implicit and auto forecasts. The backend
+resolves the default before forming the incremental forecast cache key. Its daily
+calendar and original transaction purposes/counterparty pseudonyms reach field9.
+M6 vendor warnings survive the RPC; missing trained hybrid weights fail readiness.
+
+Qwen runs separately from LightGBM, on the private Docker network, with one CPU
+thread, batch1 and a2GiB container limit. Native economic IDs/paths/status/version
+are independent from forecast compatibility categories. Rules and manual overrides
+retain priority for money scope. No cosine is reported as category probability.
+Native responses are stored in operations.extra.discovery and exposed on operations;
+GET /v1/categories?view=discovered returns the live taxonomy. Existing operations
+are not silently reclassified. Import calls Qwen and fails explicitly if it cannot
+be reached. Native unknown/ambiguous outputs are legitimate abstentions.
+The classifier-quality API does not reuse old v1 accuracy for the Qwen release.
+
+The model payload is NOT in Git/images. deploy/qwen-artifact.json binds its exact
+manifest hash and host directory. Upload via a temporary directory, verify the
+manifest and every payload digest, then rename atomically to the hash directory.
+The application UID10001 must read it; mount is read-only. The payload contains
+synthetic/public training representatives and must be handled as payment data.
+
+Before the first infrastructure update, save /opt/puls/compose.yml as
+/opt/puls/release-manifests/<current-release>.yml. Then install the reviewed new
+Compose and deployment entry point under the deployment lock. The runner snapshots
+the exact reviewed Compose for every SHA. Rollback uses the previous manifest,
+including the legacy topology; a newly added Qwen service is stopped on rollback
+when the previous release did not have it. No global Docker cleanup is performed.
+Manual prepare_images_only builds immutable candidate images without deployment;
+it never runs the production deployment job. Use this for resource/readiness probes.
+
+Model quality remains research status: native category coverage is limited and no
+independent operation-level human accuracy is available. Deployment is a real
+service integration, not evidence of production prediction accuracy. All provider
+sandbox settings remain off; unconfigured provider credentials produce explicit
+unavailability, not fabricated production records.

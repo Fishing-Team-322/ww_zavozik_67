@@ -14,6 +14,7 @@ import (
 )
 
 type Result struct {
+	Discovery  *domain.DiscoveredAssignment
 	Category   domain.Category
 	Confidence float64 // 0..1
 	Method     domain.CategoryMethod
@@ -74,5 +75,6 @@ func Apply(ops []domain.Operation, res []Result) {
 	for i := range ops {
 		ops[i].Category = res[i].Category
 		ops[i].CategoryMethod = res[i].Method
+		ops[i].Discovery = res[i].Discovery
 	}
 }

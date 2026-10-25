@@ -99,6 +99,7 @@ type Operation struct {
 	BalanceEOD       *Money // остаток на конец дня, если источник его даёт
 	Category         Category
 	CategoryMethod   CategoryMethod
+	Discovery        *DiscoveredAssignment
 	Source           SourceKind
 	DedupHash        string
 }

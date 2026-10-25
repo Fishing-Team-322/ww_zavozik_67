@@ -35,7 +35,7 @@ class Candidate(_message.Message):
     def __init__(self, category_id: _Optional[str] = ..., title: _Optional[str] = ..., similarity: _Optional[float] = ...) -> None: ...
 
 class Assignment(_message.Message):
-    __slots__ = ("id", "embedding", "category_id", "category_title", "status", "candidates", "similarity", "margin", "channel", "tags", "auxiliary_source", "category_path", "coarse_category_id", "coarse_category_title")
+    __slots__ = ("id", "embedding", "category_id", "category_title", "status", "candidates", "similarity", "margin", "channel", "tags", "auxiliary_source", "category_path", "coarse_category_id", "coarse_category_title", "forecast_category", "forecast_projection_version", "forecast_projection_source")
     ID_FIELD_NUMBER: _ClassVar[int]
     EMBEDDING_FIELD_NUMBER: _ClassVar[int]
     CATEGORY_ID_FIELD_NUMBER: _ClassVar[int]
@@ -50,6 +50,9 @@ class Assignment(_message.Message):
     CATEGORY_PATH_FIELD_NUMBER: _ClassVar[int]
     COARSE_CATEGORY_ID_FIELD_NUMBER: _ClassVar[int]
     COARSE_CATEGORY_TITLE_FIELD_NUMBER: _ClassVar[int]
+    FORECAST_CATEGORY_FIELD_NUMBER: _ClassVar[int]
+    FORECAST_PROJECTION_VERSION_FIELD_NUMBER: _ClassVar[int]
+    FORECAST_PROJECTION_SOURCE_FIELD_NUMBER: _ClassVar[int]
     id: str
     embedding: _containers.RepeatedScalarFieldContainer[float]
     category_id: str
@@ -64,7 +67,10 @@ class Assignment(_message.Message):
     category_path: _containers.RepeatedScalarFieldContainer[str]
     coarse_category_id: str
     coarse_category_title: str
-    def __init__(self, id: _Optional[str] = ..., embedding: _Optional[_Iterable[float]] = ..., category_id: _Optional[str] = ..., category_title: _Optional[str] = ..., status: _Optional[str] = ..., candidates: _Optional[_Iterable[_Union[Candidate, _Mapping]]] = ..., similarity: _Optional[float] = ..., margin: _Optional[float] = ..., channel: _Optional[str] = ..., tags: _Optional[_Iterable[str]] = ..., auxiliary_source: _Optional[str] = ..., category_path: _Optional[_Iterable[str]] = ..., coarse_category_id: _Optional[str] = ..., coarse_category_title: _Optional[str] = ...) -> None: ...
+    forecast_category: str
+    forecast_projection_version: str
+    forecast_projection_source: str
+    def __init__(self, id: _Optional[str] = ..., embedding: _Optional[_Iterable[float]] = ..., category_id: _Optional[str] = ..., category_title: _Optional[str] = ..., status: _Optional[str] = ..., candidates: _Optional[_Iterable[_Union[Candidate, _Mapping]]] = ..., similarity: _Optional[float] = ..., margin: _Optional[float] = ..., channel: _Optional[str] = ..., tags: _Optional[_Iterable[str]] = ..., auxiliary_source: _Optional[str] = ..., category_path: _Optional[_Iterable[str]] = ..., coarse_category_id: _Optional[str] = ..., coarse_category_title: _Optional[str] = ..., forecast_category: _Optional[str] = ..., forecast_projection_version: _Optional[str] = ..., forecast_projection_source: _Optional[str] = ...) -> None: ...
 
 class AssignResponse(_message.Message):
     __slots__ = ("results", "encoder_version", "taxonomy_version", "embedding_dim", "score_kind", "hierarchy_version")

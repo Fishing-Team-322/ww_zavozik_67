@@ -335,7 +335,7 @@ func (s *Service) saveImport(ctx context.Context, j store.ProductJob, sourceID, 
 			bal = op.BalanceEOD.Float()
 		}
 		tag, e := tx.Exec(ctx, `INSERT INTO operations(id,company_id,source_id,op_date,amount,direction,counterparty_inn,counterparty_name,purpose,balance_eod,category,category_method,is_internal,dedup_hash,extra)
- VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) ON CONFLICT(company_id,id) DO NOTHING`, op.ID, j.CompanyID, sourceID, op.Date, op.Amount.Float(), string(op.Direction), string(op.CounterpartyINN), string(op.CounterpartyName), string(op.Purpose), bal, string(op.Category), string(op.CategoryMethod), op.Category.IsInternal(), keys[op.ID], string(store.JSON(Doc{"source": sourceKind})))
+ VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) ON CONFLICT(company_id,id) DO NOTHING`, op.ID, j.CompanyID, sourceID, op.Date, op.Amount.Float(), string(op.Direction), string(op.CounterpartyINN), string(op.CounterpartyName), string(op.Purpose), bal, string(op.Category), string(op.CategoryMethod), op.Category.IsInternal(), keys[op.ID], string(store.JSON(operationImportExtra(op, sourceKind))))
 		if e != nil {
 			return nil, e
 		}

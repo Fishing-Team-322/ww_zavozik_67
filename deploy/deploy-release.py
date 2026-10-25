@@ -18,7 +18,7 @@ import time
 from urllib.request import urlopen
 
 ROOT = Path('/opt/puls')
-SERVICES = ('api', 'worker', 'frontend', 'ml', 'migrate')
+SERVICES = ('api', 'worker', 'frontend', 'ml', 'migrate', 'qwen')
 PREFIX = 'ghcr.io/fishing-team-322/puls-'
 
 
@@ -31,10 +31,24 @@ def run(args, *, environment=None, input_data=None, timeout=300, quiet=False):
     return result.stdout
 
 
+def manifest_for(tag):
+    saved = ROOT/'release-manifests'/(tag+'.yml')
+    return saved if saved.exists() else ROOT/'compose.yml'
+
+
+def has_qwen(tag):
+    path=manifest_for(tag)
+    return path.exists() and b'\n  qwen:\n' in path.read_bytes()
+
+
+def runtime_services(tag):
+    return ('ml', 'qwen', 'api', 'worker', 'frontend') if has_qwen(tag) else ('ml', 'api', 'worker', 'frontend')
+
+
 def compose(tag, *args, quiet=False):
     environment = {**os.environ, 'PULS_RELEASE': tag}
     return run(['docker', 'compose', '--project-name', 'puls-production', '--env-file', str(ROOT/'runtime.env'),
-                '-f', str(ROOT/'compose.yml'), *args], environment=environment, quiet=quiet)
+                '-f', str(manifest_for(tag)), *args], environment=environment, quiet=quiet)
 
 
 def wait_ready(tag, seconds=120):
@@ -50,6 +64,8 @@ def wait_ready(tag, seconds=120):
             with urlopen('http://127.0.0.1:13000/v1/auth/providers', timeout=5) as response:
                 json.load(response)
             if ready.get('status') == 'ready' and health.get('status') == 'ok' and health.get('ml') == 'ok' and build.get('revision') == tag:
+                if has_qwen(tag):
+                    compose(tag, 'exec', '-T', 'qwen', 'python', '-m', 'zavozik_ml.serving.health', '--service', 'qwen', '--address', '127.0.0.1:50054', quiet=True)
                 return
         except Exception:
             pass
@@ -61,7 +77,7 @@ def activate(tag):
     compose(tag, 'up', '-d', '--no-build', 'postgres')
     # The default health condition is also applied to this one-off migration.
     compose(tag, 'run', '--rm', '--no-deps', 'migrate')
-    compose(tag, 'up', '-d', '--no-build', '--no-deps', 'ml', 'api', 'worker', 'frontend')
+    compose(tag, 'up', '-d', '--no-build', '--no-deps', *runtime_services(tag))
     wait_ready(tag)
 
 
@@ -85,6 +101,8 @@ def main():
         fcntl.flock(lock, fcntl.LOCK_EX)
         previous_file = ROOT/'current-release'
         previous = previous_file.read_text().strip() if previous_file.exists() else None
+        if previous and b'\n  qwen:\n' in (ROOT/'compose.yml').read_bytes() and not (ROOT/'release-manifests'/(previous+'.yml')).exists():
+            raise RuntimeError('Seed the previous release manifest before upgrading production infrastructure')
         print(f'Preparing PULS {tag}', flush=True)
         if token:
             with tempfile.TemporaryDirectory(prefix='puls-registry-', dir=ROOT) as auth:
@@ -98,6 +116,12 @@ def main():
         free = os.statvfs(ROOT).f_bavail * os.statvfs(ROOT).f_frsize
         if free < 2 * 1024**3:
             raise RuntimeError('Less than 2 GiB free; refusing deployment without touching other projects')
+        manifests=ROOT/'release-manifests'
+        manifests.mkdir(exist_ok=True)
+        snapshot=manifests/(tag+'.yml')
+        reviewed=(ROOT/'compose.yml').read_bytes()
+        if snapshot.exists() and snapshot.read_bytes()!=reviewed:raise RuntimeError('Release manifest is immutable')
+        snapshot.write_bytes(reviewed)
         compose(tag, 'config', '--quiet')
         compose(tag, 'up', '-d', '--no-build', 'postgres')
         for _ in range(60):
@@ -123,7 +147,9 @@ def main():
         except Exception:
             if previous and re.fullmatch(r'[0-9a-f]{40}', previous):
                 print(f'Health check failed; restoring PULS containers {previous}', flush=True)
-                compose(previous, 'up', '-d', '--no-build', '--no-deps', 'ml', 'api', 'worker', 'frontend')
+                if has_qwen(tag) and not has_qwen(previous):
+                    compose(tag, 'stop', 'qwen')
+                compose(previous, 'up', '-d', '--no-build', '--no-deps', *runtime_services(previous))
                 wait_ready(previous)
             raise
         if previous and previous != tag:

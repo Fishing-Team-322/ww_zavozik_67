@@ -367,6 +367,12 @@ const (
 	New        UpdateSignalInputStatus = "new"
 )
 
+// Defines values for ListCategoriesParamsView.
+const (
+	Compatibility ListCategoriesParamsView = "compatibility"
+	Discovered    ListCategoriesParamsView = "discovered"
+)
+
 // Defines values for ConfirmRegistryDocumentJSONBodyTarget.
 const (
 	ConfirmRegistryDocumentJSONBodyTargetCompany      ConfirmRegistryDocumentJSONBodyTarget = "company"
@@ -1087,6 +1093,7 @@ type Operation struct {
 	Counterparty   CounterpartyRef    `json:"counterparty"`
 	Date           openapi_types.Date `json:"date"`
 	Direction      Direction          `json:"direction"`
+	Discovery      *Object            `json:"discovery,omitempty"`
 	Id             string             `json:"id"`
 	IsInternal     bool               `json:"is_internal"`
 	Purpose        string             `json:"purpose"`
@@ -1728,6 +1735,14 @@ type StartOAuthParams struct {
 	ConsentPd bool `form:"consent_pd" json:"consent_pd"`
 }
 
+// ListCategoriesParams defines parameters for ListCategories.
+type ListCategoriesParams struct {
+	View *ListCategoriesParamsView `form:"view,omitempty" json:"view,omitempty"`
+}
+
+// ListCategoriesParamsView defines parameters for ListCategories.
+type ListCategoriesParamsView string
+
 // ListAlertsParams defines parameters for ListAlerts.
 type ListAlertsParams struct {
 	Severity *string `form:"severity,omitempty" json:"severity,omitempty"`
@@ -2087,7 +2102,7 @@ type ServerInterface interface {
 	Register(w http.ResponseWriter, r *http.Request)
 
 	// (GET /v1/categories)
-	ListCategories(w http.ResponseWriter, r *http.Request)
+	ListCategories(w http.ResponseWriter, r *http.Request, params ListCategoriesParams)
 
 	// (GET /v1/companies)
 	ListCompanies(w http.ResponseWriter, r *http.Request)
@@ -3283,14 +3298,27 @@ func (siw *ServerInterfaceWrapper) Register(w http.ResponseWriter, r *http.Reque
 // ListCategories operation middleware
 func (siw *ServerInterfaceWrapper) ListCategories(w http.ResponseWriter, r *http.Request) {
 
+	var err error
+
 	ctx := r.Context()
 
 	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
 
 	r = r.WithContext(ctx)
 
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListCategoriesParams
+
+	// ------------- Optional query parameter "view" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "view", r.URL.Query(), &params.View)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "view", Err: err})
+		return
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.ListCategories(w, r)
+		siw.Handler.ListCategories(w, r, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -7514,6 +7542,7 @@ func (response RegisterdefaultJSONResponse) VisitRegisterResponse(w http.Respons
 }
 
 type ListCategoriesRequestObject struct {
+	Params ListCategoriesParams
 }
 
 type ListCategoriesResponseObject interface {
@@ -11364,8 +11393,10 @@ func (sh *strictHandler) Register(w http.ResponseWriter, r *http.Request) {
 }
 
 // ListCategories operation middleware
-func (sh *strictHandler) ListCategories(w http.ResponseWriter, r *http.Request) {
+func (sh *strictHandler) ListCategories(w http.ResponseWriter, r *http.Request, params ListCategoriesParams) {
 	var request ListCategoriesRequestObject
+
+	request.Params = params
 
 	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
 		return sh.ssi.ListCategories(ctx, request.(ListCategoriesRequestObject))

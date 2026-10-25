@@ -48,7 +48,15 @@ func main() {
 		log.Error("worker configuration", "err", err)
 		os.Exit(1)
 	}
-	if cfg.CategorizerMode == "hybrid" && cfg.MLAddr != "" {
+	if cfg.CategorizerMode == "qwen" {
+		classifier, e := categorize.DialDiscovery(os.Getenv("ML_QWEN_ADDR"))
+		if e != nil {
+			log.Error("Qwen categorizer configuration failed")
+			os.Exit(1)
+		}
+		defer classifier.Close()
+		service.Categorizer = classifier
+	} else if cfg.CategorizerMode == "hybrid" && cfg.MLAddr != "" {
 		classifier, e := categorize.DialMLCategorizer(cfg.MLAddr)
 		if e != nil {
 			log.Error("worker categorizer initialization failed")

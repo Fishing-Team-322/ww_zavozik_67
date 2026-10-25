@@ -73,6 +73,7 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install -e ".[dev]"
+      - run: pip install vendor/cashradar-*.whl
       - run: python -m pytest -q
       - uses: actions/setup-go@v5
         with:

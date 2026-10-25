@@ -205,6 +205,9 @@ func view(kind string, d Doc) Doc {
 	switch kind {
 	case "operation":
 		copyKeys("id amount direction purpose category category_method is_internal")
+		if value, ok := d["discovery"]; ok {
+			out["discovery"] = value
+		}
 		out["date"] = date(d["op_date"])
 		out["counterparty"] = cpRef(cid, d)
 		out["source"] = operationSource(d)
@@ -324,6 +327,9 @@ func (s *Service) Execute(ctx context.Context, op string, p platform.Principal, 
 	case "getCompanyUpdates":
 		return s.updates(ctx, uid, cid)
 	case "listCategories":
+		if r.URL.Query().Get("view") == "discovered" {
+			return s.discoveredCategories(ctx)
+		}
 		return ok(Categories())
 	case "listOperations", "summarizeOperations", "exportOperations", "recategorizeOperations":
 		return s.operations(ctx, op, uid, cid, r, body)

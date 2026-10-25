@@ -223,8 +223,8 @@ func (s *Service) build(ctx context.Context, uid, cid string, h int, model strin
 		}
 		components = append(components, forecast.ComponentFlow{Date: dt, Key: "event:" + text(event, "id"), Title: text(event, "title"), Amount: domain.Money(amount * number(event, "probability")), Source: domain.SourceKind(text(event, "source_kind"))})
 	}
-	if model == "" {
-		model = "auto"
+	if model == "" || model == "auto" {
+		model = defaultServingModel()
 	}
 	fallback := s.Fallback
 	if fallback == nil {

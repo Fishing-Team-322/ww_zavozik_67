@@ -99,6 +99,30 @@ class ReleaseTests(unittest.TestCase):
                          ['http://127.0.0.1:18080/readyz', 'http://127.0.0.1:18080/healthz',
                           'http://127.0.0.1:13000/build-info.json', 'http://127.0.0.1:13000/v1/auth/providers'])
 
+    def test_qwen_upgrade_requires_previous_manifest_before_docker(self):
+        from unittest.mock import Mock
+        (self.root/'compose.yml').write_bytes(b'services:\n  qwen:\n    image: candidate\n')
+        self.request['compose_sha256']=release.hashlib.sha256((self.root/'compose.yml').read_bytes()).hexdigest()
+        docker=Mock()
+        with self.assertRaisesRegex(RuntimeError,'previous release manifest'):
+            self.invoke(run=docker)
+        docker.assert_not_called()
+
+    def test_qwen_failure_uses_legacy_manifest_and_stops_only_new_service(self):
+        from unittest.mock import Mock
+        manifests=self.root/'release-manifests';manifests.mkdir()
+        (manifests/(self.old+'.yml')).write_bytes(b'services:\n  ml:\n    image: legacy\n')
+        (self.root/'compose.yml').write_bytes(b'services:\n  qwen:\n    image: candidate\n')
+        self.request['compose_sha256']=release.hashlib.sha256((self.root/'compose.yml').read_bytes()).hexdigest()
+        compose=Mock(return_value=b'')
+        with patch.object(release.subprocess,'run',return_value=SimpleNamespace(returncode=0)):
+            with self.assertRaisesRegex(RuntimeError,'qwen failed'):
+                self.invoke(run=Mock(return_value=b''),compose=compose,wait_ready=Mock(side_effect=[RuntimeError('qwen failed'),None]))
+        compose.assert_any_call(self.new,'stop','qwen')
+        compose.assert_any_call(self.old,'up','-d','--no-build','--no-deps','ml','api','worker','frontend')
+        self.assertEqual((self.root/'current-release').read_text().strip(),self.old)
+        with patch.object(release,'ROOT',self.root):self.assertFalse(release.has_qwen(self.old))
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -1526,7 +1526,13 @@ paths:
       tags:
       - product
       operationId: listCategories
-      parameters: []
+      parameters:
+      - name: view
+        in: query
+        required: false
+        schema:
+          type: string
+          enum: [compatibility, discovered]
       responses:
         default:
           $ref: '#/components/responses/Error'
@@ -3486,6 +3492,9 @@ components:
           type: string
         category:
           $ref: '#/components/schemas/Category'
+        discovery:
+          description: Versioned native hierarchy assignment; relation cosine is not a correctness probability.
+          $ref: '#/components/schemas/Object'
         category_method:
           type: string
         is_internal:

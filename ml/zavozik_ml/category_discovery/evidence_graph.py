@@ -7,7 +7,7 @@ This is not yet wired into the sealed v1 runtime or a claim of verifier quality.
 """
 from __future__ import annotations
 
-from collections import defaultdict
+from collections import Counter
 import hashlib
 import json
 
@@ -21,14 +21,17 @@ def pair_key(a, b):
     return tuple(sorted((a, b)))
 
 
-def evidence_index(rows):
+def evidence_index(rows, *, allow_weak=False):
     index = {}
     for r in rows:
         a, b = r["left"]["content_key"], r["right"]["content_key"]
         key = pair_key(a, b)
         if a == b or key in index:
             raise ValueError("duplicate/self economic evidence")
-        if r.get("provenance") not in ("human_consensus", "calibrated_verifier"):
+        weak = r.get("provenance") == "local_model_weak"
+        if weak and (not allow_weak or r.get("reviewer_kind") != "local_model"):
+            raise ValueError("weak evidence provenance requires explicit research opt-in and local_model reviewer")
+        if not weak and r.get("provenance") not in ("human_consensus", "calibrated_verifier"):
             raise ValueError("economic evidence requires explicit verified provenance")
         if r.get("provenance") == "calibrated_verifier" and not r.get("calibration_version"):
             raise ValueError("verifier calibration version required")
@@ -55,7 +58,7 @@ def partitions(keys, relation):
         groups.sort()
 
 
-def fit(rows, evidence, *, min_members=2, min_companies=2, min_families=2):
+def fit(rows, evidence, *, min_members=2, min_companies=2, min_families=2, allow_weak=False):
     if min(min_members, min_companies, min_families) < 1:
         raise ValueError("positive support requirements required")
     by_id = {}
@@ -68,7 +71,9 @@ def fit(rows, evidence, *, min_members=2, min_companies=2, min_families=2):
         if key in by_id:
             raise ValueError("density input must contain exact semantic texts once")
         by_id[key] = r
-    index = evidence_index(evidence)
+    index = evidence_index(evidence, allow_weak=allow_weak)
+    contains_weak = any(r.get("provenance") == "local_model_weak" for r in evidence)
+    prefix = "weak-research-" if contains_weak else "economic-"
     if any(a not in by_id or b not in by_id for a, b in index):
         raise ValueError("evidence endpoint outside training density cohort")
     def relation(a, b, level):
@@ -86,7 +91,7 @@ def fit(rows, evidence, *, min_members=2, min_companies=2, min_families=2):
     for coarse in partitions(by_id, lambda a, b: relation(a, b, "coarse")):
         if not supported(coarse):
             continue
-        cid = identity("economic-coarse-", coarse)
+        cid = identity(prefix+"coarse-", coarse)
         # Titles intentionally remain proposals from actual member texts;
         # naming cannot repair membership and is not pair evidence.
         examples = sorted({by_id[k]["semantic_text"] for k in coarse})
@@ -97,31 +102,38 @@ def fit(rows, evidence, *, min_members=2, min_companies=2, min_families=2):
         for fine in partitions(coarse, lambda a, b: relation(a, b, "fine")):
             if not supported(fine):
                 continue
-            nodes.append(dict(id=identity("economic-fine-", fine), level="fine", parent_id=cid,
+            nodes.append(dict(id=identity(prefix+"fine-", fine), level="fine", parent_id=cid,
                 direction=by_id[fine[0]]["direction"], members=list(fine), support=support(fine),
                 title_proposals=sorted({by_id[k]["semantic_text"] for k in fine})[:3]))
-    document = dict(schema="economic_evidence_forest_v2", nodes=nodes,
+    document = dict(schema="weak_research_evidence_forest_v1" if contains_weak else "economic_evidence_forest_v2", nodes=nodes,
                     unassigned=sorted(set(by_id) - assigned),
-                    policy="complete verified coarse/fine compatibility; no forced economic root",
+                    policy="complete supplied coarse/fine compatibility; no forced economic root",
+                    contains_weak_evidence=contains_weak,
+                    evidence_provenance=dict(Counter(r["provenance"] for r in evidence)),
+                    semantic_accuracy=None, independent_test=False,
                     support_requirements=dict(min_members=min_members, min_companies=min_companies, min_families=min_families),
                     evidence_sha256=hashlib.sha256(json.dumps(evidence, sort_keys=True, ensure_ascii=False).encode()).hexdigest(),
-                    status="research; correctness depends on independently validated verifier")
+                    status="weak_research_not_deployable" if contains_weak else "research; correctness depends on independently validated verifier")
     document["hierarchy_version"] = identity("economic-forest-", [json.dumps(document, sort_keys=True)])
     return document
 
 
-def assign(document, query, evidence):
+def assign(document, query, evidence, *, allow_weak=False):
     """Require compatibility with all members; coarse-only is a real output.
 
     `evidence` contains verifier responses between this new content and training
     members. No centroid similarity fallback. Large groups will need a measured
     representative/verification strategy before online deployment.
     """
+    if document.get("contains_weak_evidence") and not allow_weak:
+        raise ValueError("weak research hierarchy requires explicit research opt-in")
     empty = dict(status="unknown", category_id=None, coarse_category_id=None, category_path=[],
+                 contains_weak_evidence=document.get("contains_weak_evidence", False) or any(
+                     r.get("provenance") == "local_model_weak" for r in evidence),
                  hierarchy_version=document["hierarchy_version"])
     if not query.get("usable"):
         return dict(empty, status="insufficient_text")
-    index = evidence_index(evidence)
+    index = evidence_index(evidence, allow_weak=allow_weak)
     def matches(node, level):
         return node["direction"] == query["direction"] and all(
             index.get(pair_key(query["content_key"], k), {}).get(level) == "same" for k in node["members"])
