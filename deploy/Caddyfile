@@ -8,3 +8,24 @@ suck-and-see.net {
     }
     reverse_proxy puls-production-web:3000
 }
+
+# Direct HTTPS fallback for networks that cannot download Cloudflare assets.
+# Only this exact frontend Origin is mapped to the canonical application origin.
+puls-85-159-231-68.sslip.io {
+    encode zstd gzip
+    header {
+        Strict-Transport-Security "max-age=31536000"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "SAMEORIGIN"
+        Referrer-Policy "strict-origin-when-cross-origin"
+    }
+    @fallbackOrigin header Origin https://puls-85-159-231-68.sslip.io
+    handle @fallbackOrigin {
+        reverse_proxy puls-production-web:3000 {
+            header_up Origin https://suck-and-see.net
+        }
+    }
+    handle {
+        reverse_proxy puls-production-web:3000
+    }
+}
