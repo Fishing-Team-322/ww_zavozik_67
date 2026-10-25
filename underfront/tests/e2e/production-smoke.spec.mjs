@@ -11,6 +11,8 @@ test(`public ${label} deployment restores anonymous and authenticated sessions`,
   try {
     await page.goto(url + '/overview', { waitUntil: 'domcontentloaded' });
     await expect(page).toHaveURL(/\/login(?:\?|$)/, { timeout: 45000 });
+    const landing = label === 'canonical' ? process.env.E2E_PUBLIC_CANONICAL_REDIRECT_URL || url : url;
+    expect(new URL(page.url()).origin).toBe(new URL(landing).origin);
     await expect(page.getByRole('button', { name: 'Войти', exact: true })).toBeVisible();
     const email = `deploy-smoke-${randomUUID()}@example.invalid`, password = randomBytes(20).toString('hex');
     const registered = await request.post(url + '/v1/auth/register', { data: { email, password, consent_pd: true } });

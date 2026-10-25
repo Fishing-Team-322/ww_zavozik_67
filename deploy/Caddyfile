@@ -6,6 +6,10 @@ suck-and-see.net {
         X-Frame-Options "SAMEORIGIN"
         Referrer-Policy "strict-origin-when-cross-origin"
     }
+    # Temporary entry-point redirect while Cloudflare asset transfers are cut
+    # short on affected networks. Keep API/revision probes at the canonical URL.
+    @application not path /v1/* /build-info.json /_next/* /favicon.ico /robots.txt /sitemap.xml
+    redir @application https://puls-85-159-231-68.sslip.io{uri} 302
     reverse_proxy puls-production-web:3000
 }
 

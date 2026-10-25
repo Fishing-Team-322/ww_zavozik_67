@@ -98,3 +98,10 @@ The public CI browser uses TCP (E2E_DISABLE_QUIC=1), because the hosted runner's
 Cloudflare HTTP/3 requests failed with ERR_QUIC_PROTOCOL_ERROR. This does not
 change application/browser settings or resolve ISP-specific Cloudflare access;
 the direct HTTPS fallback remains available for affected networks.
+Canonical application pages temporarily return HTTP 302 to that fallback,
+preserving the path and query; API, revision probes and asset paths remain
+proxied. Public smoke explicitly checks the landing origin. This keeps the
+provided domain usable without changing Cloudflare DNS or zone protection.
+After the Cloudflare transport issue is resolved, remove the @application
+redirect in deploy/Caddyfile, reload the validated Caddy configuration and
+remove E2E_PUBLIC_CANONICAL_REDIRECT_URL from the deployment workflow.
