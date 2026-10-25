@@ -89,7 +89,7 @@ func (s *Service) detectRecurring(ctx context.Context, uid, cid string) error {
 		last := group[len(group)-1]
 		lastDate, _ := day(date(last["op_date"]))
 		next := lastDate
-		for i := 0; i < 4000 && !next.After(s.recurringDay()); i++ {
+		for i := 0; i < 4000 && !next.After(s.currentDay()); i++ {
 			next = nextOccurrence(next, period, lastDate.Day())
 		}
 		d := Doc{"id": id, "title": text(last, "counterparty_name"), "category": last["category"], "direction": last["direction"], "counterparty_name": last["counterparty_name"], "counterparty_inn": last["counterparty_inn"], "period": period, "day_of_month": float64(lastDate.Day()), "amount": amount, "baseline_amount": amount, "amount_spread": amounts[len(amounts)-1] - amounts[0], "next_date": next.Format(domain.DateLayout), "confirmed": nil, "active": true, "origin": "detected"}

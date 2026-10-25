@@ -7,7 +7,7 @@ test.use({ actionTimeout: 15000 });
 const dateAfter = (day, offset) => { const dt = new Date(`${day}T12:00:00Z`); dt.setUTCDate(dt.getUTCDate() + offset); return dt.toISOString().slice(0, 10); };
 const today = () => new Date().toISOString().slice(0, 10);
 
-async function workspace(page, request, history = false) {
+async function workspace(page, request, history = false, historyAsOf = today()) {
   const email = `screens-${randomUUID()}@example.invalid`;
   const registered = await request.post(`${api}/v1/auth/register`, { data: { email, password, consent_pd: true } });
   expect(registered.status()).toBe(201);
@@ -20,7 +20,7 @@ async function workspace(page, request, history = false) {
   if (history) {
     let csv = 'date;amount;direction;counterparty_name;purpose;balance;id\n';
     for (let i = 119; i >= 0; i--) {
-      const day = dateAfter(today(), -i);
+      const day = dateAfter(historyAsOf, -i);
       csv += `${day};1000;in;Audit customer;Sales;${100000 + (119-i)*100};audit-in-${i}\n${day};900;out;Audit supplier;Supplies;${100000 + (119-i)*100};audit-out-${i}\n`;
     }
     const uploaded = await request.post(base + '/uploads', { headers, multipart: { file: { name: 'screens.csv', mimeType: 'text/csv', buffer: Buffer.from(csv) } } });
@@ -72,9 +72,17 @@ test('invoice dates follow the due date and contract term edits preserve generat
   const due = dateAfter(today(), 7);
   await editor.getByLabel('Срок оплаты', { exact: true }).fill(due);
   await expect(editor.getByLabel('Ожидаемая дата оплаты', { exact: true })).toHaveValue(due);
+  const expectedPayment = dateAfter(due, 1);
+  await editor.getByLabel('Ожидаемая дата оплаты', { exact: true }).fill(expectedPayment);
   await editor.getByRole('button', { name: 'Сохранить', exact: true }).click();
   await expect(editor).toHaveCount(0);
-  expect((await w.get('/invoices'))[0].expected_pay_at).toBe(due);
+  expect((await w.get('/invoices'))[0].expected_pay_at).toBe(expectedPayment);
+  const calendarLink = page.getByRole('row').filter({ hasText: 'AUDIT-DUE' }).getByRole('link', { name: 'Календарь', exact: true });
+  await expect(calendarLink).toHaveAttribute('href', `/calendar?date=${expectedPayment}`);
+  await calendarLink.click();
+  await expect(page.getByRole('heading', { name: expectedPayment.split('-').reverse().join('.'), exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: /AUDIT-DUE/ })).toBeVisible();
+  await page.goto('/documents');
   const contract = await w.post('/contracts', { number: 'AUDIT-TERMS', direction: 'out', total: 1000, prepayment: 200, start_date: due, deferral_days: 14 });
   await page.getByRole('tab', { name: 'Договоры', exact: true }).click();
   await page.getByRole('row').filter({ hasText: 'AUDIT-TERMS' }).getByRole('button', { name: 'Изменить', exact: true }).click();
@@ -264,6 +272,28 @@ test('risk action preview does not save, apply changes the real plan and recurri
   await row.getByRole('button', { name: 'Удалить', exact: true }).click();
   await dialog.getByRole('button', { name: 'Подтвердить', exact: true }).click();
   await expect(row).toHaveCount(0);
+});
+
+test('stale statement risk counts from today and labels the actual explanation date', async ({ page, request }, testInfo) => {
+  const w = await workspace(page, request, true, dateAfter(today(), -26));
+  const firstRiskDate = dateAfter(today(), 2);
+  const laterDate = dateAfter(today(), 3);
+  await w.post('/events', { title: 'QA-FIRST-RISK', date: firstRiskDate, amount: 500000, direction: 'out', additional: true });
+  await w.post('/events', { title: 'QA-LATER-PAYMENT', date: laterDate, amount: 200000, direction: 'out', additional: true });
+  const forecast = await w.get('/forecast');
+  const gap = forecast.gaps[0];
+  expect(forecast.as_of).toBe(dateAfter(today(), -26));
+  expect(gap.date).toBe(firstRiskDate);
+  expect(gap.days_left).toBe(2);
+  expect(gap.worst_date >= laterDate).toBe(true);
+  await page.goto('/risks');
+  await expect(page.getByText('До проблемы', { exact: true }).locator('..')).toContainText('2 дн.');
+  const displayed = day => day.split('-').reverse().join('.');
+  await expect(page.getByText(`Состав остатка к ${displayed(gap.explanation.date)}`, { exact: false })).toBeVisible();
+  await expect(page.getByText(`Первая возможная нехватка: ${displayed(firstRiskDate)}.`, { exact: false })).toBeVisible();
+  await expect(page.getByText('Платежи до даты риска.', { exact: false })).toHaveCount(0);
+  await expect(page.locator('strong').filter({ hasText: /^QA-LATER-PAYMENT$/ })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('risk-dates-fixed.png'), fullPage: true });
 });
 
 test('source controls and synthetic FNS XML persist without manufacturing bank facts', async ({ page, request }) => {

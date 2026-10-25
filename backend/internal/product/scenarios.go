@@ -380,7 +380,7 @@ func (s *Service) gapResult(ctx context.Context, op, uid, cid string, gap, out D
 		for i, dt := range changed.Dates {
 			points = append(points, Doc{"date": dt.Format(domain.DateLayout), "p10": p10[i], "p50": p50[i], "p90": p90[i], "is_workday": isWorkday(dt)})
 		}
-		return ok(Doc{"points": points, "gaps": gapDocuments(changed, company.Reserve)})
+		return ok(Doc{"points": points, "gaps": s.gapDocuments(changed, company.Reserve)})
 	}
 	public := []Doc{}
 	for _, a := range actions {

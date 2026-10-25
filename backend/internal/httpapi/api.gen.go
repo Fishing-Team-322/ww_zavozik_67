@@ -913,18 +913,22 @@ type ForgotPasswordRequest struct {
 
 // Gap defines model for Gap.
 type Gap struct {
-	Date        openapi_types.Date `json:"date"`
-	DaysLeft    int                `json:"days_left"`
-	Explanation *GapExplanation    `json:"explanation,omitempty"`
-	Headline    string             `json:"headline"`
-	Id          string             `json:"id"`
-	Probability float64            `json:"probability"`
+	Date openapi_types.Date `json:"date"`
+
+	// DaysLeft Calendar days from the current UTC date to the first risk date. Zero means today; negative means the date has passed. Independent of statement as_of.
+	DaysLeft    int             `json:"days_left"`
+	Explanation *GapExplanation `json:"explanation,omitempty"`
+	Headline    string          `json:"headline"`
+	Id          string          `json:"id"`
+	Probability float64         `json:"probability"`
 
 	// ProbabilityOnDate Probability of falling below reserve on the first risk date. probability is the risk anywhere in the horizon.
-	ProbabilityOnDate *float32            `json:"probability_on_date,omitempty"`
-	Shortfall         float64             `json:"shortfall"`
-	ShortfallP90      float64             `json:"shortfall_p90"`
-	WorstDate         *openapi_types.Date `json:"worst_date,omitempty"`
+	ProbabilityOnDate *float32 `json:"probability_on_date,omitempty"`
+	Shortfall         float64  `json:"shortfall"`
+	ShortfallP90      float64  `json:"shortfall_p90"`
+
+	// WorstDate Date of the lowest median balance after the first risk date. The explanation and causes cover flows through this date.
+	WorstDate *openapi_types.Date `json:"worst_date,omitempty"`
 }
 
 // GapDetail defines model for GapDetail.
@@ -936,18 +940,22 @@ type GapDetail struct {
 		ItemsRef     *string `json:"items_ref"`
 		Title        string  `json:"title"`
 	} `json:"causes"`
-	Date        openapi_types.Date `json:"date"`
-	DaysLeft    int                `json:"days_left"`
-	Explanation *GapExplanation    `json:"explanation,omitempty"`
-	Headline    string             `json:"headline"`
-	Id          string             `json:"id"`
-	Probability float64            `json:"probability"`
+	Date openapi_types.Date `json:"date"`
+
+	// DaysLeft Calendar days from the current UTC date to the first risk date. Zero means today; negative means the date has passed. Independent of statement as_of.
+	DaysLeft    int             `json:"days_left"`
+	Explanation *GapExplanation `json:"explanation,omitempty"`
+	Headline    string          `json:"headline"`
+	Id          string          `json:"id"`
+	Probability float64         `json:"probability"`
 
 	// ProbabilityOnDate Probability of falling below reserve on the first risk date. probability is the risk anywhere in the horizon.
-	ProbabilityOnDate *float32            `json:"probability_on_date,omitempty"`
-	Shortfall         float64             `json:"shortfall"`
-	ShortfallP90      float64             `json:"shortfall_p90"`
-	WorstDate         *openapi_types.Date `json:"worst_date,omitempty"`
+	ProbabilityOnDate *float32 `json:"probability_on_date,omitempty"`
+	Shortfall         float64  `json:"shortfall"`
+	ShortfallP90      float64  `json:"shortfall_p90"`
+
+	// WorstDate Date of the lowest median balance after the first risk date. The explanation and causes cover flows through this date.
+	WorstDate *openapi_types.Date `json:"worst_date,omitempty"`
 }
 
 // GapExplanation defines model for GapExplanation.

@@ -494,7 +494,7 @@ func (s *Service) projectRecurring(ctx context.Context, uid, cid string) error {
 		if e != nil {
 			return e
 		}
-		end := s.recurringDay().AddDate(0, 0, 100)
+		end := s.currentDay().AddDate(0, 0, 100)
 		count := 0
 		for start.Before(end) && count < 150 {
 			count++

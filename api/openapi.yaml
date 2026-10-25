@@ -3748,6 +3748,7 @@ components:
         worst_date:
           type: string
           format: date
+          description: Date of the lowest median balance after the first risk date. The explanation and causes cover flows through this date.
         probability_on_date:
           type: number
           minimum: 0
@@ -3771,6 +3772,7 @@ components:
           format: double
         days_left:
           type: integer
+          description: Calendar days from the current UTC date to the first risk date. Zero means today; negative means the date has passed. Independent of statement as_of.
         headline:
           type: string
     Forecast:
