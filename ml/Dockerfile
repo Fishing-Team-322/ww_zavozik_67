@@ -1,7 +1,5 @@
 FROM python:3.12-slim
 WORKDIR /app
-ARG GIT_SHA=unknown
-ENV ML_RELEASE_REVISION=${GIT_SHA}
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PYTHONPATH=/app/gen
 # lightgbm требует OpenMP
 RUN apt-get update && apt-get install -y --no-install-recommends libgomp1 && rm -rf /var/lib/apt/lists/*
@@ -24,5 +22,8 @@ COPY artifacts ./artifacts
 ENV ML_ARTIFACTS=/app/artifacts
 RUN useradd --system --uid 10001 ml
 USER ml
+# Keep release metadata after dependency layers so immutable SHA tags share weights/runtime layers.
+ARG GIT_SHA=unknown
+ENV ML_RELEASE_REVISION=${GIT_SHA}
 EXPOSE 50051
 CMD ["python", "-m", "zavozik_ml.serving.server"]
