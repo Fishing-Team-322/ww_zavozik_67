@@ -262,7 +262,9 @@ def metrics(c, o, flows, counts=None):
         loss.append(np.maximum(quantile * error, (quantile - 1) * error).mean())
     row = {"flow_abs_error": float(np.abs(actual - pred).sum()),
            "flow_actual": float(actual.sum()),
+           "flow_mse": float(((actual - pred) ** 2).mean()),
            "net_path_mae": float(np.abs(actual_net - q[1]).mean()),
+           "net_mse": float(((actual_net - q[1]) ** 2).mean()),
            "net_coverage": float(((actual_net >= q[0]) & (actual_net <= q[2])).mean()),
            "net_pinball": float(np.mean(loss)),
            "net_width": float((q[2] - q[0]).mean())}
@@ -280,7 +282,10 @@ def metrics(c, o, flows, counts=None):
             raise ValueError("business balance reconciliation failed")
         p = float(((bal[0] + net).min(axis=1) < 0).mean())
         truth = bool((adjusted < 0).any())
-        row.update(gap_probability=p, gap_actual=truth, gap_brier=(p - truth)**2)
+        median_path = bal[0] + np.median(net, axis=0)
+        row.update(gap_probability=p, gap_actual=truth, gap_brier=(p - truth)**2,
+                   gap_pred_50=bool(p >= .5), gap_pred_30=bool(p >= .3), gap_pred_10=bool(p >= .1),
+                   business_mse=float(((adjusted - median_path) ** 2).mean()))
     return row
 
 

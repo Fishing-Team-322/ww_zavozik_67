@@ -96,3 +96,31 @@ def test_count_replay_rejects_changed_width_or_horizon_errors():
     for key, value in (("net_width", 6.0), ("net_mae_30", 9.0), ("net_coverage", .9)):
         with pytest.raises(ValueError, match="count reference scores changed"):
             replay({key: value})
+
+
+def test_mse_and_gap_classification_fields():
+    h = history()
+    o = 150
+    flows = np.nan_to_num(h.daily_amounts[o + 1:o + 31])
+    c = m.reference.Company(h.company_id, h.industry, h.dates, np.nan_to_num(h.daily_amounts),
+                            np.nan_to_num(h.daily_counts), h.missing, h.detected,
+                            np.full(len(h.dates), np.nan), np.zeros(len(h.dates)), h.events)
+    row = m.scores(c, o, np.repeat(flows[None], 3, axis=0), h.prefix(h.dates[o]))
+    assert row["flow_mse"] < 1e-12 and row["net_mse"] < 1e-12
+    assert row["net_path_mae"] < 1e-9
+
+
+def test_summary_reports_confusion_at_thresholds():
+    rows = pd.DataFrame([
+        dict(cohort="unseen", model="x", company_id="A", origin="2026-04-30", gap_actual=True,
+             gap_probability=.9, gap_pred_50=True, gap_pred_30=True, gap_pred_10=True,
+             net_path_mae=1., flow_abs_error=1., flow_actual=1., business_path_abs_error=1.,
+             business_path_actual=1., forecast_seconds=.1),
+        dict(cohort="unseen", model="x", company_id="B", origin="2026-04-30", gap_actual=False,
+             gap_probability=.2, gap_pred_50=False, gap_pred_30=False, gap_pred_10=True,
+             net_path_mae=1., flow_abs_error=1., flow_actual=1., business_path_abs_error=1.,
+             business_path_actual=1., forecast_seconds=.1)])
+    row = m.summarize(rows).iloc[0]
+    assert row["gap_precision_0.5"] == row["gap_recall_0.5"] == row["gap_f1_0.5"] == row["gap_accuracy_0.5"] == 1.0
+    assert row["gap_precision_0.1"] == .5 and row["gap_recall_0.1"] == 1.0
+    assert row["gap_accuracy_0.1"] == .5 and row["gap_fp_0.1"] == 1

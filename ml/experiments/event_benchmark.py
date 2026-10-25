@@ -150,13 +150,34 @@ def summarize(results):
     rows = []
     averages = ("net_path_mae", "net_mae_7", "net_mae_14", "net_mae_30", "net_coverage", "net_width",
                 "net_pinball", "gap_brier", "daily_amount_crps", "net_crps", "flow_energy", "flow_variogram",
-                "count_crps", "occurrence_brier", "event_projection_energy", "marked_count_crps", "amount_bin_count_crps")
+                "count_crps", "occurrence_brier", "event_projection_energy", "marked_count_crps", "amount_bin_count_crps",
+                "flow_mse", "net_mse", "business_mse")
     for (cohort, name), group in results.groupby(["cohort", "model"]):
         row = dict(cohort=cohort, model=name, origins=len(group), companies=group.company_id.nunique(),
                    flow_wape=group.flow_abs_error.sum() / max(group.flow_actual.sum(), 1e-9),
                    business_path_wape=group.business_path_abs_error.sum() / max(group.business_path_actual.sum(), 1e-9),
                    forecast_seconds=group.forecast_seconds.sum())
         row.update({key: float(group[key].mean()) if key in group and group[key].notna().any() else None for key in averages})
+        if "gap_actual" in group and group.gap_actual.notna().any():
+            scored = group[group.gap_actual.notna()]
+            actual = scored.gap_actual.astype(bool)
+            for threshold, column in ((0.5, "gap_pred_50"), (0.3, "gap_pred_30"), (0.1, "gap_pred_10")):
+                if column not in scored:
+                    continue
+                predicted = scored[column].astype(bool)
+                tp = int((predicted & actual).sum())
+                fp = int((predicted & ~actual).sum())
+                fn = int((~predicted & actual).sum())
+                tn = int((~predicted & ~actual).sum())
+                precision = tp / (tp + fp) if tp + fp else None
+                recall = tp / (tp + fn) if tp + fn else None
+                row.update({f"gap_precision_{threshold}": precision,
+                            f"gap_recall_{threshold}": recall,
+                            f"gap_f1_{threshold}": (2 * precision * recall / (precision + recall)
+                                                   if precision and recall else None),
+                            f"gap_accuracy_{threshold}": (tp + tn) / len(scored) if len(scored) else None,
+                            f"gap_tp_{threshold}": tp, f"gap_fp_{threshold}": fp,
+                            f"gap_fn_{threshold}": fn, f"gap_tn_{threshold}": tn})
         rows.append(row)
     summary = pd.DataFrame(rows)
     if "seasonal_naive" in summary.model.values:
