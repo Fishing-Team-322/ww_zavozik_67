@@ -331,6 +331,8 @@ func (s *Service) Execute(ctx context.Context, op string, p platform.Principal, 
 		return s.crud(ctx, uid, cid, desc, r, body)
 	}
 	switch op {
+	case "getHistoricalBacktest":
+		return s.historicalBacktest(ctx, uid, cid)
 	case "previewTax", "createTax", "cancelTax":
 		return s.taxAction(ctx, op, uid, cid, r, body)
 	case "getTaxes":

@@ -1945,9 +1945,24 @@ type PreviewRegistryDocumentMultipartBody struct {
 	File openapi_types.File `json:"file"`
 }
 
+// PreviewScenarioParams defines parameters for PreviewScenario.
+type PreviewScenarioParams struct {
+	// From Inclusive boundary of a 30-day comparison window inside the 90-day forecast. Both from and to are required together; statement as_of is unchanged.
+	From *openapi_types.Date `form:"from,omitempty" json:"from,omitempty"`
+
+	// To Inclusive boundary of a 30-day comparison window inside the 90-day forecast. Both from and to are required together; statement as_of is unchanged.
+	To *openapi_types.Date `form:"to,omitempty" json:"to,omitempty"`
+}
+
 // CompareScenarioParams defines parameters for CompareScenario.
 type CompareScenarioParams struct {
 	Horizon *int `form:"horizon,omitempty" json:"horizon,omitempty"`
+
+	// From Inclusive boundary of a 30-day comparison window inside the 90-day forecast. Both from and to are required together; statement as_of is unchanged.
+	From *openapi_types.Date `form:"from,omitempty" json:"from,omitempty"`
+
+	// To Inclusive boundary of a 30-day comparison window inside the 90-day forecast. Both from and to are required together; statement as_of is unchanged.
+	To *openapi_types.Date `form:"to,omitempty" json:"to,omitempty"`
 }
 
 // GetTaxesParams defines parameters for GetTaxes.
@@ -1969,6 +1984,12 @@ type LookupFNSParams struct {
 // CompareSavedScenarioParams defines parameters for CompareSavedScenario.
 type CompareSavedScenarioParams struct {
 	Horizon *int `form:"horizon,omitempty" json:"horizon,omitempty"`
+
+	// From Inclusive boundary of a 30-day comparison window inside the 90-day forecast. Both from and to are required together; statement as_of is unchanged.
+	From *openapi_types.Date `form:"from,omitempty" json:"from,omitempty"`
+
+	// To Inclusive boundary of a 30-day comparison window inside the 90-day forecast. Both from and to are required together; statement as_of is unchanged.
+	To *openapi_types.Date `form:"to,omitempty" json:"to,omitempty"`
 }
 
 // ConfirmSheetMappingJSONBody defines parameters for ConfirmSheetMapping.
@@ -2294,6 +2315,9 @@ type ServerInterface interface {
 	// (GET /v1/companies/{companyId}/plan-fact)
 	GetPlanFact(w http.ResponseWriter, r *http.Request, companyId openapi_types.UUID, params GetPlanFactParams)
 
+	// (GET /v1/companies/{companyId}/plan-fact/backtest)
+	GetHistoricalBacktest(w http.ResponseWriter, r *http.Request, companyId openapi_types.UUID)
+
 	// (GET /v1/companies/{companyId}/plan-fact/missed)
 	GetMissedPlanFact(w http.ResponseWriter, r *http.Request, companyId openapi_types.UUID)
 
@@ -2322,7 +2346,7 @@ type ServerInterface interface {
 	CreateScenario(w http.ResponseWriter, r *http.Request, companyId openapi_types.UUID)
 
 	// (POST /v1/companies/{companyId}/scenarios/preview)
-	PreviewScenario(w http.ResponseWriter, r *http.Request, companyId openapi_types.UUID)
+	PreviewScenario(w http.ResponseWriter, r *http.Request, companyId openapi_types.UUID, params PreviewScenarioParams)
 
 	// (GET /v1/companies/{companyId}/scenarios/{scenarioId}/compare)
 	CompareScenario(w http.ResponseWriter, r *http.Request, companyId openapi_types.UUID, scenarioId openapi_types.UUID, params CompareScenarioParams)
@@ -4882,6 +4906,37 @@ func (siw *ServerInterfaceWrapper) GetPlanFact(w http.ResponseWriter, r *http.Re
 	handler.ServeHTTP(w, r)
 }
 
+// GetHistoricalBacktest operation middleware
+func (siw *ServerInterfaceWrapper) GetHistoricalBacktest(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "companyId" -------------
+	var companyId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "companyId", r.PathValue("companyId"), &companyId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "companyId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetHistoricalBacktest(w, r, companyId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetMissedPlanFact operation middleware
 func (siw *ServerInterfaceWrapper) GetMissedPlanFact(w http.ResponseWriter, r *http.Request) {
 
@@ -5192,8 +5247,27 @@ func (siw *ServerInterfaceWrapper) PreviewScenario(w http.ResponseWriter, r *htt
 
 	r = r.WithContext(ctx)
 
+	// Parameter object where we will unmarshal all parameters from the context
+	var params PreviewScenarioParams
+
+	// ------------- Optional query parameter "from" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "from", r.URL.Query(), &params.From)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "from", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "to" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "to", r.URL.Query(), &params.To)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "to", Err: err})
+		return
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.PreviewScenario(w, r, companyId)
+		siw.Handler.PreviewScenario(w, r, companyId, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -5240,6 +5314,22 @@ func (siw *ServerInterfaceWrapper) CompareScenario(w http.ResponseWriter, r *htt
 	err = runtime.BindQueryParameter("form", true, false, "horizon", r.URL.Query(), &params.Horizon)
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "horizon", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "from" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "from", r.URL.Query(), &params.From)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "from", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "to" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "to", r.URL.Query(), &params.To)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "to", Err: err})
 		return
 	}
 
@@ -6196,6 +6286,22 @@ func (siw *ServerInterfaceWrapper) CompareSavedScenario(w http.ResponseWriter, r
 		return
 	}
 
+	// ------------- Optional query parameter "from" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "from", r.URL.Query(), &params.From)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "from", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "to" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "to", r.URL.Query(), &params.To)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "to", Err: err})
+		return
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.CompareSavedScenario(w, r, scenarioId, params)
 	}))
@@ -6703,6 +6809,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc("POST "+options.BaseURL+"/v1/companies/{companyId}/operations/recategorize", wrapper.RecategorizeOperations)
 	m.HandleFunc("GET "+options.BaseURL+"/v1/companies/{companyId}/operations/summary", wrapper.SummarizeOperations)
 	m.HandleFunc("GET "+options.BaseURL+"/v1/companies/{companyId}/plan-fact", wrapper.GetPlanFact)
+	m.HandleFunc("GET "+options.BaseURL+"/v1/companies/{companyId}/plan-fact/backtest", wrapper.GetHistoricalBacktest)
 	m.HandleFunc("GET "+options.BaseURL+"/v1/companies/{companyId}/plan-fact/missed", wrapper.GetMissedPlanFact)
 	m.HandleFunc("GET "+options.BaseURL+"/v1/companies/{companyId}/recurring", wrapper.ListRecurring)
 	m.HandleFunc("POST "+options.BaseURL+"/v1/companies/{companyId}/recurring", wrapper.CreateRecurring)
@@ -8740,6 +8847,35 @@ func (response GetPlanFactdefaultJSONResponse) VisitGetPlanFactResponse(w http.R
 	return json.NewEncoder(w).Encode(response.Body)
 }
 
+type GetHistoricalBacktestRequestObject struct {
+	CompanyId openapi_types.UUID `json:"companyId"`
+}
+
+type GetHistoricalBacktestResponseObject interface {
+	VisitGetHistoricalBacktestResponse(w http.ResponseWriter) error
+}
+
+type GetHistoricalBacktest200JSONResponse Object
+
+func (response GetHistoricalBacktest200JSONResponse) VisitGetHistoricalBacktestResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetHistoricalBacktestdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response GetHistoricalBacktestdefaultJSONResponse) VisitGetHistoricalBacktestResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+
+	return json.NewEncoder(w).Encode(response.Body)
+}
+
 type GetMissedPlanFactRequestObject struct {
 	CompanyId openapi_types.UUID `json:"companyId"`
 }
@@ -9008,6 +9144,7 @@ func (response CreateScenariodefaultJSONResponse) VisitCreateScenarioResponse(w 
 
 type PreviewScenarioRequestObject struct {
 	CompanyId openapi_types.UUID `json:"companyId"`
+	Params    PreviewScenarioParams
 	Body      *PreviewScenarioJSONRequestBody
 }
 
@@ -10507,6 +10644,9 @@ type StrictServerInterface interface {
 
 	// (GET /v1/companies/{companyId}/plan-fact)
 	GetPlanFact(ctx context.Context, request GetPlanFactRequestObject) (GetPlanFactResponseObject, error)
+
+	// (GET /v1/companies/{companyId}/plan-fact/backtest)
+	GetHistoricalBacktest(ctx context.Context, request GetHistoricalBacktestRequestObject) (GetHistoricalBacktestResponseObject, error)
 
 	// (GET /v1/companies/{companyId}/plan-fact/missed)
 	GetMissedPlanFact(ctx context.Context, request GetMissedPlanFactRequestObject) (GetMissedPlanFactResponseObject, error)
@@ -12526,6 +12666,32 @@ func (sh *strictHandler) GetPlanFact(w http.ResponseWriter, r *http.Request, com
 	}
 }
 
+// GetHistoricalBacktest operation middleware
+func (sh *strictHandler) GetHistoricalBacktest(w http.ResponseWriter, r *http.Request, companyId openapi_types.UUID) {
+	var request GetHistoricalBacktestRequestObject
+
+	request.CompanyId = companyId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetHistoricalBacktest(ctx, request.(GetHistoricalBacktestRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetHistoricalBacktest")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetHistoricalBacktestResponseObject); ok {
+		if err := validResponse.VisitGetHistoricalBacktestResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // GetMissedPlanFact operation middleware
 func (sh *strictHandler) GetMissedPlanFact(w http.ResponseWriter, r *http.Request, companyId openapi_types.UUID) {
 	var request GetMissedPlanFactRequestObject
@@ -12790,10 +12956,11 @@ func (sh *strictHandler) CreateScenario(w http.ResponseWriter, r *http.Request, 
 }
 
 // PreviewScenario operation middleware
-func (sh *strictHandler) PreviewScenario(w http.ResponseWriter, r *http.Request, companyId openapi_types.UUID) {
+func (sh *strictHandler) PreviewScenario(w http.ResponseWriter, r *http.Request, companyId openapi_types.UUID, params PreviewScenarioParams) {
 	var request PreviewScenarioRequestObject
 
 	request.CompanyId = companyId
+	request.Params = params
 
 	var body PreviewScenarioJSONRequestBody
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {

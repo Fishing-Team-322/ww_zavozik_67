@@ -22,6 +22,7 @@ import {
 import { chartDays, displayDate, fallbackNotice, forecastReliability, riskProbabilityText, gapAmount } from "@/src/entities/forecast";
 import { money } from "./finance-utils";
 import { FinanceState, ForecastNotice } from "./FinanceState";
+import { scenarioWindowBounds, shiftScenarioDate } from "@/src/entities/forecast/model/scenario-window";
 
 const presetIcons = {
   delay_counterparty: CalendarClock,
@@ -41,11 +42,15 @@ const readyConditions: Array<{ kind: ReadyCondition; label: string }> = [
 export function ScenariosScreen() {
   const { company } = useSession();
   const base = `/v1/companies/${company!.id}`;
-  const forecast = useApiResource<Forecast>(`${base}/forecast`);
+  const forecast = useApiResource<Forecast>(`${base}/forecast?horizon=90`);
+  const [selectedStart, setSelectedStart] = useState("");
+  const window = scenarioWindowBounds(forecast.data?.points[0]?.date ?? "", forecast.data?.points.at(-1)?.date ?? "", selectedStart);
+  const periodQuery = new URLSearchParams({ from: window.from, to: window.to });
   const events = useApiResource<PlannedEvent[]>(`${base}/events`);
   const [params, setParams] = useState<ScenarioParams>(DEFAULT_SCENARIO);
   const [counterparty, setCounterparty] = useState("");
   const [date, setDate] = useState("");
+  const effectiveExpenseDate = date || window.from;
   const [title, setTitle] = useState("Мой сценарий");
   const scenarios = useApiResource<Schemas["Scenario"][]>(`${base}/scenarios`);
   const presets = useApiResource<Array<{ kind: Schemas["ScenarioStep"]["kind"]; title: string }>>("/v1/scenario-presets");
@@ -69,7 +74,7 @@ export function ScenariosScreen() {
     sliderSteps.push({
       kind: "add_expense",
       amount: params.unexpectedExpense,
-      date: date || forecast.data.points[0]?.date || "",
+      date: effectiveExpenseDate,
     });
   if (selectedCondition === "delay_counterparty" && params.paymentDelayDays && counterparty)
     sliderSteps.push({
@@ -80,12 +85,12 @@ export function ScenariosScreen() {
   if (selectedCondition === "scale_fixed_costs" && fixedIncrease) sliderSteps.push({ kind: "scale_fixed_costs", factor: 1 + fixedIncrease / 100 });
   const steps = customSteps ?? sliderSteps;
   const missingClient = customSteps === null && selectedCondition === "delay_counterparty" && params.paymentDelayDays > 0 && !counterparty;
-  const savedCompare = useApiResource<Schemas["ScenarioComparison"]>(selectedId && !dirty ? `/v1/scenarios/${selectedId}/compare` : null);
+  const savedCompare = useApiResource<Schemas["ScenarioComparison"]>(selectedId && !dirty && window.valid ? `/v1/scenarios/${selectedId}/compare?${periodQuery}` : null);
   const compare = useApiResource<Schemas["ScenarioComparison"]>(
-    steps.length && forecast.data && !missingClient && (!selectedId || dirty)
-      ? `${base}/scenarios/preview`
+    forecast.data && window.valid && !missingClient && (!selectedId || dirty)
+      ? `${base}/scenarios/preview?${periodQuery}`
       : null,
-    { method: "POST", json: { steps } },
+    { method: "POST", json: { steps: steps.length ? steps : [{ kind: "scale_revenue", factor: 1 }] } },
   );
   const clients = [
     ...new Map(
@@ -104,9 +109,9 @@ export function ScenariosScreen() {
     ).values(),
   ];
   const comparison = selectedId && !dirty ? savedCompare : compare;
-  const recalculating = comparison.loading && steps.length > 0 && !missingClient;
-  const result = comparison.data?.scenario;
-  const baseForecast = comparison.data?.base || forecast.data;
+  const recalculating = comparison.loading && !missingClient;
+  const result = steps.length ? comparison.data?.scenario : undefined;
+  const baseForecast = comparison.data?.base;
   const baseGap = baseForecast?.gaps[0];
   const scenarioGap = result?.gaps[0];
   const baseMinimum = baseForecast?.points.reduce<Forecast["points"][number] | null>((minimum, point) => !minimum || point.p50 < minimum.p50 ? point : minimum, null);
@@ -115,10 +120,10 @@ export function ScenariosScreen() {
   const reserve = company!.reserve;
   const limitedProbability = Boolean(baseForecast && !forecastReliability(baseForecast).probabilityAvailable || result && !forecastReliability(result).probabilityAvailable);
   const modelNotice = baseForecast?.fallback_used ? fallbackNotice(baseForecast.warnings) : baseForecast?.low_confidence ? "Надёжность оценки ограничена полнотой истории." : "Прогноз построен по доступным финансовым данным.";
-  const chartPoints = baseForecast ? chartDays(baseForecast, result).filter(day => day.date >= baseForecast.as_of).slice(0, 31) : [];
+  const chartPoints = baseForecast ? chartDays(baseForecast, result).filter(day => day.date >= window.from && day.date <= window.to) : [];
   const gapChange = scenarioGap && baseGap
     ? scenarioGap.shortfall === baseGap.shortfall ? "Для первых дат нехватки сумма не изменилась." : `Для первых дат нехватки сумма ${scenarioGap.shortfall > baseGap.shortfall ? "увеличилась" : "уменьшилась"} на ${money(Math.abs(scenarioGap.shortfall - baseGap.shortfall))}.`
-    : scenarioGap ? "В базовом плане нехватки не было." : baseGap ? "Нехватка базового плана устранена." : "Нехватки нет в обоих прогнозах.";
+    : scenarioGap ? "В базовом плане предупреждения не было." : baseGap ? "По сценарию риск ниже порога предупреждения модели." : "Предупреждений о нехватке нет в обоих прогнозах.";
 
   function chooseCondition(kind: ReadyCondition) {
     setSelectedId(""); setCustomSteps(null); setSelectedCondition(kind);
@@ -135,7 +140,7 @@ export function ScenariosScreen() {
   function addPreset(kind: Schemas["ScenarioStep"]["kind"]) {
     setCustomSteps(steps.some(step => step.kind === kind)
       ? steps.filter(step => step.kind !== kind)
-      : [...steps, kind === "scale_revenue" ? { kind, factor: 0.8 } : kind === "scale_fixed_costs" ? { kind, factor: 1.1 } : kind === "delay_counterparty" ? { kind, delay_days: 7, counterparty_id: clients[0]?.value } : kind === "move_event" ? { kind, event_id: events.data?.find(event => event.editable)?.id, date: forecast.data?.points[0]?.date ?? "" } : { kind, amount: 0, date: forecast.data?.points[0]?.date ?? "" }]);
+      : [...steps, kind === "scale_revenue" ? { kind, factor: 0.8 } : kind === "scale_fixed_costs" ? { kind, factor: 1.1 } : kind === "delay_counterparty" ? { kind, delay_days: 7, counterparty_id: clients[0]?.value } : kind === "move_event" ? { kind, event_id: events.data?.find(event => event.editable)?.id, date: window.from } : { kind, amount: 0, date: window.from }]);
     setDirty(true);
     setSaved(null);
   }
@@ -204,7 +209,7 @@ export function ScenariosScreen() {
             {selectedCondition && customSteps === null && <div className="mt-4 space-y-4">
               {selectedCondition !== "scale_fixed_costs" && <ScenarioControls bare visibleKeys={[selectedCondition === "delay_counterparty" ? "paymentDelayDays" : selectedCondition === "scale_revenue" ? "revenueDropPercent" : "unexpectedExpense"]} value={params} onChange={value => { setParams(value); setDirty(true); setSaved(null); }} />}
               {selectedCondition === "delay_counterparty" && <><Select density="form" size="md" label="Клиент с плановым поступлением" placeholder="Выберите клиента" value={counterparty} onChange={event => { setCounterparty(event.target.value); setDirty(true); }} options={clients} />{missingClient && <ContentText variant="description">Выберите клиента, чтобы рассчитать задержку поступления.</ContentText>}</>}
-              {selectedCondition === "add_expense" && <Input type="date" label="Дата расхода" min={forecast.data?.points[0]?.date} max={forecast.data?.points.at(-1)?.date} value={date || forecast.data?.points[0]?.date || ""} onChange={event => { setDate(event.target.value); setDirty(true); }} />}
+              {selectedCondition === "add_expense" && <Input type="date" label="Дата расхода" min={forecast.data?.points[0]?.date} max={forecast.data?.points.at(-1)?.date} value={effectiveExpenseDate} onChange={event => { setDate(event.target.value); setDirty(true); }} />}
               {selectedCondition === "scale_fixed_costs" && <Input label="Рост постоянных расходов, %" type="number" min="0" max="900" value={fixedIncrease} onChange={event => { setFixedIncrease(Number(event.target.value)); setDirty(true); }} />}
             </div>}
             {customSteps && <div className="mt-3 space-y-3">
@@ -223,6 +228,12 @@ export function ScenariosScreen() {
             <ContentHeading level={2}>Прогноз на 30 дней</ContentHeading>
             {baseForecast && <details className="relative text-xs text-[color:var(--text-secondary)]"><summary className="inline-flex cursor-pointer list-none items-center gap-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--focus-ring-strong)]"><CircleHelp size={14} aria-hidden="true" />{baseForecast.fallback_used ? "Упрощённый прогноз" : "О прогнозе"}</summary><p className="absolute right-0 top-full z-10 mt-2 w-64 border border-[color:var(--border)] bg-[color:var(--surface-elevated)] p-3 leading-5 shadow-[var(--shadow-md)]">{modelNotice}</p></details>}
           </div>
+          <div className="my-4 grid gap-3 sm:grid-cols-2" role="group" aria-label="Период сравнения">
+            <Input label="С даты" type="date" value={window.from} min={forecast.data?.points[0]?.date} max={window.latestStart} onChange={event => setSelectedStart(event.target.value)} />
+            <Input label="По дату" type="date" value={window.to} min={window.earliestEnd} max={forecast.data?.points.at(-1)?.date} onChange={event => setSelectedStart(shiftScenarioDate(event.target.value, -29))} />
+          </div>
+          <ContentText variant="description" className="mb-3">Период — 30 календарных дней в пределах прогноза на 90 дней от последней выписки. Расчёт учитывает денежные потоки до начала выбранного периода.</ContentText>
+          {forecast.data && !window.valid && <p role="alert" className="mb-3 text-sm text-[color:var(--danger)]">Выберите 30 дней внутри доступного прогноза.</p>}
           {baseForecast && <ForecastNotice forecast={baseForecast} />}
           <div className="mt-4 flex flex-wrap gap-x-5 gap-y-1 text-xs text-[color:var(--text-secondary)]"><span className="inline-flex items-center gap-1.5"><i className="h-0.5 w-4 bg-[color:var(--accent)]" />Базовый прогноз</span><span className={`inline-flex items-center gap-1.5 ${result ? "" : "opacity-45"}`}><i className="w-4 border-t-2 border-dashed border-[color:var(--warning)]" />С изменениями</span><span className="inline-flex items-center gap-1.5"><i className="w-4 border-t border-dashed border-[color:var(--danger)]" />Нулевой остаток</span></div>
           <div className="relative" aria-busy={recalculating}>

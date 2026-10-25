@@ -165,11 +165,11 @@ test('all four negative presets and a combined scenario compare, save, edit and 
   // Saving must wait, rather than silently ignoring a click during that refresh.
   let blockNextPreview = true, releasePreview;
   const released = new Promise(resolve => { releasePreview = resolve; });
-  await page.route('**/scenarios/preview', async route => {
+  await page.route(/\/scenarios\/preview(?:\?|$)/, async route => {
     if (blockNextPreview) { blockNextPreview = false; await released; }
     await route.continue();
   });
-  const refreshing = page.waitForRequest(request => request.url().endsWith('/scenarios/preview') && request.method() === 'POST');
+  const refreshing = page.waitForRequest(request => new URL(request.url()).pathname.endsWith('/scenarios/preview') && request.method() === 'POST');
   await w.post('/events', { title: 'Audit background refresh', date: due, amount: 123, direction: 'out', additional: true });
   await refreshing;
   await expect(dialog.getByRole('button', { name: 'Сохранить', exact: true })).toBeDisabled();
@@ -232,7 +232,10 @@ test('tax preview splits kopecks, calendar links to the tax source, cancellation
   await expect(dialog).toHaveCount(0);
   await expect(page.getByText('Отменено', { exact: true })).toBeVisible();
   expect((await w.get('/operations?limit=1')).total).toBe(240);
+  const backtestLoaded = page.waitForResponse(response => new URL(response.url()).pathname.endsWith('/plan-fact/backtest'), { timeout: 60000 });
   await page.goto('/plan-fact');
+  await backtestLoaded;
+  await expect(page.getByText('Загружаем данные…', { exact: true })).toHaveCount(0);
   await choose(page, 'Группировка', 'По неделям');
   await choose(page, 'Показать на графике', 'Поступления');
   await page.getByRole('button', { name: 'Обновить', exact: true }).click();

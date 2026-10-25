@@ -852,6 +852,20 @@ paths:
         required: false
         schema:
           type: integer
+      - name: from
+        in: query
+        required: false
+        description: Inclusive boundary of a 30-day comparison window inside the 90-day forecast. Both from and to are required together; statement as_of is unchanged.
+        schema:
+          type: string
+          format: date
+      - name: to
+        in: query
+        required: false
+        description: Inclusive boundary of a 30-day comparison window inside the 90-day forecast. Both from and to are required together; statement as_of is unchanged.
+        schema:
+          type: string
+          format: date
       responses:
         default:
           $ref: '#/components/responses/Error'
@@ -2018,6 +2032,20 @@ paths:
         schema:
           type: string
           format: uuid
+      - name: from
+        in: query
+        required: false
+        description: Inclusive boundary of a 30-day comparison window inside the 90-day forecast. Both from and to are required together; statement as_of is unchanged.
+        schema:
+          type: string
+          format: date
+      - name: to
+        in: query
+        required: false
+        description: Inclusive boundary of a 30-day comparison window inside the 90-day forecast. Both from and to are required together; statement as_of is unchanged.
+        schema:
+          type: string
+          format: date
       responses:
         default:
           $ref: '#/components/responses/Error'
@@ -2050,6 +2078,20 @@ paths:
         required: false
         schema:
           type: integer
+      - name: from
+        in: query
+        required: false
+        description: Inclusive boundary of a 30-day comparison window inside the 90-day forecast. Both from and to are required together; statement as_of is unchanged.
+        schema:
+          type: string
+          format: date
+      - name: to
+        in: query
+        required: false
+        description: Inclusive boundary of a 30-day comparison window inside the 90-day forecast. Both from and to are required together; statement as_of is unchanged.
+        schema:
+          type: string
+          format: date
       responses:
         default:
           $ref: '#/components/responses/Error'
@@ -2115,6 +2157,24 @@ paths:
                 $ref: '#/components/schemas/TaxObligation'
         default:
           $ref: '#/components/responses/Error'
+  /v1/companies/{companyId}/plan-fact/backtest:
+    get:
+      tags: [product]
+      operationId: getHistoricalBacktest
+      parameters:
+      - name: companyId
+        in: path
+        required: true
+        schema: {type: string, format: uuid}
+      responses:
+        default:
+          $ref: '#/components/responses/Error'
+        '200':
+          description: Retrospective 30-day holdout computed now from company history only; not a previously issued forecast.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Object'
   /v1/companies/{companyId}/plan-fact/missed:
     get:
       tags:

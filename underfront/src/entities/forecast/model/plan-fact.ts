@@ -1,4 +1,22 @@
 import type { Schemas } from "@/src/shared/api";
+
+export type SavedForecastChange = {
+  gap_date: string | null;
+  gap_date_before: string | null;
+  probability_before: number | null;
+  probability_after: number | null;
+  probability_reliable_before?: boolean;
+  probability_reliable_after?: boolean;
+  revision_before: number | null;
+  revision_after: number | null;
+};
+
+// Missing flags from an older API are unknown, never permission to show a percent.
+export function planFactProbability(change: SavedForecastChange, side: "before" | "after") {
+  const value = change[`probability_${side}`];
+  return change[`probability_reliable_${side}`] === true && typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 1 ? value : null;
+}
+
 export function planFactSeries(
   rows: Schemas["PlanFactPoint"][],
   direction: "in" | "out" | "net",
