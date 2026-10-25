@@ -19,9 +19,9 @@ import {
   ScenarioControls,
   type ScenarioParams,
 } from "@/src/widgets/finance-panels";
-import { chartDays, displayDate, fallbackNotice } from "@/src/entities/forecast";
-import { money, percent } from "./finance-utils";
-import { FinanceState } from "./FinanceState";
+import { chartDays, displayDate, fallbackNotice, forecastReliability, riskProbabilityText, gapAmount } from "@/src/entities/forecast";
+import { money } from "./finance-utils";
+import { FinanceState, ForecastNotice } from "./FinanceState";
 
 const presetIcons = {
   delay_counterparty: CalendarClock,
@@ -113,7 +113,7 @@ export function ScenariosScreen() {
   const scenarioMinimum = result?.points.reduce<Forecast["points"][number] | null>((minimum, point) => !minimum || point.p50 < minimum.p50 ? point : minimum, null);
   const minimumChange = baseMinimum && scenarioMinimum ? scenarioMinimum.p50 - baseMinimum.p50 : null;
   const reserve = company!.reserve;
-  const limitedProbability = Boolean(baseForecast?.fallback_used || baseForecast?.low_confidence || result?.fallback_used || result?.low_confidence);
+  const limitedProbability = Boolean(baseForecast && !forecastReliability(baseForecast).probabilityAvailable || result && !forecastReliability(result).probabilityAvailable);
   const modelNotice = baseForecast?.fallback_used ? fallbackNotice(baseForecast.warnings) : baseForecast?.low_confidence ? "Надёжность оценки ограничена полнотой истории." : "Прогноз построен по доступным финансовым данным.";
   const chartPoints = baseForecast ? chartDays(baseForecast, result).filter(day => day.date >= baseForecast.as_of).slice(0, 31) : [];
   const gapChange = scenarioGap && baseGap
@@ -223,6 +223,7 @@ export function ScenariosScreen() {
             <ContentHeading level={2}>Прогноз на 30 дней</ContentHeading>
             {baseForecast && <details className="relative text-xs text-[color:var(--text-secondary)]"><summary className="inline-flex cursor-pointer list-none items-center gap-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--focus-ring-strong)]"><CircleHelp size={14} aria-hidden="true" />{baseForecast.fallback_used ? "Упрощённый прогноз" : "О прогнозе"}</summary><p className="absolute right-0 top-full z-10 mt-2 w-64 border border-[color:var(--border)] bg-[color:var(--surface-elevated)] p-3 leading-5 shadow-[var(--shadow-md)]">{modelNotice}</p></details>}
           </div>
+          {baseForecast && <ForecastNotice forecast={baseForecast} />}
           <div className="mt-4 flex flex-wrap gap-x-5 gap-y-1 text-xs text-[color:var(--text-secondary)]"><span className="inline-flex items-center gap-1.5"><i className="h-0.5 w-4 bg-[color:var(--accent)]" />Базовый прогноз</span><span className={`inline-flex items-center gap-1.5 ${result ? "" : "opacity-45"}`}><i className="w-4 border-t-2 border-dashed border-[color:var(--warning)]" />С изменениями</span><span className="inline-flex items-center gap-1.5"><i className="w-4 border-t border-dashed border-[color:var(--danger)]" />Нулевой остаток</span></div>
           <div className="relative" aria-busy={recalculating}>
             <CashflowForecastChart days={chartPoints} height={280} compactDates showScenario={Boolean(result)} scenarioLabel="С изменениями" hideSeries={recalculating} animate={false} showDeficitDots={false} showScenarioDelta firstGapDate={[baseGap?.date, scenarioGap?.date].filter((value): value is string => Boolean(value)).sort()[0]} />
@@ -234,13 +235,13 @@ export function ScenariosScreen() {
                 <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)] gap-2 border-b border-[color:var(--border)] py-2 text-xs font-medium text-[color:var(--text-secondary)]"><span>Показатель</span><span>Без изменений</span><span>С изменениями</span></div>
                 <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)] gap-2 py-2"><span className="text-[color:var(--text-secondary)]">Минимальный остаток</span><span className="tabular-nums">{money(baseMinimum?.p50)}</span><span className="font-medium tabular-nums">{money(scenarioMinimum?.p50)}</span></div>
                 <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)] gap-2 py-2"><span className="text-[color:var(--text-secondary)]">Дата нехватки</span><span>{baseGap ? displayDate(baseGap.date) : "Нет"}</span><span className="font-medium">{scenarioGap ? displayDate(scenarioGap.date) : "Нет"}</span></div>
-                <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)] gap-2 py-2"><span className="text-[color:var(--text-secondary)]">Вероятность{limitedProbability ? "*" : ""}</span><span>{baseGap ? percent(baseGap.probability) : "—"}</span><span className="font-medium">{scenarioGap ? percent(scenarioGap.probability) : "—"}</span></div>
+                <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)] gap-2 py-2"><span className="text-[color:var(--text-secondary)]">Вероятность{limitedProbability ? "*" : ""}</span><span>{baseGap && baseForecast ? riskProbabilityText(baseGap, baseForecast) : "—"}</span><span className="font-medium">{scenarioGap && result ? riskProbabilityText(scenarioGap, result) : "—"}</span></div>
                 <p className="border-t border-[color:var(--border)] py-2 text-xs font-medium text-[color:var(--text-secondary)]">Изменение минимального остатка: <span className={`tabular-nums ${minimumChange != null && minimumChange < 0 ? "text-[color:var(--danger)]" : minimumChange != null && minimumChange > 0 ? "text-[color:var(--success)]" : "text-[color:var(--text-primary)]"}`}>{minimumChange == null ? "—" : `${minimumChange > 0 ? "+" : ""}${money(minimumChange)}`}</span></p>
               </div></div>
-              <p className="mt-3 text-sm text-[color:var(--text-secondary)]"><span className="font-medium text-[color:var(--text-primary)]">Итог: </span>{gapChange}{scenarioGap ? ` По сценарию не хватает ${money(scenarioGap.shortfall)} с ${displayDate(scenarioGap.date)}.` : ""}</p>
+              <p className="mt-3 text-sm text-[color:var(--text-secondary)]"><span className="font-medium text-[color:var(--text-primary)]">Итог: </span>{gapChange}{scenarioGap ? ` По сценарию ${gapAmount(scenarioGap).label.toLowerCase()}: ${money(gapAmount(scenarioGap).amount)} с ${displayDate(scenarioGap.date)}.` : ""}</p>
               {(baseGap || scenarioGap) && <p className="mt-1 text-xs text-[color:var(--text-secondary)]">Неснижаемый резерв: {money(reserve)}. Нехватка — разница между резервом и минимальным прогнозным остатком начиная с первой даты риска; поэтому она не равна модулю отрицательного остатка.</p>}
-              {limitedProbability && <p className="mt-1 text-xs text-[color:var(--text-secondary)]">* Вероятность — ориентировочная оценка: прогноз упрощён или данных недостаточно для надёжной оценки.</p>}
-            </> : <div className="border-t border-[color:var(--border)] py-3 text-sm"><p className="font-medium text-[color:var(--text-primary)]">Базовый прогноз</p><p className="mt-1 text-[color:var(--text-secondary)]">Минимальный остаток: {money(baseMinimum?.p50)}{baseGap ? ` · нехватка с ${displayDate(baseGap.date)}` : " · нехватки не прогнозируется"}</p>{baseGap && <p className="mt-1 text-xs text-[color:var(--text-secondary)]">Нехватка считается относительно неснижаемого резерва {money(reserve)}, а не нулевого остатка.</p>}{limitedProbability && <p className="mt-1 text-xs text-[color:var(--text-secondary)]">Вероятность риска при упрощённом прогнозе или неполных данных — только ориентир.</p>}<p className="mt-2 text-xs text-[color:var(--text-secondary)]">Выберите условие и настройте его, чтобы увидеть сравнение.</p></div>}
+              {limitedProbability && <p className="mt-1 text-xs text-[color:var(--text-secondary)]">Точная вероятность недоступна: прогноз упрощён, данные устарели или их недостаточно.</p>}
+            </> : <div className="border-t border-[color:var(--border)] py-3 text-sm"><p className="font-medium text-[color:var(--text-primary)]">Базовый прогноз</p><p className="mt-1 text-[color:var(--text-secondary)]">Минимальный остаток: {money(baseMinimum?.p50)}{baseGap ? ` · нехватка с ${displayDate(baseGap.date)}` : " · нехватки не прогнозируется"}</p>{baseGap && <p className="mt-1 text-xs text-[color:var(--text-secondary)]">Нехватка считается относительно неснижаемого резерва {money(reserve)}, а не нулевого остатка.</p>}{limitedProbability && <p className="mt-1 text-xs text-[color:var(--text-secondary)]">Точная вероятность недоступна при ограниченной надёжности прогноза.</p>}<p className="mt-2 text-xs text-[color:var(--text-secondary)]">Выберите условие и настройте его, чтобы увидеть сравнение.</p></div>}
           </div>
         </section>
       </div>

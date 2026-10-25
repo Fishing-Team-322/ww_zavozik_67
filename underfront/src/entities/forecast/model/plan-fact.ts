@@ -6,7 +6,7 @@ export function planFactSeries(
   return rows.map((row) => ({
     date: row.period,
     plan:
-      direction === "net"
+      row.plan_available === false || row.plan_in === null || row.plan_out === null ? null : direction === "net"
         ? row.plan_in - row.plan_out
         : row[`plan_${direction}`],
     fact:

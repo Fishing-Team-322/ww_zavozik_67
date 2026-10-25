@@ -18,7 +18,7 @@ test('invoice partial payment, recurring schedule, settings, export and theme pe
   await page.goto('/documents');
   await page.getByRole('button', { name: 'Добавить счёт', exact: true }).click();
   const dialog = page.getByRole('dialog');
-  await expect(dialog.getByRole('checkbox', { name: 'Добавить к прогнозу сверх обычного потока', exact: true })).toBeChecked();
+  await expect(dialog.getByRole('combobox', { name: 'Как учесть в прогнозе', exact: true })).toContainText('Новый платёж');
   await dialog.getByLabel('Номер', { exact: true }).fill('SYNTHETIC-350');
   await dialog.getByLabel('Контрагент', { exact: true }).fill('Synthetic customer');
   await dialog.getByLabel('Сумма, ₽', { exact: true }).fill('350000');

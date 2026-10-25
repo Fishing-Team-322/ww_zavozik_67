@@ -20,7 +20,7 @@ func (s *Service) eventRows(ctx context.Context, uid, cid string) ([]Doc, error)
 func (s *Service) linkPaymentOrders(ctx context.Context, uid, cid string, events []Doc) ([]Doc, error) {
 	needed := false
 	for _, event := range events {
-		if flag(event, "_payment_order_link") {
+		if flag(event, "_payment_order_link") || flag(event, "_invoice_replacement_link") {
 			if text(event, "status") == "linked" {
 				event["status"] = event["link_original_status"]
 			}
@@ -34,11 +34,12 @@ func (s *Service) linkPaymentOrders(ctx context.Context, uid, cid string, events
 		delete(event, "linked_sources")
 		delete(event, "link_original_status")
 		delete(event, "_payment_order_link")
+		delete(event, "_invoice_replacement_link")
 		delete(event, "_original_link_status")
 		needed = needed || text(event, "source_kind") == "bank_api" && text(event, "obligation_kind") == "payment_order"
 	}
 	if !needed {
-		return events, nil
+		return linkInvoiceReplacements(events), nil
 	}
 	invoices, err := s.DB.ProductList(ctx, uid, cid, "invoice")
 	if err != nil {
@@ -115,7 +116,7 @@ func (s *Service) linkPaymentOrders(ctx context.Context, uid, cid string, events
 			order["link_status"] = "unresolved"
 		}
 	}
-	return events, nil
+	return linkInvoiceReplacements(events), nil
 }
 
 var invoiceReference = regexp.MustCompile(`(?i)(?:invoice|сч[её]т(?:а|у)?)\s*[№#]?\s*([\p{L}\p{N}][\p{L}\p{N}/_.-]*)`)
@@ -131,4 +132,26 @@ func orderReferencesInvoice(order Doc, number string) bool {
 		return strings.EqualFold(strings.TrimSpace(reference), strings.TrimSpace(number))
 	}
 	return strings.EqualFold(referencedInvoiceNumber(text(order, "title")), strings.TrimSpace(number))
+}
+
+// The original stays visible as provenance, while only the invoice is counted.
+// Derive this link on every read so deleting an unpaid invoice restores its plan.
+func linkInvoiceReplacements(events []Doc) []Doc {
+	byID := map[string]Doc{}
+	for _, event := range events {
+		byID[text(event, "id")] = event
+	}
+	for _, invoice := range events {
+		if text(invoice, "source_kind") != "invoice" || in(text(invoice, "status"), "cancelled linked") {
+			continue
+		}
+		target := byID[text(invoice, "replaces_event_id")]
+		if target == nil || !in(text(target, "source_kind"), "manual recurring") {
+			continue
+		}
+		target["link_original_status"] = target["status"]
+		target["status"], target["link_status"], target["linked_event_id"], target["_invoice_replacement_link"] = "linked", "linked", invoice["id"], true
+		invoice["linked_sources"] = append(docs(invoice["linked_sources"]), Doc{"event_id": target["id"], "source": target["source_kind"]})
+	}
+	return events
 }

@@ -74,7 +74,7 @@ func (s *Service) historyAnalysis(ctx context.Context, op, uid, cid string, r *h
 		for dt := start; !dt.After(stop); dt = dt.AddDate(0, 0, 1) {
 			p := key(dt.Format(domain.DateLayout))
 			if groups[p] == nil {
-				groups[p] = Doc{"period": p, "plan_in": float64(0), "plan_out": float64(0), "fact_in": float64(0), "fact_out": float64(0), "deviation": float64(0), "observed": true}
+				groups[p] = Doc{"period": p, "plan_in": float64(0), "plan_out": float64(0), "fact_in": float64(0), "fact_out": float64(0), "deviation": float64(0), "observed": true, "plan_available": false, "plan_basis": "none"}
 			}
 			if !known[dt.Format(domain.DateLayout)] {
 				groups[p]["observed"] = false
@@ -89,6 +89,10 @@ func (s *Service) historyAnalysis(ctx context.Context, op, uid, cid string, r *h
 				groups[p] = Doc{"period": p, "plan_in": float64(0), "plan_out": float64(0), "fact_in": float64(0), "fact_out": float64(0), "deviation": float64(0)}
 			}
 			groups[p][k] = number(groups[p], k) + n
+			if k == "plan_in" || k == "plan_out" {
+				groups[p]["plan_available"] = true
+				groups[p]["plan_basis"] = "documents"
+			}
 		}
 		for _, d := range operations {
 			if !flag(d, "is_duplicate") && !flag(d, "is_internal") {
@@ -108,11 +112,62 @@ func (s *Service) historyAnalysis(ctx context.Context, op, uid, cid string, r *h
 				add(date(d["event_date"]), "plan_"+text(d, "direction"), amount)
 			}
 		}
+		// A model plan is comparable with a bank fact only if it was saved
+		// before that day. Never reconstruct a historical prediction today.
+		snapshots, err := s.DB.Pool.Query(ctx, `SELECT created_at::date::text,as_of::text,payload FROM forecast_runs WHERE company_id=$1 AND as_of<$2::date ORDER BY created_at`, cid, to)
+		if err != nil {
+			return Result{}, err
+		}
+		frozen := map[string]Doc{}
+		for snapshots.Next() {
+			var created, as string
+			var raw []byte
+			if err = snapshots.Scan(&created, &as, &raw); err != nil {
+				snapshots.Close()
+				return Result{}, err
+			}
+			for _, flow := range docs(store.Decode(raw)["planned_flows"]) {
+				dt := text(flow, "date")
+				if dt >= from && dt <= to && created < dt && as < dt {
+					frozen[dt] = flow
+				}
+			}
+		}
+		err = snapshots.Err()
+		snapshots.Close()
+		if err != nil {
+			return Result{}, err
+		}
+		// Weekly comparisons require a saved plan for every day in the period.
+		for period, group := range groups {
+			in, out := 0.0, 0.0
+			complete, has := true, false
+			for dt := start; !dt.After(stop); dt = dt.AddDate(0, 0, 1) {
+				date := dt.Format(domain.DateLayout)
+				if key(date) != period {
+					continue
+				}
+				flow, exists := frozen[date]
+				if !exists {
+					complete = false
+					continue
+				}
+				has = true
+				in += number(flow, "in")
+				out += number(flow, "out")
+			}
+			if complete && has && !flag(group, "plan_available") {
+				group["plan_in"], group["plan_out"], group["plan_available"], group["plan_basis"] = money(in), money(out), true, "forecast"
+			}
+		}
 		out := []Doc{}
 		for _, g := range groups {
 			g["deviation"] = money(number(g, "fact_in") - number(g, "fact_out") - number(g, "plan_in") + number(g, "plan_out"))
 			if !flag(g, "observed") {
 				g["fact_in"], g["fact_out"], g["deviation"] = nil, nil, nil
+			}
+			if !flag(g, "plan_available") {
+				g["plan_in"], g["plan_out"], g["deviation"] = nil, nil, nil
 			}
 			out = append(out, g)
 		}
@@ -234,7 +289,7 @@ func (s *Service) historyAnalysis(ctx context.Context, op, uid, cid string, r *h
 		}
 		return ok(Doc{"events": len(items), "detected": detected, "avg_lead_days": avg, "owner_injections_total": money(injected), "items": items, "series": series, "warning": "Lead time counts only stored predictions made before the event, probability >= 0.5"})
 	case "getForecastAccuracy":
-		rows, e := s.DB.Pool.Query(ctx, `SELECT p.point_date::text,p.p50::float8,r.as_of::text FROM forecast_points p JOIN forecast_runs r ON r.id=p.run_id WHERE r.company_id=$1 AND p.point_date BETWEEN $2::date AND $3::date AND p.point_date>r.as_of ORDER BY p.point_date,r.created_at`, cid, from, to)
+		rows, e := s.DB.Pool.Query(ctx, `SELECT p.point_date::text,p.p50::float8,r.as_of::text FROM forecast_points p JOIN forecast_runs r ON r.id=p.run_id WHERE r.company_id=$1 AND p.point_date BETWEEN $2::date AND $3::date AND p.point_date>r.as_of AND r.created_at::date<p.point_date ORDER BY p.point_date,r.created_at`, cid, from, to)
 		if e != nil {
 			return Result{}, e
 		}

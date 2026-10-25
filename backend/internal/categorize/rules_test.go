@@ -42,3 +42,11 @@ func TestDefaultRules(t *testing.T) {
 		}
 	}
 }
+
+func TestOwnerLoanUsesCounterpartyWhenPurposeOmitsOwner(t *testing.T) {
+	ops := []domain.Operation{{Purpose: "Предоставление беспроцентного займа по договору № 228/20", CounterpartyName: "Учредитель (физическое лицо)", Direction: domain.In}, {Purpose: "Оплата услуг по договору", CounterpartyName: "Учредитель", Direction: domain.In}}
+	got, err := DefaultRules.Categorize(context.Background(), ops)
+	if err != nil || got[0].Category != domain.CatOwnerLoan || got[1].Category == domain.CatOwnerLoan {
+		t.Fatal(got, err)
+	}
+}

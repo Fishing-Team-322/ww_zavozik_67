@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Button } from "@/src/shared/ui/button";
 import type { Forecast } from "@/src/shared/api";
-import { fallbackNotice } from "@/src/entities/forecast";
+import { fallbackNotice, forecastReliability } from "@/src/entities/forecast";
 
 export function FinanceState({
   loading,
@@ -46,10 +46,11 @@ export function FinanceState({
 }
 export function ForecastNotice({ forecast }: { forecast: Forecast | null }) {
   if (!forecast) return null;
+  const reliability = forecastReliability(forecast);
   return (
     <div className="mb-4 space-y-1 text-xs text-[color:var(--text-secondary)]">
       <p>
-        Данные на {forecast.as_of} · модель {forecast.model_used}
+        Остаток подтверждён на {forecast.as_of} · прогноз до {reliability.end}
       </p>
       {forecast.fallback_used && (
         <p role="status">
@@ -65,14 +66,9 @@ export function ForecastNotice({ forecast }: { forecast: Forecast | null }) {
           Проверьте оплату или уточните срок в календаре.
         </p>
       )}
-      {forecast.warnings.includes(
-        "stale_statement_forecast_starts_after_data_as_of",
-      ) && (
-        <p>
-          Выписка устарела: прогноз начинается после последней даты данных.
-          Загрузите свежую выписку.
-        </p>
-      )}
+      {(reliability.stale || reliability.future) && <p role="alert" className="rounded-md border border-[color:var(--warning)] p-3 font-semibold">{reliability.future ? "В выписке есть будущие даты." : `Выписке ${reliability.age} дн. Текущий остаток неизвестен.`} Рекомендация о расходах недоступна. <Link href="/sources" className="underline">Загрузите актуальную выписку</Link>.</p>}
+      {reliability.unconfirmed > 0 && <p role="status">План обязательств ещё не проверен: найдено платежей без подтверждения — {reliability.unconfirmed}. <Link href="/recurring" className="underline">Проверить расписание</Link>. Уточните также зарплату, налоги и крупные поступления.</p>}
+      {reliability.limited && <p>Точная вероятность риска и рекомендация о расходах недоступны при ограниченной надёжности прогноза.</p>}
     </div>
   );
 }

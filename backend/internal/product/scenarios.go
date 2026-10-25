@@ -290,6 +290,10 @@ func (s *Service) gapResult(ctx context.Context, op, uid, cid string, gap, out D
 	}
 	actions := []Doc{}
 	causes := docs(gap["causes"])
+	if number(out, "data_age_days") > 7 || number(out, "data_age_days") < 0 {
+		gap["actions"] = actions
+		return ok(gap)
+	}
 	for _, event := range events {
 		dt, included := eventForecastDate(event, res.AsOf)
 		if text(event, "direction") != "out" || !included || dt.Format(domain.DateLayout) > text(gap, "date") {
@@ -300,13 +304,13 @@ func (s *Service) gapResult(ctx context.Context, op, uid, cid string, gap, out D
 		}
 		newDate := dt.AddDate(0, 0, 14)
 		steps := []Doc{{"kind": "move_event", "event_id": event["id"], "date": newDate.Format(domain.DateLayout)}}
-		actions = append(actions, Doc{"id": idFor(cid, forecastKey+":shift:"+text(event, "id")), "kind": "shift_supplier_payment", "title": "Перенести платёж", "description": "Согласовать перенос платежа на 14 дней", "cost": float64(0), "steps": steps, "refs": Doc{"event_id": event["id"]}, "draft_message": nil})
+		actions = append(actions, Doc{"id": idFor(cid, forecastKey+":shift:"+text(event, "id")), "kind": "shift_supplier_payment", "title": "Перенести платёж", "description": "Согласовать перенос платежа на 14 дней", "date": newDate.Format(domain.DateLayout), "amount": number(event, "amount"), "cost_known": false, "cost": float64(0), "steps": steps, "refs": Doc{"event_id": event["id"]}, "draft_message": nil})
 	}
 	amount := number(gap, "shortfall_p90")
 	if amount <= 0 {
 		amount = number(gap, "shortfall")
 	}
-	actions = append(actions, Doc{"id": idFor(cid, forecastKey+":overdraft"), "kind": "overdraft", "title": "Запланировать привлечение средств", "description": "Добавляет плановое поступление; банк не выдаёт кредит через этот метод", "cost": float64(0), "steps": []Doc{}, "refs": Doc{}, "date": gap["date"], "amount": amount, "draft_message": nil})
+	actions = append(actions, Doc{"id": idFor(cid, forecastKey+":overdraft"), "kind": "overdraft", "title": "Запланировать привлечение средств", "description": "Добавляет плановое поступление; банк не выдаёт кредит через этот метод", "cost": float64(0), "cost_known": false, "steps": []Doc{}, "refs": Doc{}, "date": gap["date"], "amount": amount, "draft_message": nil})
 	company, e := s.DB.GetCompany(ctx, uid, cid)
 	if e != nil {
 		return Result{}, e
@@ -325,12 +329,15 @@ func (s *Service) gapResult(ctx context.Context, op, uid, cid string, gap, out D
 			return Result{}, e
 		}
 		gs := risk.FindGaps(changed, domain.Money(company.Reserve))
-		np, ns := float64(0), float64(0)
+		np, ns, p90 := float64(0), float64(0), float64(0)
+		var nextDate any
 		if len(gs) > 0 {
 			np = gs[0].Probability
 			ns = gs[0].Shortfall.Float()
+			p90 = gs[0].ShortfallP90.Float()
+			nextDate = gs[0].Date.Format(domain.DateLayout)
 		}
-		a["effect"] = Doc{"closes_gap": len(gs) == 0, "new_probability": np, "new_shortfall": ns}
+		a["effect"] = Doc{"closes_gap": len(gs) == 0, "new_probability": np, "new_shortfall": ns, "new_shortfall_p90": p90, "new_gap_date": nextDate, "probability_reliable": reliableProbability(out)}
 		if old, e := s.DB.ProductGet(ctx, uid, "action", text(a, "id")); e == nil {
 			a["applied"] = old["applied"]
 		} else if !platform.IsStatus(e, 404) {
@@ -384,7 +391,7 @@ func (s *Service) gapResult(ctx context.Context, op, uid, cid string, gap, out D
 	}
 	public := []Doc{}
 	for _, a := range actions {
-		public = append(public, Doc{"id": a["id"], "kind": a["kind"], "title": a["title"], "description": a["description"], "cost": a["cost"], "effect": a["effect"], "draft_message": a["draft_message"], "refs": a["refs"]})
+		public = append(public, Doc{"id": a["id"], "kind": a["kind"], "title": a["title"], "description": a["description"], "cost": a["cost"], "cost_known": a["cost_known"], "date": a["date"], "amount": a["amount"], "effect": a["effect"], "draft_message": a["draft_message"], "refs": a["refs"]})
 	}
 	gap["causes"], gap["actions"] = causes, public
 	return ok(gap)

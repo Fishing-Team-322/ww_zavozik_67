@@ -209,7 +209,7 @@ test('tax preview splits kopecks, calendar links to the tax source, cancellation
   await page.getByLabel('Налоговый год', { exact: true }).fill('2026');
   await page.getByLabel('Подтверждённая сумма, ₽', { exact: true }).fill('100.01');
   await page.getByLabel('Откуда получена сумма', { exact: true }).fill('Synthetic audit liability');
-  await page.getByRole('checkbox', { name: /Это дополнительная сумма/ }).press('Space');
+  await expect(page.getByRole('combobox', { name: 'Как учесть в прогнозе', exact: true })).toContainText('Новый платёж — включить всю сумму по графику');
   await page.getByRole('checkbox', { name: /Подтверждаю сумму/ }).press('Space');
   await page.getByRole('button', { name: 'Рассчитать график платежей', exact: true }).click();
   await expect(page.getByText('Проверьте перед сохранением', { exact: true })).toBeVisible();

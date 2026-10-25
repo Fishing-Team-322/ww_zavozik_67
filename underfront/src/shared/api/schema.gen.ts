@@ -1936,6 +1936,12 @@ export interface components {
             is_default: boolean;
         };
         ModelQuality: {
+            gap_precision?: number | null;
+            gap_alerts?: number | null;
+            gap_false_alerts?: number | null;
+            gap_events?: number | null;
+            new_gap_events?: number | null;
+            runs?: number | null;
             name: string;
             /** Format: double */
             wape_7: number | null;
@@ -1974,6 +1980,7 @@ export interface components {
             is_workday: boolean;
         };
         Gap: {
+            probability_reliable?: boolean;
             /**
              * Format: date
              * @description Date of the lowest median balance after the first risk date. The explanation and causes cover flows through this date.
@@ -1996,6 +2003,20 @@ export interface components {
             headline: string;
         };
         Forecast: {
+            /** @description False means safe_to_spend must not be presented as a spending recommendation. */
+            spending_available?: boolean;
+            spending_restrictions?: string[];
+            probability_reliable?: boolean;
+            data_age_days?: number;
+            unconfirmed_recurring?: number;
+            /** Format: date */
+            forecast_end?: string;
+            planned_flows?: {
+                /** Format: date */
+                date: string;
+                in: number;
+                out: number;
+            }[];
             /** @description fresh_paths, reused_paths or updated_from_actuals. Empty for fallback. */
             update_mode?: string;
             /** @description Last date observed by the model used for the stored paths. May precede as_of when new actuals rebase the forecast. */
@@ -2049,6 +2070,10 @@ export interface components {
             component_key?: string;
         };
         Action: {
+            /** Format: date */
+            date?: string;
+            amount?: number;
+            cost_known?: boolean;
             /** Format: uuid */
             id: string;
             kind: string;
@@ -2057,6 +2082,10 @@ export interface components {
             /** Format: double */
             cost: number;
             effect: {
+                /** Format: date */
+                new_gap_date?: string | null;
+                new_shortfall_p90?: number;
+                probability_reliable?: boolean;
                 closes_gap: boolean;
                 /** Format: double */
                 new_probability: number;
@@ -2089,16 +2118,22 @@ export interface components {
             series: components["schemas"]["Object"][];
         };
         PlanFactPoint: {
+            plan_available?: boolean;
+            /** @enum {string} */
+            plan_basis?: "none" | "documents" | "forecast";
             /** Format: date */
             period: string;
-            plan_in: number;
-            plan_out: number;
+            plan_in: number | null;
+            plan_out: number | null;
             fact_in: number | null;
             fact_out: number | null;
             deviation: number | null;
             observed: boolean;
         };
         PlannedEvent: {
+            source_ref?: string;
+            /** Format: uuid */
+            request_id?: string;
             /** @description true adds this obligation to the modeled business flow; false explicitly marks it as already covered. */
             additional?: boolean;
             /** Format: uuid */
@@ -2201,6 +2236,7 @@ export interface components {
             delta: components["schemas"]["Object"];
         };
         Alert: {
+            resolved?: boolean;
             /** Format: uuid */
             id: string;
             /** Format: date-time */
@@ -2221,6 +2257,11 @@ export interface components {
             name: string;
         };
         Invoice: {
+            /**
+             * Format: uuid
+             * @description Explicitly replaces one unpaid manual or confirmed detected recurring payment. The invoice is counted once.
+             */
+            replaces_event_id?: string;
             /** @description true adds this obligation to the modeled business flow; false explicitly marks it as already covered. */
             additional?: boolean;
             /** Format: uuid */
@@ -2300,6 +2341,9 @@ export interface components {
             unread_count: number;
         };
         CreateEventInput: {
+            source_ref?: string;
+            /** Format: uuid */
+            request_id?: string;
             /** Format: date */
             date: string;
             /** Format: double */
@@ -2358,6 +2402,11 @@ export interface components {
             counterparty_inn?: string;
         };
         CreateInvoiceInput: {
+            /**
+             * Format: uuid
+             * @description Explicitly replaces one unpaid manual or confirmed detected recurring payment. The invoice is counted once.
+             */
+            replaces_event_id?: string;
             number: string;
             /** @enum {string} */
             direction: "issued" | "received";
@@ -2378,6 +2427,11 @@ export interface components {
             counterparty_inn?: string;
         };
         UpdateInvoiceInput: {
+            /**
+             * Format: uuid
+             * @description Explicitly replaces one unpaid manual or confirmed detected recurring payment. The invoice is counted once.
+             */
+            replaces_event_id?: string;
             number?: string;
             /** @enum {string} */
             direction?: "issued" | "received";

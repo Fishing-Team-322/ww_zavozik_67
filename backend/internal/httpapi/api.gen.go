@@ -207,6 +207,13 @@ const (
 	Yandex OAuthProvider = "yandex"
 )
 
+// Defines values for PlanFactPointPlanBasis.
+const (
+	PlanFactPointPlanBasisDocuments PlanFactPointPlanBasis = "documents"
+	PlanFactPointPlanBasisForecast  PlanFactPointPlanBasis = "forecast"
+	PlanFactPointPlanBasisNone      PlanFactPointPlanBasis = "none"
+)
+
 // Defines values for PreviewForecastInputChangesStatus.
 const (
 	PreviewForecastInputChangesStatusCancelled PreviewForecastInputChangesStatus = "cancelled"
@@ -375,13 +382,19 @@ const (
 
 // Action defines model for Action.
 type Action struct {
-	Cost         float64 `json:"cost"`
-	Description  string  `json:"description"`
-	DraftMessage *string `json:"draft_message"`
+	Amount       *float32            `json:"amount,omitempty"`
+	Cost         float64             `json:"cost"`
+	CostKnown    *bool               `json:"cost_known,omitempty"`
+	Date         *openapi_types.Date `json:"date,omitempty"`
+	Description  string              `json:"description"`
+	DraftMessage *string             `json:"draft_message"`
 	Effect       struct {
-		ClosesGap      bool    `json:"closes_gap"`
-		NewProbability float64 `json:"new_probability"`
-		NewShortfall   float64 `json:"new_shortfall"`
+		ClosesGap           bool                `json:"closes_gap"`
+		NewGapDate          *openapi_types.Date `json:"new_gap_date"`
+		NewProbability      float64             `json:"new_probability"`
+		NewShortfall        float64             `json:"new_shortfall"`
+		NewShortfallP90     *float32            `json:"new_shortfall_p90,omitempty"`
+		ProbabilityReliable *bool               `json:"probability_reliable,omitempty"`
 	} `json:"effect"`
 	Id    openapi_types.UUID     `json:"id"`
 	Kind  string                 `json:"kind"`
@@ -431,14 +444,18 @@ type AdminCompanyDetail struct {
 
 // AdminModel defines model for AdminModel.
 type AdminModel struct {
-	Companies   *int     `json:"companies"`
-	Coverage    *float64 `json:"coverage"`
-	Description string   `json:"description"`
-	GapLeadDays *float64 `json:"gap_lead_days"`
-	GapRecall   *float64 `json:"gap_recall"`
-	IsDefault   bool     `json:"is_default"`
-	Limitations []string `json:"limitations"`
-	Metrics     struct {
+	Companies      *int     `json:"companies"`
+	Coverage       *float64 `json:"coverage"`
+	Description    string   `json:"description"`
+	GapAlerts      *float32 `json:"gap_alerts"`
+	GapEvents      *float32 `json:"gap_events"`
+	GapFalseAlerts *float32 `json:"gap_false_alerts"`
+	GapLeadDays    *float64 `json:"gap_lead_days"`
+	GapPrecision   *float32 `json:"gap_precision"`
+	GapRecall      *float64 `json:"gap_recall"`
+	IsDefault      bool     `json:"is_default"`
+	Limitations    []string `json:"limitations"`
+	Metrics        struct {
 		Coverage    *float64 `json:"coverage"`
 		GapAuc      *float64 `json:"gap_auc"`
 		GapBrier    *float64 `json:"gap_brier"`
@@ -447,13 +464,15 @@ type AdminModel struct {
 		Wape30      *float64 `json:"wape_30"`
 		Wape7       *float64 `json:"wape_7"`
 	} `json:"metrics"`
-	Name      string     `json:"name"`
-	Series    []Object   `json:"series"`
-	Source    string     `json:"source"`
-	TrainedAt *time.Time `json:"trained_at"`
-	Wape14    *float64   `json:"wape_14"`
-	Wape30    *float64   `json:"wape_30"`
-	Wape7     *float64   `json:"wape_7"`
+	Name         string     `json:"name"`
+	NewGapEvents *float32   `json:"new_gap_events"`
+	Runs         *float32   `json:"runs"`
+	Series       []Object   `json:"series"`
+	Source       string     `json:"source"`
+	TrainedAt    *time.Time `json:"trained_at"`
+	Wape14       *float64   `json:"wape_14"`
+	Wape30       *float64   `json:"wape_30"`
+	Wape7        *float64   `json:"wape_7"`
 }
 
 // Alert defines model for Alert.
@@ -467,6 +486,7 @@ type Alert struct {
 		Id     *string `json:"id"`
 		Screen string  `json:"screen"`
 	} `json:"ref"`
+	Resolved *bool  `json:"resolved,omitempty"`
 	Severity string `json:"severity"`
 	Title    string `json:"title"`
 }
@@ -680,6 +700,8 @@ type CreateEventInput struct {
 	Date             openapi_types.Date      `json:"date"`
 	Direction        Direction               `json:"direction"`
 	Probability      *float32                `json:"probability,omitempty"`
+	RequestId        *openapi_types.UUID     `json:"request_id,omitempty"`
+	SourceRef        *string                 `json:"source_ref,omitempty"`
 	Status           *CreateEventInputStatus `json:"status,omitempty"`
 	Title            string                  `json:"title"`
 }
@@ -699,7 +721,10 @@ type CreateInvoiceInput struct {
 	IssuedAt         openapi_types.Date          `json:"issued_at"`
 	Number           string                      `json:"number"`
 	PaidAmount       *float64                    `json:"paid_amount,omitempty"`
-	Status           *CreateInvoiceInputStatus   `json:"status,omitempty"`
+
+	// ReplacesEventId Explicitly replaces one unpaid manual or confirmed detected recurring payment. The invoice is counted once.
+	ReplacesEventId *openapi_types.UUID       `json:"replaces_event_id,omitempty"`
+	Status          *CreateInvoiceInputStatus `json:"status,omitempty"`
 }
 
 // CreateInvoiceInputDirection defines model for CreateInvoiceInput.Direction.
@@ -830,11 +855,13 @@ type Error struct {
 
 // Forecast defines model for Forecast.
 type Forecast struct {
-	AsOf         openapi_types.Date `json:"as_of"`
-	FallbackUsed bool               `json:"fallback_used"`
-	FlowScope    string             `json:"flow_scope"`
-	Gaps         []Gap              `json:"gaps"`
-	Headline     string             `json:"headline"`
+	AsOf         openapi_types.Date  `json:"as_of"`
+	DataAgeDays  *int                `json:"data_age_days,omitempty"`
+	FallbackUsed bool                `json:"fallback_used"`
+	FlowScope    string              `json:"flow_scope"`
+	ForecastEnd  *openapi_types.Date `json:"forecast_end,omitempty"`
+	Gaps         []Gap               `json:"gaps"`
+	Headline     string              `json:"headline"`
 	History      []struct {
 		Balance *float64           `json:"balance"`
 		Date    openapi_types.Date `json:"date"`
@@ -853,15 +880,26 @@ type Forecast struct {
 	ModelUsed      string  `json:"model_used"`
 	ModelVersion   string  `json:"model_version"`
 	OpeningBalance float64 `json:"opening_balance"`
-	Points         []struct {
+	PlannedFlows   *[]struct {
+		Date openapi_types.Date `json:"date"`
+		In   float32            `json:"in"`
+		Out  float32            `json:"out"`
+	} `json:"planned_flows,omitempty"`
+	Points []struct {
 		Date      openapi_types.Date `json:"date"`
 		IsWorkday bool               `json:"is_workday"`
 		P10       float64            `json:"p10"`
 		P50       float64            `json:"p50"`
 		P90       float64            `json:"p90"`
 	} `json:"points"`
-	SafeToSpend float64 `json:"safe_to_spend"`
-	Status      string  `json:"status"`
+	ProbabilityReliable *bool   `json:"probability_reliable,omitempty"`
+	SafeToSpend         float64 `json:"safe_to_spend"`
+
+	// SpendingAvailable False means safe_to_spend must not be presented as a spending recommendation.
+	SpendingAvailable    *bool     `json:"spending_available,omitempty"`
+	SpendingRestrictions *[]string `json:"spending_restrictions,omitempty"`
+	Status               string    `json:"status"`
+	UnconfirmedRecurring *int      `json:"unconfirmed_recurring,omitempty"`
 
 	// UpdateMode fresh_paths, reused_paths or updated_from_actuals. Empty for fallback.
 	UpdateMode *string  `json:"update_mode,omitempty"`
@@ -923,9 +961,10 @@ type Gap struct {
 	Probability float64         `json:"probability"`
 
 	// ProbabilityOnDate Probability of falling below reserve on the first risk date. probability is the risk anywhere in the horizon.
-	ProbabilityOnDate *float32 `json:"probability_on_date,omitempty"`
-	Shortfall         float64  `json:"shortfall"`
-	ShortfallP90      float64  `json:"shortfall_p90"`
+	ProbabilityOnDate   *float32 `json:"probability_on_date,omitempty"`
+	ProbabilityReliable *bool    `json:"probability_reliable,omitempty"`
+	Shortfall           float64  `json:"shortfall"`
+	ShortfallP90        float64  `json:"shortfall_p90"`
 
 	// WorstDate Date of the lowest median balance after the first risk date. The explanation and causes cover flows through this date.
 	WorstDate *openapi_types.Date `json:"worst_date,omitempty"`
@@ -950,9 +989,10 @@ type GapDetail struct {
 	Probability float64         `json:"probability"`
 
 	// ProbabilityOnDate Probability of falling below reserve on the first risk date. probability is the risk anywhere in the horizon.
-	ProbabilityOnDate *float32 `json:"probability_on_date,omitempty"`
-	Shortfall         float64  `json:"shortfall"`
-	ShortfallP90      float64  `json:"shortfall_p90"`
+	ProbabilityOnDate   *float32 `json:"probability_on_date,omitempty"`
+	ProbabilityReliable *bool    `json:"probability_reliable,omitempty"`
+	Shortfall           float64  `json:"shortfall"`
+	ShortfallP90        float64  `json:"shortfall_p90"`
 
 	// WorstDate Date of the lowest median balance after the first risk date. The explanation and causes cover flows through this date.
 	WorstDate *openapi_types.Date `json:"worst_date,omitempty"`
@@ -1006,8 +1046,11 @@ type Invoice struct {
 	IssuedAt      openapi_types.Date `json:"issued_at"`
 	Number        string             `json:"number"`
 	PaidAmount    float64            `json:"paid_amount"`
-	Source        string             `json:"source"`
-	Status        string             `json:"status"`
+
+	// ReplacesEventId Explicitly replaces one unpaid manual or confirmed detected recurring payment. The invoice is counted once.
+	ReplacesEventId *openapi_types.UUID `json:"replaces_event_id,omitempty"`
+	Source          string              `json:"source"`
+	Status          string              `json:"status"`
 }
 
 // Job defines model for Job.
@@ -1058,17 +1101,23 @@ type ModelInfo struct {
 
 // ModelQuality defines model for ModelQuality.
 type ModelQuality struct {
-	Coverage    *float64 `json:"coverage"`
-	Description string   `json:"description"`
-	GapLeadDays *float64 `json:"gap_lead_days"`
-	GapRecall   *float64 `json:"gap_recall"`
-	Limitations []string `json:"limitations"`
-	Name        string   `json:"name"`
-	Series      []Object `json:"series"`
-	Source      string   `json:"source"`
-	Wape14      *float64 `json:"wape_14"`
-	Wape30      *float64 `json:"wape_30"`
-	Wape7       *float64 `json:"wape_7"`
+	Coverage       *float64 `json:"coverage"`
+	Description    string   `json:"description"`
+	GapAlerts      *float32 `json:"gap_alerts"`
+	GapEvents      *float32 `json:"gap_events"`
+	GapFalseAlerts *float32 `json:"gap_false_alerts"`
+	GapLeadDays    *float64 `json:"gap_lead_days"`
+	GapPrecision   *float32 `json:"gap_precision"`
+	GapRecall      *float64 `json:"gap_recall"`
+	Limitations    []string `json:"limitations"`
+	Name           string   `json:"name"`
+	NewGapEvents   *float32 `json:"new_gap_events"`
+	Runs           *float32 `json:"runs"`
+	Series         []Object `json:"series"`
+	Source         string   `json:"source"`
+	Wape14         *float64 `json:"wape_14"`
+	Wape30         *float64 `json:"wape_30"`
+	Wape7          *float64 `json:"wape_7"`
 }
 
 // OAuthProvider defines model for OAuthProvider.
@@ -1128,14 +1177,19 @@ type ParseEventInput struct {
 
 // PlanFactPoint defines model for PlanFactPoint.
 type PlanFactPoint struct {
-	Deviation *float32           `json:"deviation"`
-	FactIn    *float32           `json:"fact_in"`
-	FactOut   *float32           `json:"fact_out"`
-	Observed  bool               `json:"observed"`
-	Period    openapi_types.Date `json:"period"`
-	PlanIn    float32            `json:"plan_in"`
-	PlanOut   float32            `json:"plan_out"`
+	Deviation     *float32                `json:"deviation"`
+	FactIn        *float32                `json:"fact_in"`
+	FactOut       *float32                `json:"fact_out"`
+	Observed      bool                    `json:"observed"`
+	Period        openapi_types.Date      `json:"period"`
+	PlanAvailable *bool                   `json:"plan_available,omitempty"`
+	PlanBasis     *PlanFactPointPlanBasis `json:"plan_basis,omitempty"`
+	PlanIn        *float32                `json:"plan_in"`
+	PlanOut       *float32                `json:"plan_out"`
 }
+
+// PlanFactPointPlanBasis defines model for PlanFactPoint.PlanBasis.
+type PlanFactPointPlanBasis string
 
 // PlannedEvent defines model for PlannedEvent.
 type PlannedEvent struct {
@@ -1168,8 +1222,10 @@ type PlannedEvent struct {
 	PaymentStatus    *string             `json:"payment_status,omitempty"`
 	Probability      float64             `json:"probability"`
 	RemainingKopecks *int64              `json:"remaining_kopecks,omitempty"`
+	RequestId        *openapi_types.UUID `json:"request_id,omitempty"`
 	Source           string              `json:"source"`
 	SourceId         *openapi_types.UUID `json:"source_id"`
+	SourceRef        *string             `json:"source_ref,omitempty"`
 	Status           string              `json:"status"`
 	Title            string              `json:"title"`
 	TotalKopecks     *int64              `json:"total_kopecks,omitempty"`
@@ -1593,7 +1649,10 @@ type UpdateInvoiceInput struct {
 	IssuedAt         *openapi_types.Date          `json:"issued_at,omitempty"`
 	Number           *string                      `json:"number,omitempty"`
 	PaidAmount       *float64                     `json:"paid_amount,omitempty"`
-	Status           *UpdateInvoiceInputStatus    `json:"status,omitempty"`
+
+	// ReplacesEventId Explicitly replaces one unpaid manual or confirmed detected recurring payment. The invoice is counted once.
+	ReplacesEventId *openapi_types.UUID       `json:"replaces_event_id,omitempty"`
+	Status          *UpdateInvoiceInputStatus `json:"status,omitempty"`
 }
 
 // UpdateInvoiceInputDirection defines model for UpdateInvoiceInput.Direction.
