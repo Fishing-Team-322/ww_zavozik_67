@@ -332,7 +332,7 @@ test('source controls and synthetic FNS XML persist without manufacturing bank f
   await expect(dialog).toHaveCount(0);
   expect((await w.get('/operations?limit=1')).total).toBe(240);
   await page.goto('/methodology');
-  await expect(page.getByRole('heading', { name: 'Опубликованные оценки моделей', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Проверка контрольного датасета', exact: true })).toBeVisible();
   await expect(page.locator('main').getByRole('alert')).toHaveCount(0);
   await page.goto('/admin');
   await expect(page.getByRole('status').filter({ hasText: '403 · У вас нет доступа' })).toBeVisible();

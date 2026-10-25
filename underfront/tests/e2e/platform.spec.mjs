@@ -252,7 +252,7 @@ test('synthetic CSV drives dashboard, forecast and a persistent manual event', a
   await expect(page.getByRole('heading', { name: 'Почему не хватает денег', exact: true })).toBeVisible();
   await expect(page.locator('main')).toContainText('E2E manual payment');
   await page.screenshot({ path: path.join(screenshots, 'risk-synthetic.png') });
-  for (const [route, heading] of [['/documents', 'Счета, договоры и налоги'], ['/recurring', 'Регулярные платежи'], ['/plan-fact', 'План и факт'], ['/counterparties', 'Контрагенты'], ['/notifications', 'Уведомления'], ['/settings', 'Настройки компании'], ['/methodology', 'Как мы считаем']]) {
+  for (const [route, heading] of [['/documents', 'Счета, договоры и налоги'], ['/recurring', 'Регулярные платежи'], ['/plan-fact', 'План и факт'], ['/counterparties', 'Контрагенты'], ['/notifications', 'Уведомления'], ['/settings', 'Настройки компании'], ['/methodology', 'Проверка контрольного датасета']]) {
     await navigate(page, route);
     await expect(page.getByRole('heading', { name: heading, exact: true })).toBeVisible();
     await expect(page.getByText('Загружаем данные…', { exact: true })).toHaveCount(0);

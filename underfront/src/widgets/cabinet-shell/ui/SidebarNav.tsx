@@ -119,7 +119,7 @@ export const defaultCabinetNav: SidebarNavItem[] = [
   { href: "/taxes", label: "Налоги", icon: FileSpreadsheet, section: "Дополнительно" },
   { href: "/counterparties", label: "Контрагенты", icon: CounterpartiesIcon, section: "Дополнительно" },
   { href: "/notifications", label: "Уведомления", icon: Activity, section: "Дополнительно" },
-  { href: "/methodology", label: "Как мы считаем", icon: MethodologyIcon, section: "Дополнительно" },
+  { href: "/methodology", label: "Проверка прогнозов", icon: MethodologyIcon, section: "Дополнительно" },
   { href: "/settings", label: "Настройки", icon: SlidersHorizontal, section: "Дополнительно" },
   { href: "/development/components", label: "Buttons and fields", icon: LayoutGrid, section: "Development" },
   { href: "/test", label: "Payment calendar demo", icon: FlaskConical, section: "Development" },

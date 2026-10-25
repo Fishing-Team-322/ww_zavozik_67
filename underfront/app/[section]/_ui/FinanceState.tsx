@@ -58,7 +58,7 @@ export function ForecastNotice({ forecast }: { forecast: Forecast | null }) {
         </p>
       )}
       {forecast.low_confidence && (
-        <p>Надёжность оценки ограничена полнотой истории.</p>
+        <p>Надёжность оценки ограничена качеством данных и допущениями расчёта.</p>
       )}
       {forecast.warnings.includes("overdue_additional_expenses_carried_forward") && (
         <p>
