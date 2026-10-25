@@ -1,0 +1,30 @@
+{
+  "runs": [
+    {
+      "name": "case_counts_60",
+      "dir": "ml/data/case_reference_60",
+      "cohorts": ["unseen", "seen_future"],
+      "note": "Count bootstrap + naive on 36/12/12 split, 2 test origins (2026-04-30, 2026-05-30). Internal reference."
+    },
+    {
+      "name": "event_models_2_origins",
+      "dir": "ml/data/event_benchmark_v3",
+      "cohorts": ["unseen", "seen_future"],
+      "note": "Five event generators vs naive/gbm/ensemble/count on the same 2 origins, 300 paths."
+    },
+    {
+      "name": "event_adjust_11_origins_pooled",
+      "dir": "ml/data/event_adjust_v4",
+      "summary": "summary.csv",
+      "cohorts": ["unseen", "seen_future"],
+      "note": "Month-end origins 2025-07..2026-05; 8 in-sample dates, 3 out-of-fit. Mixture and spread variants."
+    },
+    {
+      "name": "event_adjust_11_origins_out_of_fit",
+      "dir": "ml/data/event_adjust_v4",
+      "summary": "summary_out_of_fit.csv",
+      "cohorts": ["unseen", "seen_future"],
+      "note": "Only the 3 out-of-fit origins (2026-03-31, 2026-04-30, 2026-05-31). Headline comparison."
+    }
+  ]
+}

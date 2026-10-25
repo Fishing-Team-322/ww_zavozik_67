@@ -1,0 +1,41 @@
+{
+  "generated_from": "runs.json",
+  "git_head": "c976f0bb5cc34b5a0cba33832e1093543e6065cc",
+  "spec_sha256": "bf7ee270f86bd7e42bdb110be97264908d6ad4b4ec090b07d6dedbc050e1be0f",
+  "runs": [
+    {
+      "name": "case_counts_60",
+      "dir": "ml/data/case_reference_60",
+      "summary_sha256": "37cc5d0daa246288f7b181f36f763c501a2897880f310f77a636916d1c0f7424",
+      "note": "Count bootstrap + naive on 36/12/12 split, 2 test origins (2026-04-30, 2026-05-30). Internal reference.",
+      "metadata_sha256": "e1695abc3d9c177aa797e7b2787b956597a28aee82a1892b9457a5b3943bc346",
+      "run_status": "internal_development_reference_not_independent_audit"
+    },
+    {
+      "name": "event_models_2_origins",
+      "dir": "ml/data/event_benchmark_v3",
+      "summary_sha256": "bef7f205dd4c5e779c833a78139310363b797cdbb878190ec967a31cb6f95cae",
+      "note": "Five event generators vs naive/gbm/ensemble/count on the same 2 origins, 300 paths.",
+      "metadata_sha256": "87158746b9137ed8e7372ec070a202e2162f8e6917133564c0d18a581c00e4d0",
+      "run_status": "complete_internal_reference_not_independent_audit"
+    },
+    {
+      "name": "event_adjust_11_origins_pooled",
+      "dir": "ml/data/event_adjust_v4",
+      "summary_sha256": "1f76ae25af488891c2148b6de43fa21205975570b2183a4e146b96a357025801",
+      "note": "Month-end origins 2025-07..2026-05; 8 in-sample dates, 3 out-of-fit. Mixture and spread variants.",
+      "metadata_sha256": "eb4dda6b510898fa3fb7c81235dbb1c992d221788fea8f4dc914b72d9e62ce81",
+      "run_status": "adjustment_experiment_internal_reference"
+    },
+    {
+      "name": "event_adjust_11_origins_out_of_fit",
+      "dir": "ml/data/event_adjust_v4",
+      "summary_sha256": "6c7f512ad193f9f43cfb32a72f3495b76c8992e32628407060e83df3728030d0",
+      "note": "Only the 3 out-of-fit origins (2026-03-31, 2026-04-30, 2026-05-31). Headline comparison.",
+      "metadata_sha256": "eb4dda6b510898fa3fb7c81235dbb1c992d221788fea8f4dc914b72d9e62ce81",
+      "run_status": "adjustment_experiment_internal_reference"
+    }
+  ],
+  "rows": 62,
+  "note": "Values are copied from completed runs; see each run's metadata.json for config, split and hashes. Cohorts differ between benchmarks and must not be pooled."
+}
