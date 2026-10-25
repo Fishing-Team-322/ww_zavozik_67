@@ -396,3 +396,124 @@ def test_quiet_complete_weeks_remain_available_as_donors():
     complete = hybrid._complete_weeks(h)
     assert len(weeks) == len(complete) >= 3
     assert sum(len(rows) == 0 for rows in by_week.values()) == len(complete) - 1
+
+
+def constant_amount_history(amount=400.0, days=400):
+    dates = dates_of(days)
+    work = cal.is_workday(dates)
+    return build([dict(date=pd.Timestamp(day), direction=0, amount=amount, category="sales",
+                       counterparty="")
+                  for day, ok in zip(dates, work) if ok], days=days)
+
+
+def phase_history(days=540):
+    """Monthly payment on day 5 with a per-month counterparty, so no schedule is detected."""
+    records = [dict(row, counterparty=f"payer{row['date'].year}-{row['date'].month}")
+               for row in monthly(days=days)]
+    return build(records, days=days)
+
+
+def test_stationary_level_factor_keeps_amounts_unchanged():
+    h = constant_amount_history()
+    assert hybrid._level_factor(h, 0) == 1.0
+    assert hybrid._level_factor(h, 1) == 1.0
+    paths = Model().fit([h]).sample(h, 30, 10, np.random.default_rng(31))
+    assert len(paths.events)
+    assert paths.diagnostics["level_factor"] == {"0": 1.0, "1": 1.0}
+    assert (paths.events.amount == 400.0).all()
+
+
+def test_level_factor_follows_upward_drift_and_scales_sampled_totals(monkeypatch):
+    days = 400
+    dates = dates_of(days)
+    work = cal.is_workday(dates)
+    records = [dict(date=pd.Timestamp(day), direction=0,
+                    amount=130.0 if index >= days - hybrid._LEVEL_RECENT_DAYS else 100.0,
+                    category="sales", counterparty="")
+               for index, (day, ok) in enumerate(zip(dates, work)) if ok]
+    h = build(records, days=days)
+    factor = hybrid._level_factor(h, 0)
+    assert 1.0 < factor < 1.25
+    assert hybrid._level_factor(h, 1) == 1.0
+    model = Model().fit([h])
+    scaled = model.sample(h, 40, 20, np.random.default_rng(32))
+    monkeypatch.setattr(hybrid, "_level_factor", lambda history, direction: 1.0)
+    plain = model.sample(h, 40, 20, np.random.default_rng(32))
+    assert scaled.diagnostics["level_factor"]["0"] == pytest.approx(factor)
+    assert scaled.diagnostics["level_factor"]["1"] == 1.0
+    assert scaled.events.amount.sum() > plain.events.amount.sum()
+    pd.testing.assert_frame_equal(scaled.events.drop(columns="amount"),
+                                  plain.events.drop(columns="amount"))
+
+
+def test_level_correction_changes_only_amounts(monkeypatch):
+    h = mixed_history()
+    model = Model().fit([h])
+    scaled = model.sample(h, 30, 20, np.random.default_rng(35))
+    monkeypatch.setattr(hybrid, "_level_factor", lambda history, direction: 1.0)
+    plain = model.sample(h, 30, 20, np.random.default_rng(35))
+    pd.testing.assert_frame_equal(scaled.events.drop(columns="amount"),
+                                  plain.events.drop(columns="amount"))
+    assert scaled.diagnostics["level_factor"]["1"] == 1.0
+    assert scaled.diagnostics["level_factor"]["0"] != 1.0
+    in_factor = scaled.diagnostics["level_factor"]["0"]
+    expected = plain.events.amount.to_numpy(float) * np.where(scaled.events.direction == 0, in_factor, 1.0)
+    assert np.allclose(scaled.events.amount.to_numpy(float), expected)
+
+
+def test_sparse_or_empty_direction_keeps_unit_level_factor():
+    dates = dates_of(200)
+    sparse = build([dict(date=pd.Timestamp(dates[index]), direction=1, amount=amount,
+                         category="misc", counterparty="cp")
+                    for index, amount in zip((0, 40, 80), (100.0, 200.0, 300.0))], days=200)
+    assert hybrid._level_factor(sparse, 1) == 1.0
+    assert hybrid._level_factor(sparse, 0) == 1.0  # empty direction
+    assert hybrid._level_factor(build([], days=90), 0) == 1.0  # empty history
+    zero = build([dict(date=pd.Timestamp(dates[0]), direction=0, amount=0.0,
+                       category="misc", counterparty="")], days=200)
+    assert hybrid._level_factor(zero, 0) == 1.0  # positive amounts only
+    paths = Model().fit([sparse]).sample(sparse, 20, 3, np.random.default_rng(33))
+    assert paths.diagnostics["level_factor"] == {"0": 1.0, "1": 1.0}
+
+
+def test_monthly_phase_weighting_concentrates_generated_dates(monkeypatch):
+    h = phase_history()
+    assert hybrid._detect_streams(h.events, h.dates[h.known]) == []
+    model = Model().fit([h])
+    shares = {}
+    for weight in (0.0, 0.5):
+        monkeypatch.setattr(hybrid, "PHASE_WEIGHT", weight)
+        paths = model.sample(h, 120, 120, np.random.default_rng(77))
+        dom = pd.DatetimeIndex(paths.dated_events().date).day.to_numpy()
+        assert len(dom)
+        shares[weight] = float((dom <= 10).mean())
+    assert shares[0.5] > shares[0.0]
+    assert shares[0.5] > 0.5
+
+
+def test_week_bootstrap_respects_allowed_mask_and_is_deterministic():
+    stamps = hybrid._to_int(dates_of(49, "2025-01-06"))  # seven whole weeks
+    weeks = sorted({int(week) for week in hybrid._week_starts(stamps)})
+    by_week = {week: [(0, 1, 100.0, "rent", "landlord"), (2, 1, 100.0, "rent", "landlord")]
+               for week in weeks}
+    targets = weeks[:3]
+    span = np.arange(weeks[0], weeks[2] + 7, dtype=np.int64)
+    allowed = np.ones(len(span), dtype=bool)
+    allowed[[1, 5, 9]] = False
+    left = hybrid._week_bootstrap(weeks, by_week, targets, span, allowed, np.random.default_rng(42))
+    right = hybrid._week_bootstrap(weeks, by_week, targets, span, allowed, np.random.default_rng(42))
+    assert left == right and left
+    kept = [row["day"] - 1 for row in left]
+    assert all(allowed[index] for index in kept)
+    assert 9 not in kept
+
+
+def test_phase_sampling_is_deterministic_and_seed_sensitive():
+    h = phase_history()
+    model = Model().fit([h])
+    left = model.sample(h, 90, 20, np.random.default_rng(7))
+    right = model.sample(h, 90, 20, np.random.default_rng(7))
+    other = model.sample(h, 90, 20, np.random.default_rng(8))
+    pd.testing.assert_frame_equal(left.events, right.events)
+    assert left.diagnostics == right.diagnostics
+    assert not left.events.equals(other.events)

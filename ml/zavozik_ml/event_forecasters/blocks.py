@@ -18,11 +18,25 @@ are never donors and a week containing an unknown day is rejected as a block
 instead of being read as silence. Target days outside ``history.allowed`` are
 never emitted and their count is reported.
 
+Monthly phase: donors are not matched on weekday alone. Each candidate also
+scores by its position inside the month (days 1-10 / 11-20 / 21-end) and by its
+proximity to the target day, and that score is mixed with the uniform choice, so
+a monthly obligation keeps landing near its day-of-month while no donor ever
+becomes impossible.
+
+Level correction: the emitted amounts of each direction are multiplied once by a
+bounded factor built from the median positive amount of the last 91 known days
+over the last 364. It is applied after the pool rescaling, so a company-relative
+donor amount is never scaled twice; counts, dates, marks and counterparties are
+untouched and the factor is reported in the sample diagnostics.
+
 Stated limits:
-* Monthly schedules (a single rent on the 5th) are not placed on their
-  day-of-month: donors are matched on weekday, so such an obligation inherits
-  the weekday frequency of its donor days.
-* Levels and trends inside the donor window are replayed, not extrapolated.
+* Monthly phase matching shifts the day-of-month distribution, but a direction
+  whose donors carry an event on *every* admissible day keeps its event on every
+  target day (the phase only changes which donor block is replayed).
+* Levels and trends inside the donor window are replayed apart from the bounded
+  recent/baseline correction; drifts steeper than the [0.8, 1.25] clip are not
+  extrapolated.
 * Whole-week mode needs a donor week whose admissible weekdays cover the target
   week; when none covers it the horizon falls back to single-day blocks and the
   fallback is reported.
@@ -44,10 +58,28 @@ _MIN_DEPENDENCE_PAIRS = 8
 # A local history with fewer event-bearing days cannot be resampled on its own
 # and backs off to fit-only industry/global donors instead.
 _MIN_LOCAL_EVENT_DAYS = 3
+# Share of the donor selection mass given to the month-phase score; the rest
+# stays uniform so sparse pools keep working and no donor becomes impossible.
+PHASE_WEIGHT = 0.5
+# Month-phase score by |phase(target) - phase(donor)| in {0, 1, 2} and the decay
+# of the day-of-month distance.
+_PHASE_SAME, _PHASE_ADJACENT, _PHASE_FAR = 1.0, 0.5, 0.2
+_PHASE_PROXIMITY_DAYS = 5.0
+# Bounded monetary level correction over the last 91 known days against 364.
+_LEVEL_RECENT_DAYS = 91
+_LEVEL_BASELINE_DAYS = 364
+_LEVEL_MIN_POSITIVE = 8
+_LEVEL_SHRINK = 20.0
+_LEVEL_MIN_FACTOR, _LEVEL_MAX_FACTOR = 0.8, 1.25
 
 
 def _day_numbers(dates) -> np.ndarray:
     return np.asarray(dates, dtype="datetime64[D]").astype(np.int64)
+
+
+def _day_of_month(dates) -> np.ndarray:
+    dates = np.asarray(dates, dtype="datetime64[D]")
+    return (dates - dates.astype("datetime64[M]")).astype(np.int64) + 1
 
 
 def _weekday(dates) -> np.ndarray:
@@ -103,6 +135,64 @@ def _weekly_dependence(history):
 def _mean_dependence(histories):
     scores = [score for score in (_weekly_dependence(h) for h in histories) if score is not None]
     return float(np.mean(scores)) if scores else None
+
+
+def _month_phase(day_of_month) -> np.ndarray:
+    """0 for days 1-10, 1 for 11-20, 2 for 21 to end of month."""
+    dom = np.asarray(day_of_month, dtype=np.int64)
+    return np.where(dom <= 10, 0, np.where(dom <= 20, 1, 2))
+
+
+def _phase_weights(target_day_of_month, donor_day_of_month) -> np.ndarray:
+    """Month-position agreement, decayed by the distance to the target day."""
+    gap = np.abs(_month_phase(target_day_of_month) - _month_phase(donor_day_of_month))
+    phase = np.where(gap == 0, _PHASE_SAME, np.where(gap == 1, _PHASE_ADJACENT, _PHASE_FAR))
+    distance = np.abs(np.asarray(target_day_of_month, dtype=np.int64)
+                      - np.asarray(donor_day_of_month, dtype=np.int64))
+    return phase * np.exp(-distance / _PHASE_PROXIMITY_DAYS)
+
+
+def _mixed_weights(score) -> np.ndarray:
+    """Blend a phase score with the uniform choice so every donor stays possible."""
+    weights = np.asarray(score, dtype=np.float64)
+    uniform = np.full(weights.shape, 1.0 / len(weights), dtype=np.float64)
+    total = float(weights.sum())
+    if not np.isfinite(total) or total <= 0.0:
+        return uniform
+    return (1.0 - PHASE_WEIGHT) * uniform + PHASE_WEIGHT * (weights / total)
+
+
+def _weighted_pick(weights, rng) -> int:
+    """One donor position drawn from ``weights`` with the caller's generator."""
+    cumulative = np.cumsum(weights)
+    position = int(np.searchsorted(cumulative, rng.random() * cumulative[-1], side="right"))
+    return min(position, len(weights) - 1)
+
+
+def _level_factor(history, direction) -> float:
+    """Bounded monetary level correction for one direction of one history.
+
+    Only positive amounts visible at this cutoff enter; a window with fewer than
+    ``_LEVEL_MIN_POSITIVE`` of them leaves the direction untouched (``1.0``), and
+    the shrunk median ratio is clipped so one busy fortnight cannot rescale the
+    whole horizon.
+    """
+    dates = np.asarray(history.dates, dtype="datetime64[D]")
+    events = history.events
+    if not len(events):
+        return 1.0
+    offset = (events.date.to_numpy(dtype="datetime64[D]") - dates[0]).astype(np.int64)
+    positive = (events.direction.to_numpy(int) == int(direction)) & (events.amount.to_numpy(float) > 0.0)
+    offset, amount = offset[positive], events.amount.to_numpy(float)[positive]
+    recent = amount[offset >= max(0, len(dates) - _LEVEL_RECENT_DAYS)]
+    baseline = amount[offset >= max(0, len(dates) - _LEVEL_BASELINE_DAYS)]
+    if len(recent) < _LEVEL_MIN_POSITIVE or len(baseline) < _LEVEL_MIN_POSITIVE:
+        return 1.0
+    ratio = float(np.median(recent) / np.median(baseline))
+    if not np.isfinite(ratio) or ratio <= 0.0:
+        return 1.0
+    weight = len(recent) / (len(recent) + _LEVEL_SHRINK)
+    return float(np.clip(np.exp(weight * np.log(ratio)), _LEVEL_MIN_FACTOR, _LEVEL_MAX_FACTOR))
 
 
 class _DayStore:
@@ -285,6 +375,24 @@ def _week_plan(levels, runs, weekday, allowed):
     return plan
 
 
+def _week_weights(pool, keys, run, weekday, allowed, target_day_of_month) -> np.ndarray:
+    """Donor-week selection weights for one target week run.
+
+    A candidate week is scored by the mean per-day month-phase weight over the
+    run's admissible days, so the block still moves as a whole and the weekly
+    dependence survives.
+    """
+    days = [int(day) for day in run if allowed[day]]
+    target = np.asarray(target_day_of_month, dtype=np.int64)[days]
+    score = np.empty(len(keys), dtype=np.float64)
+    for position, key in enumerate(keys):
+        block = pool.week_blocks[int(key)][1]
+        donor = np.array([_day_of_month(pool.store.dates[block[int(weekday[day])]]) for day in days],
+                         dtype=np.int64)
+        score[position] = float(np.mean(_phase_weights(target, donor)))
+    return _mixed_weights(score)
+
+
 def _week_runs(week_ids, horizon):
     runs, start = [], 0
     for position in range(1, horizon + 1):
@@ -347,8 +455,10 @@ class Model:
         target = as_of + np.arange(1, horizon + 1).astype("timedelta64[D]")
         weekday = _weekday(target)
         week_ids = _week_ids(target)
+        target_day_of_month = _day_of_month(target)
         allowed = np.asarray(history.allowed(target), dtype=bool)
         target_scale = np.array([history.amount_scale(0), history.amount_scale(1)], dtype=np.float64)
+        level_factor = np.array([_level_factor(history, 0), _level_factor(history, 1)], dtype=np.float64)
 
         local = _build_pool([history], None, rescale=False).visible(as_of)
         levels: list[tuple[str, _BlockPool]] = []
@@ -370,6 +480,8 @@ class Model:
         runs = _week_runs(week_ids, horizon)
         plan = _week_plan(levels, runs, weekday, allowed) if weekly_blocks_wanted else None
         use_week = plan is not None
+        week_weights = ([_week_weights(pool, keys, run, weekday, allowed, target_day_of_month)
+                         for run, pool, _name, keys in plan] if plan else [])
         picks = [_pick_day(levels, value) for value in range(7)]
 
         cap = max(1, int(self.options.max_events_per_day))
@@ -383,8 +495,8 @@ class Model:
             category_parts: list[np.ndarray] = []
             counterparty_parts: list[np.ndarray] = []
             if use_week:
-                for run, pool, name, keys in plan:
-                    block = pool.week_blocks[int(keys[int(rng.integers(len(keys)))])][1]
+                for (run, pool, name, keys), weights in zip(plan, week_weights):
+                    block = pool.week_blocks[int(keys[_weighted_pick(weights, rng)])][1]
                     counts[name] += int(np.count_nonzero(allowed[run]))
                     for day in run:
                         if not allowed[day]:
@@ -406,8 +518,11 @@ class Model:
                     counts[level] += len(days)
                     if relaxed:
                         counts["weekday_relaxed"] += len(days)
-                    donors[days] = index[rng.integers(0, len(index), size=len(days))]
+                    donor_day_of_month = _day_of_month(pool.store.dates[index])
                     for day in days:
+                        weights = _mixed_weights(_phase_weights(target_day_of_month[day],
+                                                              donor_day_of_month))
+                        donors[day] = index[_weighted_pick(weights, rng)]
                         owners[day] = pool
                 for day in np.flatnonzero(donors >= 0):
                     self._take(owners[day], int(donors[day]), int(day) + 1, target_scale,
@@ -420,8 +535,10 @@ class Model:
                 continue
             columns["path"].append(np.full(int(keep.sum()), path, dtype=np.int64))
             columns["day"].append(days_drawn[keep])
-            columns["direction"].append(np.concatenate(direction_parts)[keep])
-            columns["amount"].append(np.concatenate(amount_parts)[keep])
+            direction = np.concatenate(direction_parts)[keep]
+            columns["direction"].append(direction)
+            # Level correction is applied exactly once, after every pool rescaling.
+            columns["amount"].append(np.concatenate(amount_parts)[keep] * level_factor[direction])
             columns["category"].append(np.concatenate(category_parts)[keep])
             columns["counterparty"].append(np.concatenate(counterparty_parts)[keep])
 
@@ -448,6 +565,8 @@ class Model:
             "cap_events_per_day": cap,
             "clipped_events": clipped_events,
             "generated_events": int(len(records.get("path", []))),
+            "phase_weight": float(PHASE_WEIGHT),
+            "level_factor": {"0": float(level_factor[0]), "1": float(level_factor[1])},
         }
         return EventPaths.from_records(history, horizon, n_paths, records, diagnostics)
 

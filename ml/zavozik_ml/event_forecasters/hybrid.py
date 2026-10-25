@@ -20,6 +20,11 @@ anchor day is observed, and the residual bootstrap only re-uses complete weeks.
 counted in ``EventPaths.diagnostics["clipped_events"]``. ``rounds``, ``epochs``,
 ``hidden_size`` and ``threads`` are unused (no learned network / count model);
 ``seed`` is honoured by the caller-built ``rng`` of :meth:`Model.sample`.
+
+Emitted amounts carry one bounded level correction per direction (recent 91-day
+median over the 364-day baseline, shrunk and clipped) and residual weeks are
+drawn with a monthly-phase similarity bonus mixed into the uniform donor choice.
+Both are reported in ``EventPaths.diagnostics`` and never change counts or dates.
 """
 from __future__ import annotations
 
@@ -54,6 +59,14 @@ _DEFAULT_OCCURRENCE = 0.85
 _MAX_POOL = 2000
 _MIN_LOCAL_AMOUNTS = 5
 _MIN_LOCAL_RATE_ROWS = 8
+PHASE_WEIGHT = 0.5  # mix of phase-similarity against uniform donors; 0.0 disables it
+_PHASE_SAME, _PHASE_ADJACENT, _PHASE_OTHER = 1.0, 0.5, 0.2
+_PHASE_EOM_DECAY_DAYS = 5.0
+_LEVEL_RECENT_DAYS = 91
+_LEVEL_BASELINE_DAYS = 364
+_LEVEL_MIN_AMOUNTS = 8
+_LEVEL_SHRINKAGE = 20.0
+_LEVEL_BOUNDS = (0.8, 1.25)
 
 
 def _to_int(dates):
@@ -90,6 +103,12 @@ def _month_day(months, day_of_month):
     months = np.asarray(months, dtype=np.int64)
     length = _month_first_day(months + 1) - _month_first_day(months)
     return _month_first_day(months) + np.minimum(int(day_of_month), length) - 1
+
+
+def _month_phase(days):
+    """Position in the month: 0 for days 1-10, 1 for 11-20, 2 for 21-end."""
+    dom = _day_of_month(days)
+    return np.where(dom <= 10, 0, np.where(dom <= 20, 1, 2))
 
 
 def _anchor_days(days, column, value):
@@ -278,12 +297,14 @@ def _residual_by_week(residual, history):
     return weeks, by_week
 
 
-def _week_bootstrap(weeks, by_week, targets, dates, allowed, rng):
+def _week_bootstrap(weeks, by_week, targets, dates, allowed, rng, scores=None):
     """Whole-week donor bootstrap: keep each donor week's intra-week burst shape."""
     first, last = int(dates[0]), int(dates[-1])
+    if scores is None:  # caller may precompute the calendar-only scores once per sample
+        scores = _phase_scores(weeks, targets, first, last, allowed)
     rows = []
-    for target in targets:
-        donor = weeks[int(rng.integers(len(weeks)))]
+    for row, target in enumerate(targets):
+        donor = weeks[_donor_index(scores[row], rng)]
         for offset, direction, amount, category, counterparty in by_week[donor]:
             day = int(target) + offset
             if not first <= day <= last or not allowed[day - first]:
@@ -291,6 +312,48 @@ def _week_bootstrap(weeks, by_week, targets, dates, allowed, rng):
             rows.append(dict(day=day - first + 1, direction=direction, amount=amount,
                              category=category, counterparty=counterparty))
     return rows
+
+
+def _day_phase_weight(day, donor_days):
+    """Similarity of one target day to donor days: phase band times end-of-month proximity."""
+    target_phase = int(_month_phase(np.array([day], dtype=np.int64))[0])
+    gap = np.abs(target_phase - _month_phase(donor_days))
+    similarity = np.where(gap == 0, _PHASE_SAME, np.where(gap == 1, _PHASE_ADJACENT, _PHASE_OTHER))
+    target_dom = int(_day_of_month(np.array([day], dtype=np.int64))[0])
+    proximity = np.exp(-np.abs(target_dom - _day_of_month(donor_days)) / _PHASE_EOM_DECAY_DAYS)
+    return similarity * proximity
+
+
+def _phase_scores(weeks, targets, first, last, allowed):
+    """Per donor week, mean similarity of its shape to the target week's allowed days.
+
+    A target day is compared with the donor day at the same intra-week offset because the
+    bootstrap re-plays the whole donor week; that keeps weekly dependence intact.
+    """
+    weeks = np.asarray(weeks, dtype=np.int64)
+    donor_days = weeks[:, None] + np.arange(7, dtype=np.int64)[None, :]
+    scores = np.zeros((len(targets), len(weeks)))
+    for row, target in enumerate(int(value) for value in targets):
+        offsets = [offset for offset in range(7)
+                   if first <= target + offset <= last and allowed[target + offset - first]]
+        if not offsets:
+            continue
+        for offset in offsets:
+            scores[row] += _day_phase_weight(target + offset, donor_days[:, offset])
+        scores[row] /= len(offsets)
+    return scores
+
+
+def _donor_index(scores, rng):
+    """Uniform-plus-phase donor draw; every donor keeps a positive uniform share."""
+    count = len(scores)
+    if PHASE_WEIGHT <= 0.0:
+        return int(rng.integers(count))
+    total = float(scores.sum()) if np.isfinite(scores).all() else 0.0
+    weights = np.full(count, 1.0 / count)
+    if total > 0.0:
+        weights = (1.0 - PHASE_WEIGHT) * weights + PHASE_WEIGHT * (scores / total)
+    return int(rng.choice(count, p=weights / weights.sum()))
 
 
 def _pick_category(weights, rng):
@@ -339,6 +402,34 @@ def _shrunk_occurrence(stream, priors):
         "p_occur", _DEFAULT_OCCURRENCE)
     value = (stream.occurrences + _PRIOR_STRENGTH * float(prior)) / (stream.due + _PRIOR_STRENGTH)
     return float(min(1.0, max(0.05, value)))
+
+
+def _level_factor(history, direction):
+    """Bounded recent-over-baseline median level for one direction at this cutoff.
+
+    Positive amounts only, from origin-visible events. Fewer than eight positive
+    amounts in either window (or an empty history) leaves the level untouched.
+    """
+    events = history.events
+    if not len(events):
+        return 1.0
+    mask = (events.direction.to_numpy(int) == int(direction)) & (events.amount.to_numpy(float) > 0)
+    if not mask.any():
+        return 1.0
+    day = _to_int(events.date)[mask]
+    amount = events.amount.to_numpy(float)[mask]
+    as_of = int(_to_int(np.array([history.as_of], dtype="datetime64[D]"))[0])
+    recent = amount[day > as_of - _LEVEL_RECENT_DAYS]
+    baseline = amount[day > as_of - _LEVEL_BASELINE_DAYS]
+    if len(recent) < _LEVEL_MIN_AMOUNTS or len(baseline) < _LEVEL_MIN_AMOUNTS:
+        return 1.0
+    reference = float(np.median(baseline))
+    if reference <= 0.0:
+        return 1.0
+    ratio = float(np.median(recent)) / reference
+    weight = len(recent) / (len(recent) + _LEVEL_SHRINKAGE)
+    factor = float(np.exp(weight * np.log(ratio)))
+    return float(np.clip(factor, *_LEVEL_BOUNDS))
 
 
 def _stream_amount(stream, history, priors, amounts, rng):
@@ -476,6 +567,8 @@ class Model:
         plans = [_stream_plan(stream, stamps, allowed, horizon_anchors, first, last) for stream in streams]
         target_weeks = np.unique(_week_starts(stamps)).tolist()
         weeks, by_week = _residual_by_week(residual, history)
+        week_scores = _phase_scores(weeks, target_weeks, first, last, allowed) if weeks else None
+        level = {direction: _level_factor(history, direction) for direction in (0, 1)}
         local = len(residual) >= _MIN_LOCAL_RATE_ROWS
         source = "local_weeks" if weeks else ("local_rate" if local else "pooled")
         rates, marks = ({0: 0.0, 1: 0.0}, {0: {}, 1: {}}) if weeks else self._rate_model(history, residual, local)
@@ -498,7 +591,8 @@ class Model:
                                      counterparty=stream.counterparty, known_event_id=""))
             stream_events += len(rows)
             if source == "local_weeks":
-                week_rows = _week_bootstrap(weeks, by_week, target_weeks, stamps, allowed, rng)
+                week_rows = _week_bootstrap(weeks, by_week, target_weeks, stamps, allowed, rng,
+                                            week_scores)
             else:
                 week_rows = _count_model(allowed, rates, marks,
                                          lambda direction, category: self.amounts.sample(
@@ -507,6 +601,8 @@ class Model:
             for row in week_rows:
                 rows.append(dict(row, path=path, known_event_id=""))
             rows, cut = _cap_rows(rows, int(self.options.max_events_per_day), rng)
+            for row in rows:  # exactly one level correction per event, after every scaling step
+                row["amount"] = float(row["amount"]) * level[int(row["direction"])]
             clipped += cut
             records.extend(rows)
         diagnostics = dict(paths=n_paths, horizon=horizon, streams=len(streams),
@@ -515,6 +611,7 @@ class Model:
                            assigned_rows=int(assigned.sum()), residual_rows=int(len(residual)),
                            residual_source=source, stream_events=int(stream_events),
                            residual_events=int(residual_events), clipped_events=int(clipped),
+                           level_factor={str(direction): float(level[direction]) for direction in (0, 1)},
                            max_events_per_day=int(self.options.max_events_per_day))
         return EventPaths.from_records(history, horizon, n_paths, records, diagnostics)
 

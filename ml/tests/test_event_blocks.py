@@ -8,6 +8,7 @@ import pytest
 
 from tests.event_forecaster_fixtures import histories
 from zavozik_ml import calendar as cal
+from zavozik_ml.event_forecasters import blocks
 from zavozik_ml.event_forecasters.blocks import Model
 from zavozik_ml.event_forecasters.core import EventHistory, FitOptions
 
@@ -36,6 +37,51 @@ def _history(start, days, records, company_id="blocks-company", industry="blocks
 
 def _target(history, horizon):
     return history.dates[-1] + np.arange(1, horizon + 1).astype("timedelta64[D]")
+
+
+def _constant_history(amount_in=100.0, amount_out=40.0):
+    rows = []
+    for day in _workdays("2024-01-01", 200):
+        stamp = pd.Timestamp(day)
+        rows.append(dict(date=stamp, direction=0, amount=amount_in, category="sales", counterparty="shop"))
+        rows.append(dict(date=stamp, direction=1, amount=amount_out, category="buy", counterparty="shop"))
+    return _history("2024-01-01", 200, rows)
+
+
+def _drift_history(start="2023-01-01", days=500):
+    dates = _span(start, days)
+    rows = []
+    for day in _workdays(start, days):
+        offset = int((day - dates[0]).astype(int))
+        amount = 100.0 if offset < days - blocks._LEVEL_RECENT_DAYS else 500.0
+        rows.append(dict(date=pd.Timestamp(day), direction=0, amount=amount, category="sales",
+                         counterparty="shop"))
+    return _history(start, days, rows)
+
+
+def _varied_history(start="2024-01-01", days=260, seed=21):
+    generator = np.random.default_rng(seed)
+    rows = []
+    for day in _workdays(start, days):
+        stamp = pd.Timestamp(day)
+        for _ in range(int(generator.integers(1, 4))):
+            rows.append(dict(date=stamp, direction=0, amount=float(generator.gamma(3.0, 50.0)),
+                             category="sales", counterparty="shop"))
+        if generator.random() < 0.6:
+            rows.append(dict(date=stamp, direction=1, amount=float(generator.gamma(2.0, 40.0)),
+                             category="buy", counterparty="supplier"))
+    return _history(start, days, rows)
+
+
+def _monthly_history(start="2024-01-01", days=366, amount=900.0):
+    """One payment on the 5th that falls on a workday, for twelve months."""
+    rows = []
+    for month in pd.date_range(start, periods=12, freq="MS"):
+        day = month + pd.Timedelta(days=4)
+        if cal.is_workday([np.datetime64(day.date(), "D")])[0]:
+            rows.append(dict(date=day, direction=1, amount=amount, category="rent",
+                             counterparty="landlord"))
+    return _history(start, days, rows)
 
 
 def test_sample_is_deterministic_and_reconciles_with_daily_totals():
@@ -316,3 +362,138 @@ def test_week_mode_falls_back_when_no_donor_week_covers_the_target():
     # Wednesday targets fall back to a relaxed weekday donor, and that is reported.
     assert paths.diagnostics["donor_source_counts"]["weekday_relaxed"] > 0
     assert len(paths.events) > 0
+
+
+def test_stationary_stream_keeps_its_amounts_and_a_unit_factor():
+    history = _constant_history()
+    assert blocks._level_factor(history, 0) == 1.0
+    assert blocks._level_factor(history, 1) == 1.0
+
+    paths = Model().fit([history]).sample(history, 20, 8, np.random.default_rng(3))
+    assert paths.diagnostics["level_factor"] == {"0": 1.0, "1": 1.0}
+    expected = np.where(paths.events.direction.to_numpy(int) == 0, 100.0, 40.0)
+    assert len(expected) > 0
+    np.testing.assert_allclose(paths.events.amount.to_numpy(float), expected, rtol=0, atol=1e-9)
+
+
+def test_recent_drift_raises_the_factor_within_its_clip(monkeypatch):
+    history = _drift_history()
+    factor = blocks._level_factor(history, 0)
+    assert 1.0 < factor <= 1.25
+    # A direction with no positive amounts at all stays untouched.
+    assert blocks._level_factor(history, 1) == 1.0
+
+    paths = Model().fit([history]).sample(history, 30, 10, np.random.default_rng(1))
+    assert paths.diagnostics["level_factor"] == {"0": factor, "1": 1.0}
+
+    monkeypatch.setattr(blocks, "_level_factor", lambda history, direction: 1.0)
+    baseline = Model().fit([history]).sample(history, 30, 10, np.random.default_rng(1))
+    assert len(paths.events) == len(baseline.events) > 0
+    assert paths.events.amount.sum() > baseline.events.amount.sum()
+
+
+def test_level_correction_scales_amounts_once_and_leaves_everything_else(monkeypatch):
+    history = _drift_history()
+    paths = Model().fit([history]).sample(history, 30, 10, np.random.default_rng(1))
+
+    monkeypatch.setattr(blocks, "_level_factor", lambda history, direction: 1.0)
+    baseline = Model().fit([history]).sample(history, 30, 10, np.random.default_rng(1))
+    for key in ("path", "day", "direction", "category", "counterparty"):
+        np.testing.assert_array_equal(paths.events[key].to_numpy(), baseline.events[key].to_numpy())
+
+    level = paths.diagnostics["level_factor"]
+    applied = np.array([level[str(direction)] for direction in baseline.events.direction.to_numpy(int)])
+    assert (applied != 1.0).any(), "the drift fixture must exercise a non-unit factor"
+    np.testing.assert_allclose(paths.events.amount.to_numpy(float),
+                               baseline.events.amount.to_numpy(float) * applied, rtol=1e-12)
+
+
+def test_sparse_and_empty_directions_fall_back_to_a_unit_factor():
+    rows = [dict(date=pd.Timestamp(day), direction=0, amount=100.0, category="sales", counterparty="shop")
+            for day in _workdays("2024-01-01", 120)]
+    sparse = _workdays("2024-01-01", 120)[:3]
+    rows += [dict(date=pd.Timestamp(day), direction=1, amount=amount, category="buy", counterparty="supplier")
+             for day, amount in zip(sparse, (5.0, 6.0, 900.0))]
+    history = _history("2024-01-01", 120, rows)
+
+    # Three positive outflows are below the eight-observation minimum.
+    assert blocks._level_factor(history, 1) == 1.0
+    paths = Model().fit([history]).sample(history, 20, 6, np.random.default_rng(0))
+    assert paths.diagnostics["level_factor"]["1"] == 1.0
+
+    empty = _history("2024-04-01", 40, [])
+    assert blocks._level_factor(empty, 0) == 1.0 and blocks._level_factor(empty, 1) == 1.0
+    silent = Model().fit([]).sample(empty, 20, 4, np.random.default_rng(0))
+    assert silent.diagnostics["level_factor"] == {"0": 1.0, "1": 1.0}
+    assert len(silent.events) == 0
+
+
+def test_month_phase_helper_prefers_the_same_month_position():
+    np.testing.assert_array_equal(blocks._month_phase(np.array([1, 10, 11, 20, 21, 31])),
+                                  np.array([0, 0, 1, 1, 2, 2]))
+    same = blocks._phase_weights(12, np.array([14]))[0]
+    adjacent = blocks._phase_weights(12, np.array([19]))[0]
+    opposite = blocks._phase_weights(12, np.array([25]))[0]
+    assert same > adjacent > opposite > 0.0
+
+    weights = blocks._mixed_weights(blocks._phase_weights(12, np.array([5, 12, 25])))
+    assert (weights > 0).all(), "the uniform half keeps every donor possible"
+    np.testing.assert_allclose(weights.sum(), 1.0)
+
+
+def test_month_phase_weighting_concentrates_a_monthly_payment(monkeypatch):
+    history = _monthly_history()
+    assert set(history.events.date.dt.day) == {5}
+    shares = {}
+    for weight in (0.0, 0.5):
+        monkeypatch.setattr(blocks, "PHASE_WEIGHT", weight)
+        paths = Model().fit([history]).sample(history, 62, 40, np.random.default_rng(4))
+        assert paths.diagnostics["phase_weight"] == weight
+        day_of_month = paths.dated_events().date.dt.day.to_numpy()
+        assert len(day_of_month) > 20
+        shares[weight] = float((day_of_month <= 10).mean())
+
+    # Uniform weekday matching spreads the rent over the month; the phase score
+    # pulls it back toward the first dekad the donor payments actually sit in.
+    assert shares[0.0] < 0.45
+    assert shares[0.5] > shares[0.0] + 0.1
+
+
+def test_masked_donor_days_never_reach_the_output(monkeypatch):
+    start, days = "2025-01-01", 200
+    missing = np.zeros(days, dtype=bool)
+    rows = []
+    for day in _workdays(start, days):
+        offset = int((day - np.datetime64(start, "D")).astype(int))
+        if offset % 17 == 3:
+            missing[offset] = True
+            rows.append(dict(date=pd.Timestamp(day), direction=0, amount=70.0,
+                             category="masked_donor", counterparty=""))
+        else:
+            rows.append(dict(date=pd.Timestamp(day), direction=0, amount=40.0,
+                             category="visible", counterparty=""))
+    history = _history(start, days, rows, missing=missing)
+    assert "masked_donor" not in set(history.events.category.astype(str))
+
+    model = Model().fit([history])
+    admissible = history.dates[history.known & history.allowed(history.dates)]
+    assert np.isin(model.global_pool.store.dates[model.global_pool.day_blocks], admissible).all()
+    for weight in (0.0, 0.5):
+        monkeypatch.setattr(blocks, "PHASE_WEIGHT", weight)
+        paths = model.sample(history, 45, 12, np.random.default_rng(2))
+        assert set(paths.events.category.astype(str)) == {"visible"}
+        allowed = history.allowed(_target(history, 45))
+        assert np.isin(paths.events.day.to_numpy(int) - 1, np.flatnonzero(allowed)).all()
+
+
+def test_phase_and_level_correction_stay_deterministic():
+    history = _varied_history()
+    model = Model().fit([history])
+    first = model.sample(history, 40, 12, np.random.default_rng(17))
+    second = model.sample(history, 40, 12, np.random.default_rng(17))
+    pd.testing.assert_frame_equal(first.events, second.events)
+    assert first.diagnostics == second.diagnostics
+
+    other = model.sample(history, 40, 12, np.random.default_rng(18))
+    assert not other.events.equals(first.events)
+    assert len(other.events) and len(first.events)
