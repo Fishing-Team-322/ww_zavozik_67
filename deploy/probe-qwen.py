@@ -8,6 +8,7 @@ name='puls-qwen-probe-'+sha[:12];image='ghcr.io/fishing-team-322/puls-qwen:'+sha
 meta=json.loads(Path('/opt/puls/qwen-artifact.json').read_text())
 model=meta['server_directory']
 if model!='/opt/puls/models/qwen/'+meta['release_sha256']:raise SystemExit('invalid reviewed model path')
+if model+':/app/qwen-model:ro' not in Path('/opt/puls/compose.yml').read_text():raise SystemExit('probe and production model directories differ')
 def run(args,timeout=60):return subprocess.run(args,check=True,text=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=timeout).stdout
 report={'candidate':sha,'memory_limit_mib':2048,'cpu_limit':2,'network':'none','tests':'synthetic contract/resource probe, not model accuracy'}
 try:
