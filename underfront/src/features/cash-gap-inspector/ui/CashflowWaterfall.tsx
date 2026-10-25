@@ -16,9 +16,9 @@ function WaterfallTooltip({ active, payload }: { active?: boolean; payload?: Arr
   </div>;
 }
 
-export function CashflowWaterfall({ steps, contributions = false }: { steps: readonly WaterfallStep[]; contributions?: boolean }) {
+export function CashflowWaterfall({ steps, contributions = false, height }: { steps: readonly WaterfallStep[]; contributions?: boolean; height?: number }) {
   const data: WaterfallPoint[] = steps.map((step) => ({ ...step, contributions, range: [Math.min(step.before, step.after), Math.max(step.before, step.after)], formatted: `${step.kind === "income" ? "+" : ""}${formatRub(step.amount)}` }));
-  return <div className="min-w-0 w-full" style={{ height: Math.max(230, steps.length * 34) }} role="img" aria-label={contributions ? "Вклад факторов в разрыв по данным сервера" : "Каскад изменения денег: начальный остаток, поступления, списания и итог"}>
+  return <div className="min-w-0 w-full" style={{ height: height ?? Math.max(230, steps.length * 34) }} role="img" aria-label={contributions ? "Вклад факторов в разрыв по данным сервера" : "Каскад изменения денег: начальный остаток, поступления, списания и итог"}>
     <ResponsiveContainer width="100%" height="100%" minWidth={0}>
       <BarChart data={data} layout="vertical" margin={{ top: 4, right: 86, left: 0, bottom: 0 }} barSize={14} accessibilityLayer>
         <CartesianGrid horizontal={false} stroke="var(--border-muted)" strokeDasharray="2 4" />

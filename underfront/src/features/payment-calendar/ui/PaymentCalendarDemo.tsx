@@ -1,4 +1,5 @@
 "use client";
+import { Textarea } from "@/src/shared/ui/textarea";
 
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/src/shared/ui/button";
@@ -136,7 +137,7 @@ export function PaymentCalendarDemo() {
         onSave={saveEvent}
         onDelete={deleteEvent}
       />
-      <Dialog open={createOpen} onClose={() => setCreateOpen(false)} title="Новое событие" description="Добавьте платёж вручную или опишите его одной фразой." className="max-w-[490px] !shadow-none">
+      <Dialog open={createOpen} onClose={() => setCreateOpen(false)} title="Новое событие" description="Добавьте платёж вручную или опишите его одной фразой." className="max-w-[490px]">
         <Tabs
           ariaLabel="Способ добавления события"
           value={createMode}
@@ -146,8 +147,7 @@ export function PaymentCalendarDemo() {
           className="mb-4"
         />
         {createMode === "manual" ? <PaymentEventForm draft={draft} onChange={setDraft} onSubmit={createEvent} submitLabel="Добавить событие" onCancel={() => setCreateOpen(false)} /> : <div className="space-y-3">
-          <label htmlFor="payment-natural-input" className="block text-xs font-medium">Опишите платёж</label>
-          <textarea id="payment-natural-input" rows={3} value={naturalText} onChange={(event) => { setNaturalText(event.target.value); setDraft(emptyDraft(selectedDate)); setParsed(false); setParseError(false); }} placeholder="Клиент Альфа заплатит 300 000 рублей 20 ноября" className="w-full resize-y rounded-[5px] border border-[color:var(--input-border)] bg-[color:var(--input-background)] px-3 py-2 text-sm text-[color:var(--input-text)] outline-none placeholder:text-[color:var(--input-placeholder)] focus:border-[color:var(--input-border-focus)]" />
+          <Textarea label="Опишите платёж" id="payment-natural-input" rows={3} value={naturalText} onChange={(event) => { setNaturalText(event.target.value); setDraft(emptyDraft(selectedDate)); setParsed(false); setParseError(false); }} placeholder="Клиент Альфа заплатит 300 000 рублей 20 ноября" />
           <p className="text-[11px] leading-4 text-[color:var(--text-muted)]">Демо-парсер понимает: «Клиент Альфа заплатит 300 000 рублей 20 ноября» и «Мы оплатим аренду 180 000 рублей 5 декабря».</p>
           <Button type="button" variant="outline" size="lg" onClick={parseNatural} disabled={!naturalText.trim()}>Распознать</Button>
           {parseError ? <div className="rounded-[5px] border border-[color:var(--border)] p-3 text-xs"><p>Не удалось однозначно распознать фразу. Проверьте шаблон или заполните форму вручную.</p><Button type="button" variant="outline" size="lg" className="mt-2" onClick={() => setCreateMode("manual")}>Открыть ручной ввод</Button></div> : null}

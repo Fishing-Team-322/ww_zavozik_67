@@ -140,7 +140,7 @@ export function Tabs({
                   "gap-1",
                   "whitespace-nowrap",
                   "rounded-[4px]",
-                  "font-medium text-sm leading-4",
+                  "font-medium text-xs leading-4",
                   "transition-[background-color,color,box-shadow]",
                   "duration-200",
                   "ease-out",

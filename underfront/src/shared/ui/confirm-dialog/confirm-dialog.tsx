@@ -39,6 +39,7 @@ export function ConfirmDialog({
       title={title}
       description={description}
       onClose={onCancel}
+      dismissDisabled={loading}
     >
       {children}
       <div className="mt-5 flex justify-end gap-2">

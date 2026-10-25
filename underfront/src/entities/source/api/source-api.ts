@@ -19,5 +19,5 @@ export const sourceApi = {
   map: (uploadId: string, mapping: Record<string, string>) => apiRequest<Job>(`/uploads/${encodeURIComponent(uploadId)}/mapping`, { method: "POST", body: JSON.stringify({ mapping }) }),
   job: (jobId: string) => apiRequest<Job>(`/jobs/${encodeURIComponent(jobId)}`),
   imports: (companyId: string) => apiRequest<ImportReport[]>(`${companyPath(companyId)}/imports`),
-  import: (importId: string) => apiRequest<ImportReport>(`/imports/${encodeURIComponent(importId)}`),
+  import: (importId: string, signal?: AbortSignal) => apiRequest<ImportReport>(`/imports/${encodeURIComponent(importId)}`, { signal }),
 };

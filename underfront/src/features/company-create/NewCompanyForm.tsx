@@ -1,4 +1,5 @@
 "use client";
+import { ContentHeading, ContentText } from "@/src/shared/ui/content";
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
@@ -30,6 +31,7 @@ export function NewCompanyForm() {
   const [lookupState, setLookupState] = useState<"idle" | "searching" | "found" | "unavailable">("idle");
   const [lookupMessage, setLookupMessage] = useState("");
   const [saving, setSaving] = useState(false);
+  const submitLock = useRef(false);
   const [error, setError] = useState("");
   const autoFilled = useRef<{ name: string; industry: string }>({ name: "", industry: "" });
 
@@ -69,10 +71,12 @@ export function NewCompanyForm() {
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (submitLock.current) return;
     setError("");
     const amount = Number(reserve.replace(",", "."));
     if (!Number.isFinite(amount) || amount < 0 || !/^\d+(?:[.,]\d{1,2})?$/.test(reserve)) { setError("Укажите неснижаемый остаток в рублях, до двух знаков после запятой."); return; }
     if (inn && !validInn(inn)) { setError("Проверьте ИНН: неверная длина или контрольная цифра."); return; }
+    submitLock.current = true;
     setSaving(true);
     let created = false;
     try {
@@ -83,20 +87,20 @@ export function NewCompanyForm() {
     } catch (cause) {
       if (created) router.push("/sources");
       else setError(cause instanceof Error ? cause.message : "Не удалось создать компанию");
-    } finally { setSaving(false); }
+    } finally { submitLock.current = false; setSaving(false); }
   }
 
   return <section className="w-full max-w-[560px] text-[color:var(--text-primary)]">
-    <header className="border-b border-[color:var(--border)] pb-5"><h1 className="text-[20px] font-semibold tracking-tight">Новая компания</h1><p className="mt-1 text-[13px] text-[color:var(--text-secondary)]">Создайте своё рабочее пространство без согласования с администратором. ИНН можно добавить позже. Совпадение ИНН не даёт доступа к другим компаниям и не подтверждает юридическое владение.</p></header>
-    {status === "unauthorized" && <p className="mt-5 rounded-[5px] border border-[color:var(--border)] p-3 text-[13px]">Для создания компании нужно <Link href="/login" className="font-medium text-[color:var(--accent)] underline">войти в аккаунт</Link>.</p>}
+    <header className="border-b border-[color:var(--border)] pb-5"><ContentHeading level={1} >Новая компания</ContentHeading><ContentText variant="description" tone="muted" className="mt-1">Создайте своё рабочее пространство без согласования с администратором. ИНН можно добавить позже. Совпадение ИНН не даёт доступа к другим компаниям и не подтверждает юридическое владение.</ContentText></header>
+    {status === "unauthorized" && <ContentText variant="body" className="mt-5 rounded-[5px] border border-[color:var(--border)] p-3">Для создания компании нужно <Link href="/login" className="font-medium text-[color:var(--accent)] underline">войти в аккаунт</Link>.</ContentText>}
     <form onSubmit={submit} className="mt-5 space-y-5">
-      <div><Input label="ИНН" inputMode="numeric" autoComplete="off" maxLength={12} value={inn} onChange={event => changeInn(event.target.value)} placeholder="10 или 12 цифр" className="h-9"/><p className="mt-1 text-[12px] text-[color:var(--text-secondary)]" role="status">{lookupState === "searching" ? "Ищем сведения по ИНН…" : lookupState === "found" || lookupState === "unavailable" ? `${lookupMessage} Форму можно заполнить вручную.` : "После ввода ИНН попробуем заполнить реквизиты автоматически."}</p></div>
-      <Input label="Название компании" required maxLength={300} value={name} onChange={event => setName(event.target.value)} className="h-9"/>
-      <div className="grid gap-4 sm:grid-cols-2"><Select label="Организационно-правовая форма" size="lg" options={[{ value: "ООО", label: "ООО" }, { value: "ИП", label: "ИП" }]} value={legalForm} onChange={event => setLegalForm(event.target.value as LegalForm)}/><Select label="Налоговый режим" size="lg" options={taxOptions} value={taxRegime} onChange={event => setTaxRegime(event.target.value as TaxRegime)}/></div>
-      <Input label="Вид деятельности" required maxLength={120} value={industry} onChange={event => setIndustry(event.target.value)} className="h-9" placeholder="Например, оптовая торговля"/>
-      <Input label="Защитный резерв, ₽" required inputMode="decimal" value={reserve} onChange={event => setReserve(event.target.value)} className="h-9" helperText="Минимум, который вы хотите сохранять. Это не фактический баланс: его получим из банковской выписки."/>
-      {error && <p role="alert" className="text-[13px] text-[color:var(--danger)]">{error}</p>}
-      <div className="flex flex-wrap gap-2 border-t border-[color:var(--border)] pt-5"><Button type="submit" size="lg" disabled={saving || status === "unauthorized"} className="px-4">{saving ? "Сохраняем…" : "Создать компанию"}</Button><Button type="button" size="lg" variant="ghost" onClick={() => router.back()}>Отмена</Button></div>
+      <div><Input label="ИНН" inputMode="numeric" autoComplete="off" maxLength={12} value={inn} onChange={event => changeInn(event.target.value)} placeholder="10 или 12 цифр"/><ContentText variant="description" tone="muted" className="mt-1" role="status">{lookupState === "searching" ? "Ищем сведения по ИНН…" : lookupState === "found" || lookupState === "unavailable" ? `${lookupMessage} Форму можно заполнить вручную.` : "После ввода ИНН попробуем заполнить реквизиты автоматически."}</ContentText></div>
+      <Input label="Название компании" required maxLength={300} value={name} onChange={event => setName(event.target.value)}/>
+      <div className="grid gap-4 sm:grid-cols-2"><Select density="form" label="Организационно-правовая форма" size="md" options={[{ value: "ООО", label: "ООО" }, { value: "ИП", label: "ИП" }]} value={legalForm} onChange={event => setLegalForm(event.target.value as LegalForm)}/><Select density="form" label="Налоговый режим" size="md" options={taxOptions} value={taxRegime} onChange={event => setTaxRegime(event.target.value as TaxRegime)}/></div>
+      <Input label="Вид деятельности" required maxLength={120} value={industry} onChange={event => setIndustry(event.target.value)} placeholder="Например, оптовая торговля"/>
+      <Input label="Защитный резерв, ₽" required inputMode="decimal" value={reserve} onChange={event => setReserve(event.target.value)} helperText="Минимум, который вы хотите сохранять. Это не фактический баланс: его получим из банковской выписки."/>
+      {error && <ContentText variant="body" tone="danger" role="alert" >{error}</ContentText>}
+      <div className="flex flex-wrap gap-2 border-t border-[color:var(--border)] pt-5"><Button type="submit" size="lg" disabled={saving || status === "unauthorized"}>{saving ? "Сохраняем…" : "Создать компанию"}</Button><Button type="button" size="lg" variant="ghost" onClick={() => router.back()}>Отмена</Button></div>
     </form>
   </section>;
 }

@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"io"
+	"math"
 	"net/http"
 	"strings"
 	"time"
@@ -218,6 +219,18 @@ func tableOperations(cid string, table [][]string, mapping Doc) ([]domain.Operat
 			issues = append(issues, Doc{"row": i + 2, "code": "invalid_operation", "message": "Проверьте дату, сумму и направление"})
 			continue
 		}
+		// Rejected rows must not consume an occurrence number: otherwise an
+		// invalid balance changes the identity of a later, valid equal payment.
+		var balance *domain.Money
+		if raw := cell(row, "balance"); raw != "" {
+			value, e := parseAmount(raw)
+			if e != nil {
+				issues = append(issues, Doc{"row": i + 2, "code": "invalid_balance", "message": "Проверьте остаток"})
+				continue
+			}
+			v := domain.Money(value)
+			balance = &v
+		}
 		canonical := dt + "|" + cell(row, "amount") + "|" + direction + "|" + cell(row, "counterparty") + "|" + cell(row, "inn") + "|" + cell(row, "purpose")
 		if original := cell(row, "id"); original != "" {
 			canonical = "id:" + original
@@ -228,16 +241,7 @@ func tableOperations(cid string, table [][]string, mapping Doc) ([]domain.Operat
 		sum := sha256.Sum256([]byte(canonical))
 		key := hex.EncodeToString(sum[:])
 		id := idFor(cid, "csv:"+key)
-		op := domain.Operation{ID: id, CompanyID: cid, Date: dateValue, Amount: domain.Money(amount), Direction: domain.Direction(direction), CounterpartyName: domain.Name(cell(row, "counterparty")), CounterpartyINN: domain.INN(cell(row, "inn")), Purpose: domain.Purpose(cell(row, "purpose")), DedupHash: key, Source: domain.SrcUpload}
-		if raw := cell(row, "balance"); raw != "" {
-			balance, e := parseAmount(raw)
-			if e != nil {
-				issues = append(issues, Doc{"row": i + 2, "code": "invalid_balance", "message": "Проверьте остаток"})
-				continue
-			}
-			v := domain.Money(balance)
-			op.BalanceEOD = &v
-		}
+		op := domain.Operation{ID: id, CompanyID: cid, Date: dateValue, Amount: domain.Money(amount), Direction: domain.Direction(direction), CounterpartyName: domain.Name(cell(row, "counterparty")), CounterpartyINN: domain.INN(cell(row, "inn")), Purpose: domain.Purpose(cell(row, "purpose")), BalanceEOD: balance, DedupHash: key, Source: domain.SrcUpload}
 		out = append(out, op)
 		keys[id] = key
 	}
@@ -294,12 +298,26 @@ func (s *Service) saveImport(ctx context.Context, j store.ProductJob, sourceID, 
 	if e = tx.QueryRow(ctx, "SELECT data_revision FROM companies WHERE id=$1 FOR UPDATE", j.CompanyID).Scan(&rev); e != nil {
 		return nil, e
 	}
+	if j.Kind == "sync" {
+		// The network fetch happens outside the company lock. Deletion or
+		// disabling during that fetch invalidates its eventual write.
+		var enabled bool
+		if e = tx.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM sources WHERE id=$1 AND company_id=$2 AND enabled)", sourceID, j.CompanyID).Scan(&enabled); e != nil {
+			return nil, e
+		}
+		if !enabled {
+			return nil, platform.Fail(409, "source_unavailable", "Источник удалён или отключён. Результат синхронизации не сохранён.")
+		}
+	}
 	sourceKind := kind
 	if kind == "onec" {
 		sourceKind = "onec_bank_file"
 	}
 	if kind == "csv" {
 		sourceKind = "upload"
+	}
+	if kind == "xlsx" {
+		sourceKind = "excel"
 	}
 	_, e = tx.Exec(ctx, "INSERT INTO sources(id,company_id,kind,title) VALUES($1,$2,$3,$4) ON CONFLICT(id) DO NOTHING", sourceID, j.CompanyID, sourceKind, "Загрузка "+sourceKind)
 	if e != nil {
@@ -322,6 +340,30 @@ func (s *Service) saveImport(ctx context.Context, j store.ProductJob, sourceID, 
 			return nil, e
 		}
 		if tag.RowsAffected() == 0 {
+			if kind == "csv" || kind == "xlsx" {
+				var oldDate, oldDirection, oldINN, oldName, oldPurpose string
+				var oldAmount float64
+				var oldBalance *float64
+				e = tx.QueryRow(ctx, `SELECT op_date::text,amount::float8,direction,COALESCE(counterparty_inn,''),COALESCE(counterparty_name,''),COALESCE(purpose,''),balance_eod::float8 FROM operations WHERE company_id=$1 AND id=$2`, j.CompanyID, op.ID).Scan(&oldDate, &oldAmount, &oldDirection, &oldINN, &oldName, &oldPurpose, &oldBalance)
+				if e != nil {
+					return nil, e
+				}
+				conflict := oldDate != op.Date.Format(domain.DateLayout) || math.Round(oldAmount*100) != math.Round(op.Amount.Float()*100) || oldDirection != string(op.Direction) || oldINN != string(op.CounterpartyINN) || oldName != string(op.CounterpartyName) || oldPurpose != string(op.Purpose)
+				if oldBalance != nil && op.BalanceEOD != nil && math.Round(*oldBalance*100) != math.Round(op.BalanceEOD.Float()*100) {
+					conflict = true
+				}
+				if conflict {
+					issues = append(issues, Doc{"operation_id": op.ID, "code": "operation_conflict", "message": "Операция с таким ID уже загружена с другими данными. Проверьте исходный файл; прежняя операция сохранена."})
+					continue
+				}
+				// The economic fact is a duplicate, but a newly supplied
+				// closing balance can enrich a previously unknown observation.
+				if oldBalance == nil && op.BalanceEOD != nil {
+					if _, e = tx.Exec(ctx, "UPDATE operations SET balance_eod=$3 WHERE company_id=$1 AND id=$2 AND balance_eod IS NULL", j.CompanyID, op.ID, op.BalanceEOD.Float()); e != nil {
+						return nil, e
+					}
+				}
+			}
 			duplicates++
 		} else {
 			added++
@@ -375,6 +417,9 @@ func (s *Service) syncJob(ctx context.Context, j store.ProductJob) (Doc, error) 
 	kind := text(source, "kind")
 	if e = s.validateSourceConfig(ctx, j.UserID, j.CompanyID, kind, cfg, true); e != nil {
 		return nil, e
+	}
+	if kind == "bank_api" || kind == "tax_api" {
+		return s.syncObligations(ctx, j, id, kind, cfg)
 	}
 	if kind == "onec_odata" {
 		var c bridge.ODataConfig
@@ -474,7 +519,7 @@ func (s *Service) exportJob(ctx context.Context, j store.ProductJob) (Doc, error
 	if _, e = file.Write(store.JSON(company)); e != nil {
 		return nil, e
 	}
-	for _, kind := range []string{"operation", "event", "recurring", "scenario", "invoice", "contract", "source", "alert"} {
+	for _, kind := range []string{"operation", "event", "recurring", "scenario", "invoice", "contract", "tax", "source", "alert"} {
 		rows, e := s.DB.ProductList(ctx, j.UserID, j.CompanyID, kind)
 		if e != nil {
 			return nil, e
@@ -550,12 +595,71 @@ func (s *Service) trainJob(ctx context.Context, j store.ProductJob) (Doc, error)
 	if e = json.NewDecoder(io.LimitReader(res.Body, 64*1024)).Decode(&result); e != nil || !flag(result, "trained") || text(result, "model_version") == "" {
 		return nil, platform.Fail(502, "training_unconfirmed", "Сервис не вернул версию обученного артефакта")
 	}
+	if _, e = s.DB.Pool.Exec(ctx, "DELETE FROM forecast_baselines WHERE model=$1 OR model='auto'", text(j.Payload, "model")); e != nil {
+		return nil, e
+	}
 	return Doc{"model": text(j.Payload, "model"), "model_version": text(result, "model_version"), "result_ref": "/v1/admin/models"}, nil
 }
 func (s *Service) evaluateAlerts(ctx context.Context, uid, cid string, out Doc) error {
+	events, e := s.eventRows(ctx, uid, cid)
+	if e != nil {
+		return e
+	}
+	activeMissed := map[string]bool{}
+	for _, event := range events {
+		if text(event, "status") != "missed" {
+			continue
+		}
+		id := idFor(cid, "alert:missed:"+text(event, "id")+":"+date(event["event_date"]))
+		activeMissed[id] = true
+		if _, e := s.DB.ProductGet(ctx, uid, "alert", id); e == nil {
+			continue
+		}
+		d := Doc{"id": id, "severity": "warning", "title": "Плановый платёж не подтверждён выпиской", "body": text(event, "title") + " · " + date(event["event_date"]) + ". Проверьте срок, факт оплаты и актуальность выписки.", "kind": "missed_payment", "read": false, "ref": Doc{"screen": "event", "id": event["id"]}}
+		if _, e := s.DB.ProductSave(ctx, uid, cid, "alert", id, d, true); e != nil {
+			return e
+		}
+	}
+	alerts, e := s.DB.ProductList(ctx, uid, cid, "alert")
+	if e != nil {
+		return e
+	}
+	activeGaps := map[string]bool{}
+	for _, gap := range docs(out["gaps"]) {
+		activeGaps[idFor(cid, "alert:"+text(gap, "id"))] = true
+	}
+	for _, alert := range alerts {
+		if text(alert, "kind") == "missed_payment" && !activeMissed[text(alert, "id")] && !flag(alert, "read") {
+			alert["read"] = true
+			if _, e = s.DB.ProductSave(ctx, uid, cid, "alert", text(alert, "id"), alert, false); e != nil {
+				return e
+			}
+		}
+		if text(alert, "kind") == "gap_risk" && !activeGaps[text(alert, "id")] && !flag(alert, "resolved") {
+			alert["read"], alert["resolved"] = true, true
+			// The old gap ID belongs to an obsolete forecast. Keep the warning
+			// as history, but link to the current forecast instead of a 404.
+			alert["ref"] = Doc{"screen": "forecast", "id": nil}
+			if _, e = s.DB.ProductSave(ctx, uid, cid, "alert", text(alert, "id"), alert, false); e != nil {
+				return e
+			}
+		}
+	}
 	for _, gap := range docs(out["gaps"]) {
 		id := idFor(cid, "alert:"+text(gap, "id"))
 		if _, e := s.DB.ProductGet(ctx, uid, "alert", id); e == nil {
+			// A resolved risk can recur on the same date. Notify again then,
+			// while preserving the user's read state for a continuing risk.
+			for _, alert := range alerts {
+				if text(alert, "id") == id && flag(alert, "resolved") {
+					alert["read"], alert["resolved"] = false, false
+					alert["ref"] = Doc{"screen": "gap", "id": gap["id"]}
+					if _, e = s.DB.ProductSave(ctx, uid, cid, "alert", id, alert, false); e != nil {
+						return e
+					}
+					break
+				}
+			}
 			continue
 		}
 		d := Doc{"id": id, "severity": "warning", "title": "Возможен недостаток денег", "body": "Проверьте прогноз и ближайшие платежи", "kind": "gap_risk", "read": false, "ref": Doc{"screen": "gap", "id": gap["id"]}}

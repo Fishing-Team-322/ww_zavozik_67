@@ -15,11 +15,31 @@ import (
 
 type responseClient struct {
 	forecastv1.ForecasterServiceClient
-	response *forecastv1.ForecastResponse
+	response  *forecastv1.ForecastResponse
+	onRequest func(*forecastv1.ForecastRequest)
 }
 
-func (f responseClient) Forecast(context.Context, *forecastv1.ForecastRequest, ...grpc.CallOption) (*forecastv1.ForecastResponse, error) {
+func (f responseClient) Forecast(_ context.Context, request *forecastv1.ForecastRequest, _ ...grpc.CallOption) (*forecastv1.ForecastResponse, error) {
+	if f.onRequest != nil {
+		f.onRequest(request)
+	}
 	return f.response, nil
+}
+
+func TestMLClientPreservesOriginalTransactionsForTokenModels(t *testing.T) {
+	var sent *forecastv1.ForecastRequest
+	client := MLClient{c: responseClient{response: &forecastv1.ForecastResponse{Dates: []string{"2025-01-02"}, Paths: []*forecastv1.Path{{Inflow: []float64{2}, Outflow: []float64{1}}}}, onRequest: func(request *forecastv1.ForecastRequest) { sent = request }}}
+	request := StochasticRequest{History: history(1), Horizon: 1, NPaths: 1, Transactions: []HistoryTransaction{{ID: "payment-1", Date: history(1)[0].Date, Amount: 77.25, Direction: domain.Out, Category: domain.CatSupplier, CounterpartyID: "company-scoped-party", Purpose: "Supplier payment"}}}
+	if _, e := client.Forecast(context.Background(), request); e != nil {
+		t.Fatal(e)
+	}
+	if sent == nil || len(sent.Transactions) != 1 || sent.Transactions[0].Amount != 77.25 || sent.Transactions[0].Direction != "out" || sent.Transactions[0].Purpose != "Supplier payment" || sent.Transactions[0].CounterpartyId != "company-scoped-party" {
+		t.Fatal("transaction identity, order or economic fields lost", sent)
+	}
+	request.Transactions = append(request.Transactions, request.Transactions[0])
+	if _, e := client.Forecast(context.Background(), request); e == nil {
+		t.Fatal("duplicate transaction IDs accepted")
+	}
 }
 
 func TestMLClientRejectsMalformedPaths(t *testing.T) {

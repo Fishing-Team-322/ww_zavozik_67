@@ -116,3 +116,15 @@ test("network errors remain visible and canceled requests are not reported as se
       error instanceof DOMException && error.name === "AbortError",
   );
 });
+
+test("null or non-object API errors retain their HTTP status and a readable message", async () => {
+  for (const body of [null, "gateway failure", false, 0]) {
+    const client = new ApiClient("http://localhost:8080", async () => json(body, 503));
+    await assert.rejects(
+      client.request("/v1/auth/providers", { authenticated: false }),
+      (error: unknown) => error instanceof ApiError &&
+        error.status === 503 && error.code === "request_failed" &&
+        error.message === "Сервер не смог выполнить запрос.",
+    );
+  }
+});

@@ -1,0 +1,151 @@
+Backend case completion (documents branch)
+=========================================
+
+Entry point and current component/data-flow diagrams: README.md, ARCHITECTURE.md.
+
+Apply migrations 00010 and 00011 before running the updated API/worker.
+00010 enables forecast composition for legacy invoices/contracts where the
+caller never supplied additional. An explicit additional=false is preserved.
+00011 stores versioned model paths for incremental forecast updates.
+
+Invoices and contracts
+----------------------
+New manual documents default to additional=true. The API returns this property.
+additional=false explicitly means that the business-flow model already covers
+this obligation. No anonymous model transaction is claimed to match an invoice.
+The currently documented TrxGPT generator returns the existing daily-path
+response contract. ForecastRequest also supplies optional original ordered
+transactions (ID, date, RUB amount, direction, category, pseudonymous counterparty
+ID and purpose) so the new model can construct its transaction tokens without
+reconstructing operations from daily totals. Old Python servers ignore this new
+field. When connecting TrxGPT, regenerate its Python bindings from the shared
+proto and consume transactions; keep the existing daily-path response.
+Training and Python serving code have not been modified.
+
+POST /v1/companies/C/contracts accepts an explicit schedule OR start_date.
+With start_date, prepayment is due on that date and the unpaid remainder after
+deferral_days. Example: total=10000, prepayment=3000, start_date=2026-11-02,
+deferral_days=14 produces 3000 on Nov 2 and 7000 on Nov 16.
+Explicit schedules contain final dates; deferral is not applied a second time.
+Already bank-paid installments cannot be rewritten or reopened by metadata edits.
+
+Own bank/accounting API
+----------------------
+This is a demonstration provider developed for the prototype, not a connection
+to a real bank. It persists snapshots atomically to its own JSON file. It exposes
+the same connector protocol used for an eventual bank or accounting gateway.
+Reader credentials cannot change the provider's data.
+
+Run from backend/ with environment variables:
+  OBLIGATIONS_HTTP_ADDR=127.0.0.1:8092
+  OBLIGATIONS_API_TOKEN=<unique random reader token, at least 32 characters>
+  OBLIGATIONS_ADMIN_TOKEN=<different random writer token, at least 32 characters>
+  OBLIGATIONS_DATA_FILE=<absolute path in an existing private data directory>
+  go run ./cmd/obligations-api
+
+Populate bank schedules with an authenticated administrator PUT to:
+  /v1/companies/7707083893/bank/obligations
+Populate accounting liabilities with PUT to the corresponding /tax/obligations.
+GET accepts the reader token; PUT requires the separate administrator token.
+Canonical schemas and operations: api/obligations.openapi.yaml.
+
+Bank snapshot example (use dates appropriate to the demonstration):
+{
+  "company_inn":"7707083893", "as_of":"2026-10-25", "complete":true,
+  "items":[
+    {"external_id":"loan/1/2026-11", "kind":"loan_payment",
+     "title":"Loan installment", "due_date":"2026-11-02",
+     "amount_kopecks":1000000, "direction":"out", "status":"expected",
+     "counterparty_name":"Demonstration bank"},
+    {"external_id":"payroll/2026-11", "kind":"salary", "title":"Payroll",
+     "due_date":"2026-11-05", "amount_kopecks":2000000,
+     "direction":"out", "status":"expected"},
+    {"external_id":"order/42", "kind":"payment_order",
+     "title":"Unexecuted order", "due_date":"2026-11-06",
+     "amount_kopecks":3000000, "direction":"out", "status":"expected"}
+  ]
+}
+
+Tax snapshot item example, under kind tax:
+  {"external_id":"vat/2026/q3", "kind":"tax", "title":"VAT from accounting",
+   "amount_kopecks":1000001, "direction":"out", "status":"expected",
+   "tax_kind":"vat", "period":"q3", "year":2026}
+The application derives the installment dates from the tax calendar and splits
+the confirmed amount in kopecks. Alternatively supply a confirmed due_date.
+
+In the application configure SOURCE_ALLOWED_HOSTS to include the provider's
+exact host:port on BOTH API and worker. Create a bank_api or tax_api source:
+  POST /v1/companies/C/sources
+  {"kind":"bank_api", "title":"Our demo bank", "config":{
+    "url":"http://127.0.0.1:8092/v1/companies/7707083893/bank/obligations",
+    "token":"<reader token>"}}
+The workspace INN must match the provider's snapshot. API and worker need the
+same DATA_ENCRYPTION_KEY. In containers the provider must be reachable from the
+container; use the actual internal HTTPS service address, not host loopback.
+Then POST /v1/sources/S/test and /sync. Wait for the returned job to finish.
+
+Repeat sync is idempotent. A complete snapshot's missing unpaid plans become
+cancelled. Bad/incomplete/foreign snapshots leave the committed plans intact.
+Bank-matched paid plans survive repeated synchronization. Source plans never
+create operations or change the actual bank closing balance.
+Payment orders may supply related_event_id (an existing event in this company)
+or document_number. Otherwise an explicit invoice reference in the title is
+considered. Linking requires an unambiguous matching amount, direction, date
+and counterparty. The bank alias stays visible as status=linked with
+linked_event_id; the canonical event lists linked_sources. Forecast, calendar,
+plan-fact and reconciliation count one obligation. Ambiguous matches are not
+silently merged. Removing the invoice reveals the remaining bank plan again.
+An already bank-matched order can settle an invoice added later exactly once;
+removing its statement source reverses both receipt references.
+Demonstration sources/events retain data_mode=demo and forecasts warn that demo
+obligations are included. No access to a real bank is implied.
+
+Tax dates
+---------
+USN/VAT rules retain the existing calculation from confirmed liabilities.
+For ENP, period=m01..m12 denotes the payment month, due on its 28th.
+For employer contributions, m01..m12 denotes the accrual month, payable on the
+28th of the following month. Dates move to the next covered working day.
+Other types of contributions and individual deadlines use explicit due_date.
+No tax base is inferred from all bank credits.
+Gateway amount_kopecks is the outstanding debt. If an installment was paid,
+a changed outstanding total is split only over unpaid installments. Paid amounts
+and dates are preserved. Repeated identical snapshots do not restore debt paid
+after that snapshot. Example: 100.01 VAT minus 33.34 paid leaves 66.67 in future
+parts, not a new three-way split of 66.67. New positive debt on a fully paid
+schedule requires a new external_id with its own confirmed deadline.
+Official sources reviewed 2026-10-25:
+  https://www.nalog.gov.ru/rn77/taxation/insprem/
+  https://www.nalog.gov.ru/rn33/ens/
+
+Risk explanation and incremental updates
+---------------------------------------
+Confirmed detected recurring patterns retain the original amount/dates before
+edits. Forecast cancels that original estimate and composes the current plan;
+editing 1000 to 2000 therefore adds an expense delta of 1000. Individual date
+edits and scenario scaling use the same replacement components. This is a
+baseline estimate correction, not matching anonymous generated model tokens.
+
+Gaps distinguish first-risk date, worst median-balance date, probability on the
+first date, and probability anywhere in the horizon. explanation shows opening
+balance, modeled receipts/expenses, known plans and reserve, with a summary.
+It uses the paths which interpolate the median balance; it is not attribution
+of anonymous modeled transactions to particular legal counterparties.
+
+Model trajectories have 30 spare days and persist in PostgreSQL. New complete
+statement days reuse their future suffix and rebase on the actual closing
+balance. Known plans are composed separately. The original model_as_of and
+update_mode expose this behavior. Historic corrections, exhausted paths or a
+7-day cache expiry cause fresh inference. A successful training job invalidates
+the affected model baselines. This does not retrain/condition the transformer
+on new transaction tokens; it updates the product forecast without full model
+inference. Model serving/release remains the ML team's responsibility.
+
+Validation
+----------
+Use an isolated TEST_DATABASE_URL and run go test ./... in backend/ and
+integrations/. The tests cover default document influence, partial/full invoice
+payments, contract terms, legacy migration, authenticated external snapshots,
+idempotence, foreign/incomplete feeds, three VAT installments, own provider
+persistence/read-only credentials, bank-paid plans, numerical gap explanations
+and path reuse across a new service instance plus historical invalidation.

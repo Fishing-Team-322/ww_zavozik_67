@@ -59,6 +59,12 @@ export function ForecastNotice({ forecast }: { forecast: Forecast | null }) {
       {forecast.low_confidence && (
         <p>Надёжность оценки ограничена полнотой истории.</p>
       )}
+      {forecast.warnings.includes("overdue_additional_expenses_carried_forward") && (
+        <p>
+          Неоплаченные дополнительные расходы учтены в первый день прогноза.
+          Проверьте оплату или уточните срок в календаре.
+        </p>
+      )}
       {forecast.warnings.includes(
         "stale_statement_forecast_starts_after_data_as_of",
       ) && (

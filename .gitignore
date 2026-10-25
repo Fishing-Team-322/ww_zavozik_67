@@ -21,6 +21,7 @@ backend/backtest.csv
 
 # env
 .env
+.local/
 
 # Локальные прогоны обучения трансформера (веса и логи)
 ml/runs/
@@ -28,6 +29,8 @@ ml/runs/
 # Local documentation and generated reports stay outside version control.
 *.md
 *.mdx
+!/README.md
+!/ARCHITECTURE.md
 /docs/
 /integrations/docs/
 /ml/reports/*

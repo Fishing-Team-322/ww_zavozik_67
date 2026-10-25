@@ -7,6 +7,7 @@ import {
   useId,
 } from "react";
 import { cn } from "@/src/shared/lib/cn";
+import { fieldTextClass, fieldLabelClass, fieldHelpClass, fieldErrorClass } from "../field-contract";
 
 type ControlSize = "sm" | "md" | "lg";
 
@@ -23,21 +24,21 @@ export interface TextareaProps
 }
 
 const sizeClasses: Record<ControlSize, string> = {
-  sm: "min-h-20 max-h-48 px-3 py-2.5 text-sm",
-  md: "min-h-24 max-h-56 px-3 py-3 text-base leading-[1.15]",
-  lg: "min-h-32 max-h-64 px-4 py-3 text-base",
+  sm: "min-h-20 max-h-48 px-2 py-2",
+  md: "min-h-24 max-h-56 px-3 py-2.5",
+  lg: "min-h-32 max-h-64 px-4 py-3",
 };
 
 const sizeClassesWithStartAdornment: Record<ControlSize, string> = {
-  sm: "pl-10",
-  md: "pl-10",
-  lg: "pl-11",
+  sm: "pl-7",
+  md: "pl-9",
+  lg: "pl-10",
 };
 
 const adornmentPositionClasses: Record<ControlSize, string> = {
-  sm: "left-3 top-3",
-  md: "left-3 top-3",
-  lg: "left-4 top-3.5",
+  sm: "left-2 top-2",
+  md: "left-3 top-2.5",
+  lg: "left-4 top-3",
 };
 
 export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
@@ -82,7 +83,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
           <label
             htmlFor={textareaId}
             className={cn(
-              "mb-1.5 block text-xs font-medium leading-none",
+              fieldLabelClass,
               hasError
                 ? "text-[var(--status-danger-fg)]"
                 : "text-[color:var(--input-label)]"
@@ -113,7 +114,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
             aria-invalid={hasError}
             aria-describedby={describedBy}
             className={cn(
-              "block w-full appearance-none resize-y rounded-[8px] border bg-[var(--input-background)] outline-none touch-manipulation",
+              "block w-full appearance-none resize-y rounded-[6px] border bg-[var(--input-background)] outline-none touch-manipulation",
               "font-normal text-[color:var(--input-text)] placeholder:text-[color:var(--input-placeholder)]",
               "shadow-none transition-[background,border,box-shadow,color] duration-150 ease-[ease]",
               "disabled:cursor-not-allowed disabled:bg-[var(--input-disabled-bg)] disabled:text-[color:var(--input-disabled-fg)] disabled:opacity-70",
@@ -131,6 +132,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
                     "focus:ring-[3px] focus:ring-[color:var(--focus-ring)]",
                     "focus:shadow-[0_0_0_1px_var(--input-border-focus)]",
                   ].join(" "),
+              fieldTextClass,
               sizeClasses[resolvedSize],
               hasStartAdornment
                 ? sizeClassesWithStartAdornment[resolvedSize]
@@ -144,14 +146,14 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
         {error ? (
           <p
             id={`${textareaId}-error`}
-            className="pt-1.5 text-sm text-[var(--status-danger-fg)]"
+            className={fieldErrorClass}
           >
             {error}
           </p>
         ) : helperText ? (
           <p
             id={`${textareaId}-helper`}
-            className="pt-1.5 text-sm text-[color:var(--text-secondary)]"
+            className={fieldHelpClass}
           >
             {helperText}
           </p>

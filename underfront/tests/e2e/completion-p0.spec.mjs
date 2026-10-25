@@ -64,6 +64,7 @@ test('self-service, legacy query links, checksum, isolated same-INN workspaces a
     const cid = (await profile.json()).companies.find(c => c.name === `V2 balance ${name}`).id;
     const today = new Date().toISOString().slice(0, 10);
     const csv = `date,amount,direction,counterparty_name,purpose${balance === null ? '' : ',balance_eod'}\n${today},100,in,Fixture,Balance test${balance === null ? '' : ',' + balance}\n`;
+    await page.getByRole('button',{name:/^Банковская выписка/}).click();
     await page.locator('input[type="file"][accept=".csv,.xlsx,.txt,.1c"]').setInputFiles({ name: `${name}.csv`, mimeType: 'text/csv', buffer: Buffer.from(csv) });
     await expect(page.locator('section').filter({ has: page.getByRole('heading', { name: 'Результат импорта' }) })).toContainText('Добавлено: 1', { timeout: 60_000 });
     const dashboard = await request.get(`${api}/v1/companies/${cid}/dashboard`, { headers });

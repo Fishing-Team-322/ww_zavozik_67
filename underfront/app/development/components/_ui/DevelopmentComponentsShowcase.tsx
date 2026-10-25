@@ -3,7 +3,7 @@
 import { useState, type ReactNode } from "react";
 import { ArrowRight, Code2, LayoutGrid, PenLine, Plus } from "lucide-react";
 import { PageLayout, SectionCard } from "@/src/widgets/cabinet-shell";
-import { Breadcrumbs, Button, DateField, Input, SearchInput, Select, Tabs, Textarea } from "@/src/shared/ui";
+import { ContentHeading, Breadcrumbs, Button, DateField, Input, SearchInput, Select, Tabs, Textarea } from "@/src/shared/ui";
 
 const buttonVariants = [
   { variant: "default", label: "Основная" },
@@ -22,8 +22,8 @@ const selectOptions = [
 
 function ShowcaseBlock({ id, title, description, children }: { id: string; title: string; description: string; children: ReactNode }) {
   return (
-    <SectionCard id={id} className="scroll-mt-20 p-5 sm:p-6">
-      <h2 className="text-xl font-semibold text-[color:var(--text-primary)]">{title}</h2>
+    <SectionCard id={id} className="scroll-mt-20">
+      <ContentHeading>{title}</ContentHeading>
       <p className="mt-1 mb-5 text-sm text-[color:var(--text-secondary)]">{description}</p>
       {children}
     </SectionCard>
@@ -110,6 +110,29 @@ export function DevelopmentComponentsShowcase() {
             </div>
           </ShowcaseBlock>
 
+          <ShowcaseBlock id="field-contract" title="Контракт контентных полей" description="sm — 32px, md — 40px, lg — 44px. Все поля строки используют один размер; Textarea сохраняет многострочную высоту.">
+            <div className="space-y-6">
+              {(["sm", "md", "lg"] as const).map((size) => <div key={size} className="grid items-start gap-3 sm:grid-cols-2 xl:grid-cols-5">
+                <Input inputSize={size} label={`Input · ${size}`} value={name} onChange={(event) => setName(event.target.value)} helperText="Подсказка поля" />
+                <Select density="form" size={size} label={`Select · ${size}`} options={selectOptions} value={category} onChange={(event) => setCategory(event.target.value)} helperText="Подсказка поля" />
+                <SearchInput inputSize={size} label={`Поиск · ${size}`} value={search} onChange={(event) => setSearch(event.target.value)} helperText="Подсказка поля" />
+                <DateField inputSize={size} label={`Дата · ${size}`} value={date} onChange={(event) => setDate(event.target.value)} helperText="Подсказка поля" />
+                <Textarea textareaSize={size} label={`Textarea · ${size}`} defaultValue="Многострочный текст" helperText="Подсказка поля" />
+              </div>)}
+              <div className="grid items-start gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <Input label="Ошибка ввода" error="Проверьте значение" />
+                <Select density="form" label="Ошибка выбора" options={selectOptions} error="Выберите значение" />
+                <DateField label="Ошибка даты" error="Проверьте дату" />
+                <SearchInput label="Загрузка поиска" loading helperText="Иконка остаётся в поле" />
+              </div>
+              <div className="grid items-start gap-3 sm:grid-cols-2">
+                <Input label="Недоступное поле" disabled value="Нет доступа" />
+                <Select density="form" label="Недоступный выбор" options={selectOptions} disabled />
+              </div>
+              <div><ExampleLabel>Защищённый компактный контракт Select: md + fitContent = 24px</ExampleLabel><Select size="md" fitContent aria-label="Компактный селектор как в Header" options={selectOptions} value={category} onChange={(event) => setCategory(event.target.value)} /></div>
+            </div>
+          </ShowcaseBlock>
+
           <ShowcaseBlock id="inputs" title="Инпуты" description="Пустое и заполненное поле, ошибка, пароль, поиск и дата.">
             <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
               <Input label="Пустое поле" placeholder="Введите название" />
@@ -126,12 +149,12 @@ export function DevelopmentComponentsShowcase() {
 
           <ShowcaseBlock id="selects" title="Селект" description="Обычный выбор, поиск, ошибка и недоступное состояние.">
             <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-              <Select label="Категория" options={selectOptions} value={category} onChange={(event) => setCategory(event.target.value)} />
-              <Select label="С поиском" options={selectOptions} searchable placeholder="Выберите категорию" />
-              <Select label="Без значения" options={selectOptions} placeholder="Выберите категорию" />
-              <Select label="Ошибка выбора" options={selectOptions} error="Выберите категорию" />
-              <Select label="Недоступный выбор" options={selectOptions} disabled />
-              <Select label="Пустой список" options={[]} searchable emptyTitle="Вариантов нет" />
+              <Select density="form" label="Категория" options={selectOptions} value={category} onChange={(event) => setCategory(event.target.value)} />
+              <Select density="form" label="С поиском" options={selectOptions} searchable placeholder="Выберите категорию" />
+              <Select density="form" label="Без значения" options={selectOptions} placeholder="Выберите категорию" />
+              <Select density="form" label="Ошибка выбора" options={selectOptions} error="Выберите категорию" />
+              <Select density="form" label="Недоступный выбор" options={selectOptions} disabled />
+              <Select density="form" label="Пустой список" options={[]} searchable emptyTitle="Вариантов нет" />
             </div>
           </ShowcaseBlock>
 

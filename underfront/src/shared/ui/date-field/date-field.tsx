@@ -14,6 +14,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "@/src/shared/lib/cn";
+import { fieldSizeClasses, fieldEndPadding, fieldEndPosition, type FieldSize, fieldLabelClass, fieldHelpClass, fieldErrorClass } from "../field-contract";
 import { formatRuDate, parseRuDate } from "@/src/shared/lib/date";
 
 export type DatePickerChangeEvent = {
@@ -31,6 +32,7 @@ export interface DatePickerProps extends Omit<
   InputHTMLAttributes<HTMLInputElement>,
   "type" | "value" | "defaultValue" | "onChange"
 > {
+  inputSize?: FieldSize;
   label?: string;
   helperText?: string;
   error?: string;
@@ -223,6 +225,7 @@ export const DatePicker = forwardRef<HTMLInputElement, DatePickerProps>(
    */
   function DatePicker(
     {
+      inputSize = "md",
       className,
       containerClassName,
       label,
@@ -728,7 +731,7 @@ export const DatePicker = forwardRef<HTMLInputElement, DatePickerProps>(
           <label
             htmlFor={inputId}
             className={cn(
-              "mb-1.5 block text-xs font-medium leading-none",
+              fieldLabelClass,
               hasError
                 ? "text-[var(--status-danger-fg)]"
                 : "text-[color:var(--input-label)]"
@@ -757,7 +760,7 @@ export const DatePicker = forwardRef<HTMLInputElement, DatePickerProps>(
             onBlur={handleInputBlur}
             onKeyDown={handleInputKeyDown}
             className={cn(
-              "block w-full appearance-none rounded-[8px] border bg-[var(--input-background)] px-3 py-3 pr-11 text-base leading-[1.15] outline-none touch-manipulation",
+              "block w-full appearance-none rounded-[6px] border bg-[var(--input-background)] outline-none touch-manipulation",
               "cursor-text font-normal text-[color:var(--input-text)] placeholder:text-[color:var(--input-placeholder)]",
               "shadow-none transition-[background,border,box-shadow,color] duration-150 ease-[ease]",
               "disabled:cursor-not-allowed disabled:bg-[var(--input-disabled-bg)] disabled:text-[color:var(--input-disabled-fg)] disabled:opacity-70",
@@ -777,6 +780,8 @@ export const DatePicker = forwardRef<HTMLInputElement, DatePickerProps>(
                     "focus:ring-[3px] focus:ring-[color:var(--focus-ring)]",
                     "focus:shadow-[0_0_0_1px_var(--input-border-focus)]",
                   ].join(" "),
+              fieldSizeClasses[inputSize],
+              fieldEndPadding[inputSize],
               className
             )}
             {...props}
@@ -792,14 +797,15 @@ export const DatePicker = forwardRef<HTMLInputElement, DatePickerProps>(
             }}
             onClick={handleToggle}
             className={cn(
-              "absolute right-2 top-1/2 z-20 inline-flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md",
+              "absolute top-1/2 z-20 inline-flex -translate-y-1/2 items-center justify-center rounded-md",
               "text-[color:var(--text-muted)] transition-[background-color,color] duration-150",
               "hover:bg-[var(--surface-subtle)] hover:text-[color:var(--text-secondary)]",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--focus-ring-strong)] focus-visible:ring-offset-2 focus-visible:ring-offset-[color:var(--focus-ring-offset)]",
-              "disabled:cursor-not-allowed disabled:opacity-50"
+              "disabled:cursor-not-allowed disabled:opacity-50",
+              fieldEndPosition[inputSize]
             )}
           >
-            <CalendarIcon className="h-5 w-5" />
+            <CalendarIcon className="h-4 w-4" />
           </button>
 
           {popover}
@@ -808,14 +814,14 @@ export const DatePicker = forwardRef<HTMLInputElement, DatePickerProps>(
         {error ? (
           <p
             id={`${inputId}-error`}
-            className="pt-1.5 text-sm text-[var(--status-danger-fg)]"
+            className={fieldErrorClass}
           >
             {error}
           </p>
         ) : helperText ? (
           <p
             id={`${inputId}-helper`}
-            className="pt-1.5 text-sm text-[color:var(--text-secondary)]"
+            className={fieldHelpClass}
           >
             {helperText}
           </p>

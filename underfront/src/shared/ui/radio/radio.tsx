@@ -57,7 +57,7 @@ export function Radio({ className, label, disabled, ...props }: RadioProps) {
         <span className="m-auto mt-[4px] block h-2.5 w-2.5 rounded-full bg-[color:var(--brand)] opacity-0 scale-75 transition-all duration-150 ease-out peer-checked:scale-100 peer-checked:opacity-100" />
       </span>
       {label ? (
-        <span className="text-sm text-[color:var(--text-primary)]">
+        <span className="text-xs font-medium leading-4 text-[color:var(--input-label)]">
           {label}
         </span>
       ) : null}
@@ -121,7 +121,7 @@ export const RadioGroup: React.FC<RadioGroupProps> = ({
 
             <span
               className={cn(
-                "text-sm font-medium",
+                "text-xs font-medium leading-4",
                 checked
                   ? "text-[color:var(--text-primary)]"
                   : "text-[color:var(--text-secondary)]"

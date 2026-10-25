@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/categorize"
 	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/domain"
@@ -30,6 +31,8 @@ type Result struct {
 	Filename, MIME string
 }
 type Service struct {
+	// Now supplies the reference date for recurring schedules; nil uses wall time.
+	Now                                                 func() time.Time
 	IntegrationSandbox                                  bool
 	FNSHubURL, FNSHubToken, FNSHubCompany               string
 	DB                                                  *store.Postgres
@@ -82,6 +85,12 @@ func day(v string) (time.Time, error) {
 	return t, nil
 }
 func today() time.Time { return domain.Day(time.Now().UTC()) }
+func (s *Service) recurringDay() time.Time {
+	if s.Now != nil {
+		return domain.Day(s.Now().UTC())
+	}
+	return today()
+}
 func date(v any) string {
 	if v == nil {
 		return ""
@@ -198,15 +207,21 @@ func view(kind string, d Doc) Doc {
 		copyKeys("id amount direction purpose category category_method is_internal")
 		out["date"] = date(d["op_date"])
 		out["counterparty"] = cpRef(cid, d)
-		out["source"] = d["source"]
-		if out["source"] == nil {
-			out["source"] = "upload"
-		}
+		out["source"] = operationSource(d)
 		if out["purpose"] == nil {
 			out["purpose"] = ""
 		}
 	case "event":
 		copyKeys("id amount direction title category probability status")
+		out["additional"] = flag(d, "additional")
+		for _, key := range []string{"linked_event_id", "linked_sources", "link_status"} {
+			if value, ok := d[key]; ok {
+				out[key] = value
+			}
+		}
+		if in(text(d, "source_kind"), "bank_api tax_api") {
+			copyKeys("source_id external_id obligation_kind tax_kind period year data_mode")
+		}
 		if text(d, "source_kind") == "onec_odata" {
 			copyKeys("source_id external_id due_date total_kopecks paid_kopecks remaining_kopecks forecast_eligible link_status data_mode payment_status version")
 		}
@@ -244,10 +259,12 @@ func view(kind string, d Doc) Doc {
 			out["body"] = ""
 		}
 	case "invoice":
-		copyKeys("id number direction amount paid_amount issued_at due_at expected_pay_at status source")
+		copyKeys("id number direction amount paid_amount issued_at due_at expected_pay_at status source additional")
+		out["additional"] = flag(d, "additional")
 		out["counterparty"] = cpRef(cid, d)
 	case "contract":
-		copyKeys("id number direction total prepayment deferral_days schedule source")
+		copyKeys("id number direction total prepayment deferral_days schedule source additional start_date schedule_mode")
+		out["additional"] = flag(d, "additional")
 		out["counterparty"] = cpRef(cid, d)
 	default:
 		for k, v := range d {
@@ -300,11 +317,17 @@ func (s *Service) Execute(ctx context.Context, op string, p platform.Principal, 
 		return s.crud(ctx, uid, cid, desc, r, body)
 	}
 	switch op {
+	case "previewTax", "createTax", "cancelTax":
+		return s.taxAction(ctx, op, uid, cid, r, body)
+	case "getTaxes":
+		return s.taxes(ctx, uid, cid, r)
+	case "getCompanyUpdates":
+		return s.updates(ctx, uid, cid)
 	case "listCategories":
 		return ok(Categories())
 	case "listOperations", "summarizeOperations", "exportOperations", "recategorizeOperations":
 		return s.operations(ctx, op, uid, cid, r, body)
-	case "getForecast", "getDashboard", "getForecastDay", "getGap", "previewForecast", "simulateGap", "getCalendar", "getForecastAccuracy", "getRetro", "getPlanFact", "getMissedPlanFact", "getTaxes":
+	case "getForecast", "getDashboard", "getForecastDay", "getGap", "previewForecast", "simulateGap", "getCalendar", "getForecastAccuracy", "getRetro", "getPlanFact", "getMissedPlanFact":
 		return s.financial(ctx, op, uid, cid, r, body)
 	case "listCounterparties", "getCounterparty", "getConcentration":
 		return s.counterparties(ctx, op, uid, cid, r)
@@ -362,6 +385,9 @@ func (s *Service) crud(ctx context.Context, uid, cid string, desc [3]string, r *
 			}
 		}
 		rows, e := s.DB.ProductList(ctx, uid, cid, kind)
+		if kind == "event" && e == nil {
+			rows, e = s.linkPaymentOrders(ctx, uid, cid, rows)
+		}
 		if e != nil {
 			return Result{}, e
 		}
@@ -412,6 +438,15 @@ func (s *Service) crud(ctx context.Context, uid, cid string, desc [3]string, r *
 	if e := validateResource(kind, body, create); e != nil {
 		return Result{}, e
 	}
+	// "Mark paid" is an explicit transition, not a standing instruction to
+	// manufacture another payment whenever an already-paid invoice is edited.
+	if kind == "invoice" && text(body, "status") == "paid" && (create || text(d, "status") != "paid") {
+		amount := d["amount"]
+		if value, exists := body["amount"]; exists {
+			amount = value
+		}
+		body["paid_amount"] = amount
+	}
 	if kind == "source" && !create {
 		if patch, yes := body["config"].(map[string]any); yes {
 			_, previous, err := s.sourceConfig(ctx, uid, id)
@@ -428,8 +463,20 @@ func (s *Service) crud(ctx context.Context, uid, cid string, desc [3]string, r *
 			d["status"], d["error"] = "pending", nil
 		}
 	}
+	if kind == "recurring" && !create {
+		rememberRecurringBaseline(d)
+	}
 	for k, v := range body {
 		d[k] = v
+	}
+	if kind == "contract" {
+		if _, supplied := body["schedule"]; supplied {
+			d["schedule_mode"] = "explicit"
+		}
+	}
+	if !create && kind == "event" && text(d, "source_kind") == "recurring" && len(body) > 0 {
+		// An individual installment edited by the user survives pattern edits.
+		d["user_override"] = true
 	}
 	d["id"], d["company_id"] = id, cid
 	if e := s.prepare(ctx, uid, cid, kind, d, create); e != nil {
@@ -468,14 +515,14 @@ func validateResource(kind string, b Doc, create bool) error {
 			return bad("Неизвестный статус счёта")
 		}
 	}
-	allowed := map[string]string{"event": "date amount direction title category counterparty_name counterparty_inn probability status additional", "recurring": "title direction amount period day_of_month counterparty_name counterparty_inn category confirmed active", "scenario": "title steps", "invoice": "number direction amount paid_amount issued_at due_at expected_pay_at status counterparty_name counterparty_inn additional", "contract": "number direction total prepayment deferral_days schedule counterparty_name counterparty_inn additional", "source": "kind title config enabled", "operation": "category", "alert": "read"}[kind]
+	allowed := map[string]string{"event": "date amount direction title category counterparty_name counterparty_inn probability status additional", "recurring": "title direction amount period day_of_month counterparty_name counterparty_inn category confirmed active", "scenario": "title steps", "invoice": "number direction amount paid_amount issued_at due_at expected_pay_at status counterparty_name counterparty_inn additional", "contract": "number direction total prepayment deferral_days start_date schedule counterparty_name counterparty_inn additional", "source": "kind title config enabled", "operation": "category", "alert": "read"}[kind]
 	if e := fields(b, allowed); e != nil {
 		return e
 	}
 	if len(b) == 0 {
 		return bad("Укажите поля записи")
 	}
-	required := map[string]string{"event": "date amount direction title", "recurring": "title direction amount period", "scenario": "title steps", "invoice": "number direction amount issued_at due_at", "contract": "number direction total schedule", "source": "kind title", "operation": "category", "alert": "read"}
+	required := map[string]string{"event": "date amount direction title", "recurring": "title direction amount period", "scenario": "title steps", "invoice": "number direction amount issued_at due_at", "contract": "number direction total", "source": "kind title", "operation": "category", "alert": "read"}
 	if create {
 		for _, k := range strings.Fields(required[kind]) {
 			if v, ok := b[k]; !ok || v == nil {
@@ -508,7 +555,7 @@ func validateResource(kind string, b Doc, create bool) error {
 			if !ok || n != math.Trunc(n) || n < 0 || n > 3650 {
 				return bad("Некорректная отсрочка")
 			}
-		case "date", "issued_at", "due_at", "expected_pay_at":
+		case "date", "issued_at", "due_at", "expected_pay_at", "start_date":
 			s, ok := v.(string)
 			if !ok {
 				return bad("Некорректная дата")
@@ -531,7 +578,7 @@ func validateResource(kind string, b Doc, create bool) error {
 			}
 		default:
 			s, ok := v.(string)
-			if !ok || len(s) > 1024 || strings.TrimSpace(s) == "" {
+			if !ok || utf8.RuneCountInString(s) > 1024 || strings.TrimSpace(s) == "" {
 				return bad("Некорректное поле: " + k)
 			}
 		}
@@ -568,11 +615,11 @@ func (s *Service) prepare(ctx context.Context, uid, cid, kind string, d Doc, cre
 		defaults("category", "other")
 		defaults("counterparty_name", "")
 		defaults("amount_spread", float64(0))
-		defaults("day_of_month", float64(today().Day()))
+		defaults("day_of_month", float64(s.recurringDay().Day()))
 		if !in(text(d, "period"), "weekly biweekly monthly quarterly") {
 			return bad("Неизвестный период")
 		}
-		d["next_date"] = nextOccurrence(today().AddDate(0, 0, -1), text(d, "period"), int(number(d, "day_of_month"))).Format(domain.DateLayout)
+		d["next_date"] = nextOccurrence(s.recurringDay().AddDate(0, 0, -1), text(d, "period"), int(number(d, "day_of_month"))).Format(domain.DateLayout)
 	case "source":
 		if create && in(text(d, "kind"), "wb ozon gsheets fns") {
 			if s.IntegrationSandbox {
@@ -582,7 +629,7 @@ func (s *Service) prepare(ctx context.Context, uid, cid, kind string, d Doc, cre
 			}
 		}
 		defaults("enabled", true)
-		if create && in(text(d, "kind"), "onec_odata gsheets fns wb ozon") {
+		if create && in(text(d, "kind"), "onec_odata gsheets fns wb ozon bank_api tax_api") {
 			defaults("status", "pending")
 		} else {
 			defaults("status", "ok")
@@ -590,10 +637,10 @@ func (s *Service) prepare(ctx context.Context, uid, cid, kind string, d Doc, cre
 		if !flag(d, "enabled") {
 			d["status"] = "disabled"
 		}
-		if !in(text(d, "kind"), "upload onec_bank_file excel gsheets onec_odata fns manual wb ozon") {
+		if !in(text(d, "kind"), "upload onec_bank_file excel gsheets onec_odata fns manual wb ozon bank_api tax_api") {
 			return bad("Неизвестный источник")
 		}
-		if create && in(text(d, "kind"), "gsheets onec_odata wb ozon") && d["config"] == nil {
+		if create && in(text(d, "kind"), "gsheets onec_odata wb ozon bank_api tax_api") && d["config"] == nil {
 			return bad("Для сетевого источника укажите config")
 		}
 		if cfg, yes := d["config"].(map[string]any); yes {
@@ -606,6 +653,7 @@ func (s *Service) prepare(ctx context.Context, uid, cid, kind string, d Doc, cre
 			return e
 		}
 	case "invoice":
+		defaults("additional", true)
 		defaults("paid_amount", float64(0))
 		defaults("expected_pay_at", d["due_at"])
 		defaults("source", "manual")
@@ -619,9 +667,6 @@ func (s *Service) prepare(ctx context.Context, uid, cid, kind string, d Doc, cre
 		if !in(text(d, "direction"), "issued received") {
 			return bad("Направление счёта: issued или received")
 		}
-		if text(d, "status") == "paid" {
-			d["paid_amount"] = d["amount"]
-		}
 		switch {
 		case number(d, "paid_amount") >= number(d, "amount"):
 			d["status"] = "paid"
@@ -633,6 +678,7 @@ func (s *Service) prepare(ctx context.Context, uid, cid, kind string, d Doc, cre
 			d["status"] = "open"
 		}
 	case "contract":
+		defaults("additional", true)
 		defaults("prepayment", float64(0))
 		defaults("deferral_days", float64(0))
 		defaults("source", "manual")
@@ -642,6 +688,13 @@ func (s *Service) prepare(ctx context.Context, uid, cid, kind string, d Doc, cre
 		}
 		if number(d, "prepayment") > number(d, "total") {
 			return bad("Предоплата больше суммы договора")
+		}
+		if _, supplied := d["schedule"]; !supplied || text(d, "schedule_mode") == "terms" {
+			if e := contractSchedule(d); e != nil {
+				return e
+			}
+		} else {
+			d["schedule_mode"] = "explicit"
 		}
 		sum := float64(0)
 		if len(docs(d["schedule"])) > 500 {

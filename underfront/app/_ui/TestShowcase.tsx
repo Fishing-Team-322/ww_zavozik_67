@@ -1,4 +1,5 @@
 "use client";
+import { ContentHeading } from "@/src/shared/ui/content";
 
 import { useState, type ReactNode } from "react";
 import { AlertTriangle, ArrowRight, Check, CircleHelp, Plus, Trash2 } from "lucide-react";
@@ -42,9 +43,9 @@ const badgeTones = ["subtle", "soft", "outline", "solid"] as const;
 
 function ShowcaseSection({ id, title, description, children }: { id: string; title: string; description?: string; children: ReactNode }) {
   return (
-    <SectionCard id={id} className="scroll-mt-24 p-5 sm:p-6">
+    <SectionCard id={id} className="scroll-mt-24">
       <div className="mb-5">
-        <h2 className="text-xl font-semibold">{title}</h2>
+        <ContentHeading>{title}</ContentHeading>
         {description ? <p className="mt-1 text-sm text-[color:var(--text-secondary)]">{description}</p> : null}
       </div>
       {children}
@@ -109,11 +110,11 @@ export function TestShowcase() {
               <SearchInput label="Поиск" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Найти компонент" />
               <SearchInput label="Поиск загружается" loading placeholder="Поиск" />
               <SearchInput label="Поиск отключён" disabled placeholder="Поиск" />
-              <Select label="Категория" options={selectOptions} value={category} onChange={(event) => setCategory(event.target.value)} helperText="Откройте список с клавиатуры или мышью" />
-              <Select label="С поиском" searchable options={selectOptions} placeholder="Выберите категорию" />
-              <Select label="Ошибка выбора" options={selectOptions} error="Выберите доступное значение" />
-              <Select label="Выбор отключён" options={selectOptions} disabled />
-              <Select label="Пустой список" options={[]} searchable emptyTitle="Вариантов нет" />
+              <Select density="form" label="Категория" options={selectOptions} value={category} onChange={(event) => setCategory(event.target.value)} helperText="Откройте список с клавиатуры или мышью" />
+              <Select density="form" label="С поиском" searchable options={selectOptions} placeholder="Выберите категорию" />
+              <Select density="form" label="Ошибка выбора" options={selectOptions} error="Выберите доступное значение" />
+              <Select density="form" label="Выбор отключён" options={selectOptions} disabled />
+              <Select density="form" label="Пустой список" options={[]} searchable emptyTitle="Вариантов нет" />
               <div><Label htmlFor="manual-input">Отдельный Label</Label><Input id="manual-input" placeholder="Подпись связана с полем" /></div>
               <Textarea label="Комментарий" defaultValue="Пример заполненного многострочного поля" helperText="Тестовый текст" />
               <Textarea label="Ошибка комментария" error="Нужно добавить описание" />

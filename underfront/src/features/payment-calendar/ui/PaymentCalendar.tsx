@@ -1,4 +1,5 @@
 "use client";
+import { ContentHeading } from "@/src/shared/ui/content";
 
 import { CalendarDays } from "lucide-react";
 import { Button } from "@/src/shared/ui/button";
@@ -53,7 +54,7 @@ export function PaymentCalendar({ month, today, selectedDate, view, forecast, on
     <div className="w-full min-w-0 space-y-4 text-[13px] leading-5 text-[color:var(--nav-item-active-text)]">
       <header className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
         <div className="min-w-0">
-          <h1 className="text-[20px] font-semibold leading-6 tracking-tight text-[color:var(--text-primary)]">Платёжный календарь</h1>
+          <ContentHeading level={1} >Платёжный календарь</ContentHeading>
           <p className="mt-1 text-[12px] leading-4 text-[color:var(--nav-item-text)]">Планирование денежных потоков по финансовым событиям</p>
         </div>
         <Button type="button" size="lg" onClick={onCreateEvent}>+ Событие</Button>
@@ -76,7 +77,7 @@ export function PaymentCalendar({ month, today, selectedDate, view, forecast, on
       <div className="grid min-w-0 items-start gap-4 lg:grid-cols-[360px_minmax(0,1fr)]">
         <section className="min-w-0 rounded-[5px] border border-[color:var(--border)] bg-[color:var(--surface)] lg:sticky lg:top-16" aria-label="Выбор даты">
           <div className="flex min-h-12 items-center justify-between gap-2 border-b border-[color:var(--border-muted)] px-4 py-3">
-            <h2 className="text-[16px] font-semibold leading-5 text-[color:var(--text-primary)]">Месяц</h2>
+            <ContentHeading level={2} >Месяц</ContentHeading>
             <span className="text-[12px] text-[color:var(--nav-item-text)]">{monthEventCount} событий</span>
           </div>
           <div className="p-4"><PaymentMonthGrid {...shared} /></div>
@@ -86,7 +87,7 @@ export function PaymentCalendar({ month, today, selectedDate, view, forecast, on
           {view === "month" && selectedDay ? <>
             <div className="flex min-h-12 flex-wrap items-center justify-between gap-2 border-b border-[color:var(--border-muted)] px-4 py-3">
               <div>
-                <h2 className="text-[16px] font-semibold leading-5 text-[color:var(--text-primary)]">{parseDate(selectedDay.date).toLocaleDateString("ru-RU", { day: "numeric", month: "long", weekday: "long" })}</h2>
+                <ContentHeading level={2} >{parseDate(selectedDay.date).toLocaleDateString("ru-RU", { day: "numeric", month: "long", weekday: "long" })}</ContentHeading>
               </div>
               <span className={`inline-flex items-center gap-2 text-[12px] leading-5 ${selectedDay.closing < 0 ? "text-[color:var(--danger)]" : "text-[color:var(--nav-item-text)]"}`}><span className={`size-1.5 rounded-full ${selectedDay.closing < 0 ? "bg-[color:var(--danger)]" : "bg-[color:var(--accent)]"}`} />{selectedDay.closing < 0 ? "Возможная нехватка" : "Средств достаточно"}</span>
             </div>
@@ -104,7 +105,7 @@ export function PaymentCalendar({ month, today, selectedDate, view, forecast, on
               <div><p className="text-[color:var(--nav-item-text)]">Списания</p><p className="mt-1 text-[15px] font-semibold leading-5 tabular-nums text-[color:var(--nav-item-active-text)]">{selectedDay.expense ? "−" : ""}{formatMoney(selectedDay.expense)}</p></div>
             </div>
             <div className="px-2 py-2">
-              <div className="flex items-center justify-between gap-2 px-2 pb-1"><h3 className="text-[15px] font-semibold leading-5">События дня</h3><span className="text-[12px] text-[color:var(--nav-item-text)]">{selectedDay.events.length ? `${selectedDay.events.length} · перетащите на дату слева` : "0 событий"}</span></div>
+              <div className="flex items-center justify-between gap-2 px-2 pb-1"><ContentHeading level={3} >События дня</ContentHeading><span className="text-[12px] text-[color:var(--nav-item-text)]">{selectedDay.events.length ? `${selectedDay.events.length} · перетащите на дату слева` : "0 событий"}</span></div>
               {selectedDay.events.length ? <div className="divide-y divide-[color:var(--border-muted)]">{selectedDay.events.map((event) => <PaymentEventCard key={event.id} event={event} onOpen={onOpenEvent} />)}</div> : <div className="flex items-center gap-3 px-2 py-2">
                 <span className="flex size-7 shrink-0 items-center justify-center rounded-[4px] bg-[color:var(--sidebar-bg)] text-[color:var(--nav-item-icon)]"><CalendarDays size={15} strokeWidth={1.7} aria-hidden="true" /></span>
                 <p className="min-w-0 flex-1 text-[12px] leading-4 text-[color:var(--nav-item-text)]">На этот день платежей нет</p><Button type="button" variant="outline" size="md" onClick={onCreateEvent}>Добавить</Button>
@@ -116,7 +117,7 @@ export function PaymentCalendar({ month, today, selectedDate, view, forecast, on
 
       <div className="grid min-w-0 items-start gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(300px,0.9fr)]">
         <section className="min-w-0 rounded-[5px] border border-[color:var(--border)] bg-[color:var(--surface)]" aria-label="Требует внимания">
-          <div className="flex min-h-[52px] flex-wrap items-center justify-between gap-2 border-b border-[color:var(--border-muted)] px-4 py-3"><h2 className="text-[16px] font-semibold leading-5 text-[color:var(--text-primary)]">Требует внимания</h2><span className="text-[12px] text-[color:var(--nav-item-text)]">{attention.length ? `${attention.length} событий` : "Всё спокойно"}</span></div>
+          <div className="flex min-h-[52px] flex-wrap items-center justify-between gap-2 border-b border-[color:var(--border-muted)] px-4 py-3"><ContentHeading level={2} >Требует внимания</ContentHeading><span className="text-[12px] text-[color:var(--nav-item-text)]">{attention.length ? `${attention.length} событий` : "Всё спокойно"}</span></div>
           {attention.length ? <div className="divide-y divide-[color:var(--border-muted)] px-2 py-1">
             {attention.map(({ date, event, reason }) => <div key={event.id} className="flex min-w-0 items-center gap-2">
               <button type="button" onClick={() => onSelectDate(date)} className="w-14 shrink-0 rounded-[4px] text-center text-[12px] tabular-nums text-[color:var(--nav-item-text)] hover:text-[color:var(--nav-item-active-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--nav-focus-ring)]">{parseDate(date).toLocaleDateString("ru-RU", { day: "numeric", month: "short" })}</button>
@@ -126,7 +127,7 @@ export function PaymentCalendar({ month, today, selectedDate, view, forecast, on
         </section>
 
         <section className="min-w-0 rounded-[5px] border border-[color:var(--border)] bg-[color:var(--surface)]" aria-label="Динамика остатка">
-          <div className="flex min-h-[52px] flex-wrap items-center justify-between gap-2 border-b border-[color:var(--border-muted)] px-4 py-3"><h2 className="text-[16px] font-semibold leading-5 text-[color:var(--text-primary)]">Динамика остатка</h2><span className="text-[12px] tabular-nums text-[color:var(--nav-item-text)]">{formatMoney(forecast.opening)} → {formatMoney(forecast.closing)}</span></div>
+          <div className="flex min-h-[52px] flex-wrap items-center justify-between gap-2 border-b border-[color:var(--border-muted)] px-4 py-3"><ContentHeading level={2} >Динамика остатка</ContentHeading><span className="text-[12px] tabular-nums text-[color:var(--nav-item-text)]">{formatMoney(forecast.opening)} → {formatMoney(forecast.closing)}</span></div>
           <div className="px-3 pt-2"><PaymentBalanceChart days={forecast.days} selectedDate={selectedDate} /></div>
           <p className="px-4 pb-3 text-[12px] leading-4 text-[color:var(--nav-item-text)]">Демо-расчёт: просроченные поступления и отменённые события не учитываются.</p>
         </section>
