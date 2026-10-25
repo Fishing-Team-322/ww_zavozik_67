@@ -81,25 +81,42 @@ def gap_calibration(frame, cohort, model):
                 ece=weighted / len(data), reliability=reliability)
 
 
+def select_rows(frame: pd.DataFrame, out_of_fit: bool) -> pd.DataFrame:
+    """Optionally keep only rows whose target window ends after the fit cutoff."""
+    if not out_of_fit:
+        return frame
+    if "in_fit" not in frame:
+        raise ValueError("origins file has no in_fit column; cannot select out-of-fit rows")
+    selected = frame[~frame.in_fit.astype(bool)]
+    if selected.empty:
+        raise ValueError("no out-of-fit rows in this file")
+    return selected
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--origins", type=Path, required=True)
     p.add_argument("--cohort", default="unseen")
     p.add_argument("--metric", default="net_path_mae")
+    p.add_argument("--repeats", type=int, default=10_000)
+    p.add_argument("--seed", type=int, default=7)
+    p.add_argument("--out-of-fit", action="store_true",
+                   help="keep only rows whose 30-day window ends after train_end (requires in_fit column)")
     p.add_argument("--model", nargs="+", default=["blocks", "hybrid", "mixture"])
     p.add_argument("--against", nargs="+", default=["ensemble", "gbm_global", "seasonal_naive"])
     p.add_argument("--gap", nargs="*", default=None, help="models for gap calibration; default all")
     p.add_argument("--out", type=Path, default=None)
     args = p.parse_args()
 
-    frame = pd.read_csv(args.origins)
+    frame = select_rows(pd.read_csv(args.origins), args.out_of_fit)
     rows = []
     for model in args.model:
         for against in args.against:
             if model == against:
                 continue
             try:
-                rows.append(paired_ratio(frame, args.cohort, args.metric, model, against))
+                rows.append(paired_ratio(frame, args.cohort, args.metric, model, against,
+                                         repeats=args.repeats, seed=args.seed))
             except ValueError as error:
                 rows.append(dict(model=model, against=against, error=str(error)))
     models = args.gap if args.gap is not None else sorted(frame.model.unique())

@@ -57,3 +57,17 @@ def test_gap_calibration_skill_and_ece():
 def test_gap_calibration_rejects_unscored_model():
     with pytest.raises(ValueError, match="no scored gaps"):
         m.gap_calibration(frame(), "unseen", "absent")
+
+
+def test_select_rows_filters_out_of_fit_and_validates():
+    frame = pd.DataFrame([dict(cohort="unseen", company_id="A", origin="a", model="m",
+                               net_path_mae=1.0, gap_probability=.5, gap_actual=True, in_fit=True),
+                          dict(cohort="unseen", company_id="B", origin="b", model="m",
+                               net_path_mae=2.0, gap_probability=.5, gap_actual=False, in_fit=False)])
+    assert len(m.select_rows(frame, False)) == 2
+    selected = m.select_rows(frame, True)
+    assert len(selected) == 1 and selected.company_id.iloc[0] == "B"
+    with pytest.raises(ValueError, match="no in_fit column"):
+        m.select_rows(frame.drop(columns=["in_fit"]), True)
+    with pytest.raises(ValueError, match="no out-of-fit rows"):
+        m.select_rows(frame[frame.in_fit], True)
