@@ -30,18 +30,6 @@ test("checkpoint CSV preserves quoted newlines, Cyrillic and leading zero INNs",
   assert.deepEqual(rows, [["a", "b"], ['x"y', "z\nq"]]);
 });
 
-test("checkpoint ZIP selects one statement and never parses the combined duplicate CSV", async () => {
-  const bytes = zipSync({ "README.md": strToU8("input"), "companies.csv": strToU8("company_id;company_name;legal_form;industry\nC001;Кофейня;ООО;Общепит\nC002;Магазин;ИП;Торговля\n"),
-    "statements/C001.csv": strToU8(operationsCSV([op("a", "2026-01-01", 10, 100)])),
-    "statements/C002.csv": strToU8(operationsCSV([{ ...op("b", "2026-01-02", 20, 200), company: "C002" }])),
-    "all_operations.csv": strToU8("THIS IS NOT A VALID CSV AND MUST NOT BE IMPORTED") });
-  const source = await inspectDataset(new File([Uint8Array.from(bytes).buffer], "dataset.zip"));
-  assert.deepEqual(source.companies.map(company => company.key), ["C001", "C002"]);
-  assert.equal(source.companies[0].name, "Кофейня");
-  const selected = await readControlCompany(source, "C002");
-  assert.equal(selected.operations.length, 1); assert.equal(selected.operations[0].amount, 20);
-});
-
 test("combined CSV is separated by company and conflicting operation IDs stop a run", async () => {
   const header = "company_id;operation_id;operation_date;amount;direction;balance_eod\n";
   const source = await inspectDataset(new File([header + "C001;x;2026-01-01;10;Поступление;100\nC002;x;2026-01-02;20;Списание;200\nC001;x;2026-01-01;10;Поступление;100\n"], "all_operations.csv"));
@@ -51,11 +39,11 @@ test("combined CSV is separated by company and conflicting operation IDs stop a 
   await assert.rejects(readControlCompany(conflicting, "C001"), /одинаковый operation_id/);
 });
 
-test("CSV and archive validation rejects broken amounts, invalid dates and unsafe ZIP paths", async () => {
+test("CSV validation rejects broken amounts, invalid dates and non-CSV inputs", async () => {
   await assert.rejects(inspectDataset(new File(["date;amount;direction;balance\n2026-02-30;10;in;100\n"], "bad.csv")), /дата/);
   await assert.rejects(inspectDataset(new File(["date;amount;direction;balance\n2026-01-01;NaN;in;100\n"], "bad.csv")), /сумма/);
   const bytes = zipSync({ "../evil.csv": strToU8("bad") });
-  await assert.rejects(inspectDataset(new File([Uint8Array.from(bytes).buffer], "unsafe.zip")), /недопустимые пути/);
+  await assert.rejects(inspectDataset(new File([Uint8Array.from(bytes).buffer], "unsafe.zip")), /выберите CSV/);
 });
 
 test("reconciliation excludes unknown intervals instead of fabricating zero balances", () => {

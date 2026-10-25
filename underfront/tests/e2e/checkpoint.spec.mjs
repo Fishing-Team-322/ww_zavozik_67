@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { randomUUID, createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
-import { zipSync, strToU8, strFromU8, unzipSync } from 'fflate';
+import { strFromU8, unzipSync } from 'fflate';
 
 const api = process.env.E2E_API_URL || 'http://localhost:8080';
 const dayAt = offset => { const day = new Date(); day.setUTCDate(day.getUTCDate() + offset); return day.toISOString().slice(0, 10); };
@@ -34,13 +34,13 @@ async function workspace(page, request) {
   } };
 }
 
-test('ZIP holdout uses one company, withholds future rows, exports evidence and restores saved reports', async ({ page, request }) => {
+test('combined CSV holdout uses one company, withholds future rows, exports evidence and restores saved reports', async ({ page, request }) => {
   const w = await workspace(page, request);
-  const archive = zipSync({ 'companies.csv': strToU8('company_id;company_name;legal_form;industry\nC001;Первая компания;ООО;Общепит\nC002;Вторая компания;ИП;Торговля\n'), 'statements/C001.csv': strToU8(csv('C001')), 'statements/C002.csv': strToU8(csv('C002')), 'all_operations.csv': strToU8('not a bank file; duplicates are deliberately not read') });
-  await page.getByLabel('Контрольный датасет CSV или ZIP', { exact: true }).setInputFiles({ name: 'control.zip', mimeType: 'application/zip', buffer: Buffer.from(archive) });
+  const combined = csv('C001') + csv('C002').split('\n').slice(1).join('\n');
+  await page.getByLabel('Контрольный датасет CSV', { exact: true }).setInputFiles({ name: 'all_operations.csv', mimeType: 'text/csv', buffer: Buffer.from(combined) });
   await expect(page.getByText('Найдено компаний: 2.', { exact: false })).toBeVisible();
   await page.getByRole('combobox', { name: 'Компания из набора', exact: true }).click();
-  await page.getByRole('option', { name: 'C002 · Вторая компания', exact: true }).click();
+  await page.getByRole('option', { name: 'C002 · C002', exact: true }).click();
   await expect(page.getByLabel('Последний день истории для модели', { exact: true })).toHaveValue(dayAt(-31));
   await page.getByRole('button', { name: 'Запустить проверку', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Результат расчёта', exact: true })).toBeVisible({ timeout: 120000 });
@@ -69,7 +69,7 @@ test('ZIP holdout uses one company, withholds future rows, exports evidence and 
 
 test('prediction-only CSV never fabricates holdout metrics or a confusion matrix', async ({ page, request }) => {
   const w = await workspace(page, request);
-  await page.getByLabel('Контрольный датасет CSV или ZIP', { exact: true }).setInputFiles({ name: 'statement.csv', mimeType: 'text/csv', buffer: Buffer.from(csv()) });
+  await page.getByLabel('Контрольный датасет CSV', { exact: true }).setInputFiles({ name: 'statement.csv', mimeType: 'text/csv', buffer: Buffer.from(csv()) });
   await expect(page.getByRole('button', { name: 'Запустить проверку', exact: true })).toBeEnabled();
   await page.getByRole('combobox', { name: 'Режим проверки', exact: true }).click();
   await page.getByRole('option', { name: 'Построить прогноз после конца файла', exact: true }).click();
@@ -85,7 +85,7 @@ test('prediction-only CSV never fabricates holdout metrics or a confusion matrix
 
 test('invalid control file stops before creating or importing into a company', async ({ page, request }) => {
   const w = await workspace(page, request);
-  await page.getByLabel('Контрольный датасет CSV или ZIP', { exact: true }).setInputFiles({ name: 'bad.csv', mimeType: 'text/csv', buffer: Buffer.from('date;amount;direction\n2026-01-01;10;in\n') });
+  await page.getByLabel('Контрольный датасет CSV', { exact: true }).setInputFiles({ name: 'bad.csv', mimeType: 'text/csv', buffer: Buffer.from('date;amount;direction\n2026-01-01;10;in\n') });
   await expect(page.getByRole('alert').filter({ hasText: 'Нет столбца' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Запустить проверку', exact: true })).toHaveCount(0);
   const profile = await request.get(api + '/v1/me', { headers: w.headers });
@@ -97,7 +97,7 @@ test('failed API execution remains a failed run with downloadable observations',
   await page.route('**/v1/companies', route => route.request().method() === 'POST'
     ? route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ code: 'test_unavailable', message: 'Тестовая недоступность сервера' }) })
     : route.continue());
-  await page.getByLabel('Контрольный датасет CSV или ZIP', { exact: true }).setInputFiles({ name: 'statement.csv', mimeType: 'text/csv', buffer: Buffer.from(csv()) });
+  await page.getByLabel('Контрольный датасет CSV', { exact: true }).setInputFiles({ name: 'statement.csv', mimeType: 'text/csv', buffer: Buffer.from(csv()) });
   await expect(page.getByRole('button', { name: 'Запустить проверку', exact: true })).toBeEnabled();
   await page.getByRole('button', { name: 'Запустить проверку', exact: true }).click();
   await expect(page.getByRole('alert').filter({ hasText: 'Тестовая недоступность' })).toBeVisible();

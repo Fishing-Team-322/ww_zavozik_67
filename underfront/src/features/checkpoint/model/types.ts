@@ -1,7 +1,7 @@
 import type { Forecast } from "@/src/shared/api";
 
-export type ControlCompany = { key: string; name: string; industry: string; legalForm: "ООО" | "ИП"; entry?: string; rows?: number; from?: string; to?: string };
-export type ControlSource = { file: File; kind: "csv" | "zip"; companies: ControlCompany[]; archive?: Uint8Array };
+export type ControlCompany = { key: string; name: string; industry: string; legalForm: "ООО" | "ИП"; rows?: number; from?: string; to?: string };
+export type ControlSource = { file: File; kind: "csv"; companies: ControlCompany[] };
 export type ControlOperation = { id: string; company: string; date: string; amount: number; direction: "in" | "out"; counterparty: string; inn: string; purpose: string; balance: number | null };
 export type ControlData = { company: ControlCompany; operations: ControlOperation[]; duplicates: number; from: string; to: string };
 export type ActualDay = { date: string; balance: number | null; observed: boolean; reason?: string };

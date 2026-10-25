@@ -1,12 +1,9 @@
-import { unzipSync } from "fflate";
 import type { ControlCompany, ControlData, ControlOperation, ControlSource } from "./types";
 
 const MAX_CSV = 80 * 1024 * 1024;
-const MAX_ZIP = 32 * 1024 * 1024;
 const MAX_ROWS = 350_000;
 const DAY = 86400000;
 export const dayOffset = (date: string, days: number) => new Date(Date.parse(`${date}T00:00:00Z`) + days * DAY).toISOString().slice(0, 10);
-const nameOf = (path: string) => path.split("/").at(-1) ?? path;
 const fieldNames: Record<string, string[]> = {
   date: ["operation_date", "date", "op_date", "дата"], amount: ["amount", "сумма"], direction: ["direction", "направление"],
   id: ["operation_id", "id"], company: ["company_id"], counterparty: ["counterparty_name", "counterparty", "контрагент"],
@@ -88,44 +85,9 @@ function operation(row: string[], map: Record<string, number>, fallback: string,
   return { id: get(row, map.id) || `row-${index}`, company: get(row, map.company) || fallback, date, amount, direction,
     counterparty: get(row, map.counterparty), inn: get(row, map.inn), purpose: get(row, map.purpose), balance: numeric(get(row, map.balance), true) };
 }
-const bytesBlob = (bytes: Uint8Array) => new Blob([Uint8Array.from(bytes).buffer]);
-
 export async function inspectDataset(file: File, progress?: (rows: number) => void): Promise<ControlSource> {
   if (!file.size) throw new Error("Файл пуст.");
-  if (/\.zip$/i.test(file.name)) {
-    if (file.size > MAX_ZIP) throw new Error("ZIP должен быть не больше 32 МиБ.");
-    const archive = new Uint8Array(await file.arrayBuffer());
-    const entries: { name: string; size: number }[] = [];
-    let expanded = 0;
-    const metadata = unzipSync(archive, { filter: entry => {
-      if (entry.name.split("/").some(part => part === "..") || entry.name.startsWith("/") || entry.name.includes("\\")) throw new Error("Архив содержит недопустимые пути.");
-      if (++expanded > 1000) throw new Error("В архиве более 1000 файлов.");
-      if (!/\.csv$/i.test(entry.name) || entry.name.startsWith("__MACOSX/")) return false;
-      if (entry.originalSize > MAX_CSV) throw new Error("CSV в архиве превышает 80 МиБ.");
-      entries.push({ name: entry.name, size: entry.originalSize });
-      return nameOf(entry.name).toLowerCase() === "companies.csv" && entry.originalSize <= 1024 * 1024;
-    } });
-    const statements = entries.filter(entry => /(?:^|\/)statements\/[^/]+\.csv$/i.test(entry.name));
-    if (statements.length) {
-      const names = new Map<string, Partial<ControlCompany>>();
-      for (const bytes of Object.values(metadata)) {
-        let header: string[] | undefined;
-        for await (const row of csvRecords(bytesBlob(bytes))) {
-          if (!header) { header = row; continue; }
-          const at = (key: string) => get(row, header!.indexOf(key));
-          if (at("company_id")) names.set(at("company_id"), { name: at("company_name"), industry: at("industry"), legalForm: at("legal_form") === "ИП" ? "ИП" : "ООО", from: at("first_operation_date"), to: at("last_operation_date"), rows: Number(at("operations_count")) || undefined });
-        }
-      }
-      const companies = statements.map(entry => { const key = nameOf(entry.name).replace(/\.csv$/i, ""); return { key, name: key, industry: "Контрольный набор", legalForm: "ООО" as const, ...names.get(key), entry: entry.name }; }).sort((a, b) => a.key.localeCompare(b.key));
-      return { file, archive, kind: "zip", companies };
-    }
-    const csv = entries.find(entry => nameOf(entry.name).toLowerCase() === "all_operations.csv") ?? (entries.length === 1 ? entries[0] : undefined);
-    if (!csv) throw new Error("В ZIP нужны statements/*.csv, all_operations.csv или один CSV с операциями.");
-    const [bytes] = Object.values(unzipSync(archive, { filter: entry => entry.name === csv.name }));
-    const companies = await inspectCSV(bytesBlob(bytes), nameOf(csv.name), progress);
-    return { file, archive, kind: "zip", companies: companies.map(company => ({ ...company, entry: csv.name })) };
-  }
-  if (!/\.csv$/i.test(file.name)) throw new Error("Выберите CSV или ZIP с выписками.");
+  if (!/\.csv$/i.test(file.name)) throw new Error("Для контрольного набора выберите CSV с исходными полями датасета.");
   if (file.size > MAX_CSV) throw new Error("CSV должен быть не больше 80 МиБ.");
   return { file, kind: "csv", companies: await inspectCSV(file, file.name, progress) };
 }
@@ -150,12 +112,7 @@ async function inspectCSV(blob: Blob, filename: string, progress?: (rows: number
 export async function readControlCompany(source: ControlSource, key: string): Promise<ControlData> {
   const company = source.companies.find(item => item.key === key);
   if (!company) throw new Error("Выберите компанию из набора.");
-  let blob: Blob = source.file;
-  if (source.kind === "zip") {
-    const [bytes] = Object.values(unzipSync(source.archive!, { filter: entry => entry.name === company.entry }));
-    if (!bytes) throw new Error("Выписка компании не найдена в ZIP.");
-    blob = bytesBlob(bytes);
-  }
+  const blob: Blob = source.file;
   const operations: ControlOperation[] = [], seen = new Map<string, string>();
   let map: Record<string, number> | undefined, index = 0, duplicates = 0;
   for await (const row of csvRecords(blob)) {
@@ -182,4 +139,3 @@ export async function sha256(blob: Blob | string) {
   const bytes = typeof blob === "string" ? new TextEncoder().encode(blob).buffer : await blob.arrayBuffer();
   return [...new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))].map(value => value.toString(16).padStart(2, "0")).join("");
 }
-
