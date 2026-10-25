@@ -13,7 +13,8 @@ sys.modules[spec.name] = m
 spec.loader.exec_module(m)
 
 
-DOCS = {"cohorts": {"unseen": "held out"}, "metrics": {"net_path_mae": "rubles"}, "caveats": ["synthetic"]}
+DOCS = {"cohorts": {"unseen": "held out"}, "metrics": {"net_path_mae": "rubles"},
+        "caveats": ["synthetic corpus"]}
 
 
 def make_run(root, name, rows, cohorts=None, status="ok"):
@@ -83,3 +84,16 @@ def test_export_requires_documentation_block(tmp_path):
     spec_path.write_text(json.dumps({"documentation": {"cohorts": {}, "metrics": {}}, "runs": [run]}))
     with pytest.raises(ValueError, match="caveats"):
         m.export(spec_path, tmp_path / "out")
+
+
+def test_metrics_reference_is_generated_from_the_spec(tmp_path):
+    run = make_run(tmp_path, "run-d", [dict(cohort="unseen", model="m", origins=1)])
+    run["conclusion"] = "blocks did well"
+    spec_path = tmp_path / "runs.json"
+    spec_path.write_text(json.dumps({"documentation": DOCS, "runs": [run]}))
+    out = tmp_path / "out"
+    m.export(spec_path, out)
+    text = (out / "METRICS.txt").read_text()
+    for fragment in ("MODEL BENCHMARK METRICS", "COHORTS", "unseen: held out",
+                     "net_path_mae: rubles", "synthetic corpus", "blocks did well"):
+        assert fragment in text
