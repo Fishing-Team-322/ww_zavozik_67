@@ -39,18 +39,20 @@ The existing edge-proxy-caddy-1 is connected to the additional external puls-edg
 network. Its Compose definition retains its previous networks and adds that one.
 The root Caddyfile imports /config/puls-sites/site.caddy from its existing config
 volume. Only suck-and-see.net uses the new route. Caddy validates and reloads
-gracefully; unrelated containers are not recreated. Cloudflare remains proxied;
-Caddy obtains the origin certificate and serves HTTPS.
+gracefully; unrelated containers are not recreated. Cloudflare provides DNS only:
+the canonical A record points to 85.159.231.68 with proxying disabled. Caddy
+obtains the public certificate and serves HTTPS directly.
 
 Direct HTTPS fallback: https://puls-85-159-231-68.sslip.io. Its DNS resolves directly
-to this server, without changing the canonical domain's Cloudflare setting.
+to this server.
 The exact fallback frontend Origin is mapped to the canonical allowed Origin;
 arbitrary Origin headers are not replaced. This preserves the existing CSRF
 restriction for all other sites. Both addresses use the same application/DB.
 Some local networks terminate larger Cloudflare downloads with
 ERR_HTTP2_PROTOCOL_ERROR before the React application can initialize. The local
 check reproduced that failure, while a pinned direct-origin browser check and
-the fallback completed normally. Cloudflare proxy changes require zone access.
+the fallback completed normally. On 2026-10-25 the domain owner disabled
+Cloudflare proxying; canonical browser login and session restoration then passed.
 Cloudflare's documented service disruption:
 https://developers.cloudflare.com/support/troubleshooting/general-troubleshooting/service-disruption/
 
@@ -98,10 +100,9 @@ The public CI browser uses TCP (E2E_DISABLE_QUIC=1), because the hosted runner's
 Cloudflare HTTP/3 requests failed with ERR_QUIC_PROTOCOL_ERROR. This does not
 change application/browser settings or resolve ISP-specific Cloudflare access;
 the direct HTTPS fallback remains available for affected networks.
-Canonical application pages temporarily return HTTP 302 to that fallback,
-preserving the path and query; API, revision probes and asset paths remain
-proxied. Public smoke explicitly checks the landing origin. This keeps the
-provided domain usable without changing Cloudflare DNS or zone protection.
-After the Cloudflare transport issue is resolved, remove the @application
-redirect in deploy/Caddyfile, reload the validated Caddy configuration and
-remove E2E_PUBLIC_CANONICAL_REDIRECT_URL from the deployment workflow.
+Canonical application pages are served directly on https://suck-and-see.net.
+The sslip.io address remains an optional fallback; the canonical domain does
+not redirect visitors there.
+To apply deploy/Caddyfile, back up /config/puls-sites/site.caddy in the edge
+proxy's config volume, replace only that file, validate the complete root
+Caddyfile, then reload Caddy gracefully. Restore the backup on failure.
