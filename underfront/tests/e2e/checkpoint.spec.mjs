@@ -156,6 +156,9 @@ test('folder picker verifies mirrors once, uses source metadata and exports the 
     expect(protocol.input.directory.raw_files_modified).toBe(false);
     expect(protocol.input.directory.raw_files_uploaded).toBe(false);
     expect(strFromU8(archive['history.csv'])).not.toContain(dayAt(-1));
+    await page.getByRole('combobox', { name: 'Режим проверки', exact: true }).click();
+    await page.getByRole('option', { name: 'Построить прогноз после конца файла', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Результат расчёта', exact: true })).toHaveCount(0);
   } finally { await rm(fixture.root, { recursive: true, force: true }); }
 });
 
@@ -184,6 +187,7 @@ test('folder defaults to a full-history forecast and keeps future truth metrics 
     const report = await w.report();
     expect(report.mode).toBe('forecast'); expect(report.input.training_rows).toBe(180); expect(report.input.withheld_rows).toBe(0);
     expect(report.cutoff).toBe(dayAt(-1)); expect(report.requested_cutoff).toBe(dayAt(-1));
+    await expect(page.getByText('На графике показаны история и прогноз. Будущий факт не предоставлен;', { exact: false })).toBeVisible();
     expect(report.metrics.samples).toBe(0); expect(report.metrics.mae).toBeNull(); expect(report.metrics.confusion).toBeNull();
   } finally { await rm(fixture.root, { recursive: true, force: true }); }
 });
