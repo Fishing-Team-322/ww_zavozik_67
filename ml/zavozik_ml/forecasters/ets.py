@@ -54,5 +54,8 @@ class ETS(Forecaster):
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             fit = ExponentialSmoothing(y, seasonal="add", seasonal_periods=7, initialization_method="estimated").fit()
-            sims = fit.simulate(horizon, repetitions=n_paths, error="add", random_state=rng.integers(2**31))
+            # statsmodels accepts only None, an int or a RandomState; numpy scalars
+            # (e.g. numpy.int64) are rejected by current releases.
+            sims = fit.simulate(horizon, repetitions=n_paths, error="add",
+                                random_state=int(rng.integers(2**31)))
         return np.clip(np.asarray(sims).T.reshape(n_paths, horizon), 0, None)
