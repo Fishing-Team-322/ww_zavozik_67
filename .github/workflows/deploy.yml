@@ -110,3 +110,19 @@ jobs:
           curl --fail --silent --show-error --retry 6 --retry-delay 5 https://suck-and-see.net/login >/dev/null
           curl --fail --silent --show-error --retry 6 --retry-delay 5 "https://suck-and-see.net/build-info.json?release=$RELEASE" | python -c 'import json,os,sys; assert json.load(sys.stdin)["revision"] == os.environ["RELEASE"]'
           curl --fail --silent --show-error https://suck-and-see.net/v1/auth/providers | python -c 'import json,sys; assert isinstance(json.load(sys.stdin), list)'
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - name: Verify real browser session recovery on the public deployment
+        working-directory: underfront
+        env:
+          E2E_PUBLIC_URL: https://suck-and-see.net
+          E2E_PUBLIC_FALLBACK_URL: https://puls-85-159-231-68.sslip.io
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+          npm run test:e2e -- tests/e2e/production-smoke.spec.mjs
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: production-browser-diagnostics
+          path: underfront/test-results/

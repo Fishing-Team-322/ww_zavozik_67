@@ -43,11 +43,13 @@ def wait_ready(tag, seconds=120):
         try:
             with urlopen('http://127.0.0.1:18080/readyz', timeout=5) as response:
                 ready = json.load(response)
+            with urlopen('http://127.0.0.1:18080/healthz', timeout=5) as response:
+                health = json.load(response)
             with urlopen('http://127.0.0.1:13000/build-info.json', timeout=5) as response:
                 build = json.load(response)
             with urlopen('http://127.0.0.1:13000/v1/auth/providers', timeout=5) as response:
                 json.load(response)
-            if ready.get('status') == 'ok' and ready.get('ml') == 'ok' and build.get('revision') == tag:
+            if ready.get('status') == 'ready' and health.get('status') == 'ok' and health.get('ml') == 'ok' and build.get('revision') == tag:
                 return
         except Exception:
             pass

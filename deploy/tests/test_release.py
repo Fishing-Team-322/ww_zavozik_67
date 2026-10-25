@@ -90,6 +90,15 @@ class ReleaseTests(unittest.TestCase):
         self.assertFalse(Path(seen[0][1]['environment']['DOCKER_CONFIG']).exists())
         self.assertEqual((self.root/'current-release').read_text().strip(), self.old)
 
+    def test_readiness_and_ml_health_are_distinct_api_contracts(self):
+        responses = [io.BytesIO(json.dumps(data).encode()) for data in
+                     [{'status': 'ready'}, {'status': 'ok', 'ml': 'ok'}, {'revision': self.new}, []]]
+        with patch.object(release, 'urlopen', side_effect=responses) as http:
+            release.wait_ready(self.new, seconds=1)
+        self.assertEqual([call.args[0] for call in http.call_args_list],
+                         ['http://127.0.0.1:18080/readyz', 'http://127.0.0.1:18080/healthz',
+                          'http://127.0.0.1:13000/build-info.json', 'http://127.0.0.1:13000/v1/auth/providers'])
+
 
 if __name__ == '__main__':
     unittest.main()

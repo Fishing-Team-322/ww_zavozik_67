@@ -32,7 +32,8 @@ Registry authentication is stored only in a temporary Docker config during pull.
 Compose project: puls-production; database volume: puls-production_pgdata.
 Only 127.0.0.1:18080 (API) and 127.0.0.1:13000 (frontend) bind host ports.
 PostgreSQL and gRPC have no published ports. Application resource limits total
-about 1.5 GiB; logs rotate at 3 x 10 MiB per service. Sandbox integrations are off.
+about 1.7 GiB; Go GC memory budgets stay below their container limits. Logs rotate
+at 3 x 10 MiB per service. Sandbox integrations are off.
 
 The existing edge-proxy-caddy-1 is connected to the additional external puls-edge
 network. Its Compose definition retains its previous networks and adds that one.
@@ -40,6 +41,18 @@ The root Caddyfile imports /config/puls-sites/site.caddy from its existing confi
 volume. Only suck-and-see.net uses the new route. Caddy validates and reloads
 gracefully; unrelated containers are not recreated. Cloudflare remains proxied;
 Caddy obtains the origin certificate and serves HTTPS.
+
+Direct HTTPS fallback: https://puls-85-159-231-68.sslip.io. Its DNS resolves directly
+to this server, without changing the canonical domain's Cloudflare setting.
+The exact fallback frontend Origin is mapped to the canonical allowed Origin;
+arbitrary Origin headers are not replaced. This preserves the existing CSRF
+restriction for all other sites. Both addresses use the same application/DB.
+Some local networks terminate larger Cloudflare downloads with
+ERR_HTTP2_PROTOCOL_ERROR before the React application can initialize. The local
+check reproduced that failure, while a pinned direct-origin browser check and
+the fallback completed normally. Cloudflare proxy changes require zone access.
+Cloudflare's documented service disruption:
+https://developers.cloudflare.com/support/troubleshooting/general-troubleshooting/service-disruption/
 
 Health and recovery
 -------------------
@@ -77,4 +90,7 @@ Validation
 ----------
 CI validates the production Compose manifest and runs deploy/tests/test_release.py.
 Recovery tests cover invalid manifests/tags, failed health rollback, successful
-release pointers, and removal of temporary registry credentials on pull failure.
+release pointers, removal of temporary registry credentials on pull failure,
+and the distinct /readyz and /healthz contracts.
+After deployment, real browser tests check anonymous redirection, login and
+cookie-backed restoration on the canonical domain and direct HTTPS fallback.

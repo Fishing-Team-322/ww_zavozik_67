@@ -75,19 +75,23 @@ services:
   api:
     image: ghcr.io/fishing-team-322/puls-api:${PULS_RELEASE:?required}
     restart: unless-stopped
-    environment: *backend
+    environment:
+      <<: *backend
+      GOMEMLIMIT: 288MiB
     ports: ["127.0.0.1:18080:8080"]
     depends_on:
       postgres: { condition: service_healthy }
       ml: { condition: service_started }
-    mem_limit: 192m
+    mem_limit: 384m
     cpus: 0.5
     logging: *logging
 
   worker:
     image: ghcr.io/fishing-team-322/puls-worker:${PULS_RELEASE:?required}
     restart: unless-stopped
-    environment: *backend
+    environment:
+      <<: *backend
+      GOMEMLIMIT: 192MiB
     depends_on:
       postgres: { condition: service_healthy }
       ml: { condition: service_started }
