@@ -292,7 +292,7 @@ test('stale statement risk counts from today and labels the actual explanation d
   await expect(page.getByText(`Состав остатка к ${displayed(gap.explanation.date)}`, { exact: false })).toBeVisible();
   await expect(page.getByText(`Первая возможная нехватка: ${displayed(firstRiskDate)}.`, { exact: false })).toBeVisible();
   await expect(page.getByText('Платежи до даты риска.', { exact: false })).toHaveCount(0);
-  await expect(page.getByText('QA-LATER-PAYMENT', { exact: true })).toBeVisible();
+  await expect(page.locator('strong').filter({ hasText: /^QA-LATER-PAYMENT$/ })).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath('risk-dates-fixed.png'), fullPage: true });
 });
 
