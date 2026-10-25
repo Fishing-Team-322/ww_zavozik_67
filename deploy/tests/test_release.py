@@ -123,6 +123,112 @@ class ReleaseTests(unittest.TestCase):
         self.assertEqual((self.root/'current-release').read_text().strip(),self.old)
         with patch.object(release,'ROOT',self.root):self.assertFalse(release.has_qwen(self.old))
 
+    def prepare_manual_rollback(self, current_qwen=True, target_qwen=False):
+        self.target = 'c'*40
+        current = b'services:\n  ml:\n' + (b'  qwen:\n' if current_qwen else b'')
+        target = b'services:\n  ml:\n' + (b'  qwen:\n' if target_qwen else b'')
+        (self.root/'compose.yml').write_bytes(current)
+        manifests = self.root/'release-manifests'
+        manifests.mkdir()
+        (manifests/(self.old+'.yml')).write_bytes(current)
+        (manifests/(self.target+'.yml')).write_bytes(target)
+        (self.root/'previous-release').write_text(self.target+'\n')
+        self.request.update(release=self.target, rollback=True,
+            compose_sha256=release.hashlib.sha256(current).hexdigest())
+        return manifests
+
+    def test_manual_rollback_uses_saved_legacy_topology_without_migrations(self):
+        from unittest.mock import Mock
+        manifests = self.prepare_manual_rollback()
+        before = {p.name: p.read_bytes() for p in manifests.iterdir()}
+        docker, compose = Mock(return_value=b''), Mock(return_value=b'')
+        def ready(tag):
+            self.assertEqual(tag, self.target)
+            self.assertEqual((self.root/'current-release').read_text().strip(), self.old)
+            self.assertEqual((self.root/'previous-release').read_text().strip(), self.target)
+        self.invoke(run=docker, compose=compose, wait_ready=ready)
+        compose.assert_any_call(self.old, 'stop', 'qwen')
+        compose.assert_any_call(self.target, 'up', '-d', '--no-build', '--no-deps', 'ml', 'api', 'worker', 'frontend')
+        self.assertFalse(any('migrate' in call.args or 'postgres' in call.args for call in compose.call_args_list))
+        inspected = [call.args[0][-1] for call in docker.call_args_list]
+        self.assertEqual(inspected, [release.PREFIX+s+':'+self.target for s in ('ml','api','worker','frontend')])
+        self.assertEqual((self.root/'current-release').read_text().strip(), self.target)
+        self.assertEqual((self.root/'previous-release').read_text().strip(), self.old)
+        self.assertEqual({p.name: p.read_bytes() for p in manifests.iterdir()}, before)
+        self.assertFalse((self.root/'backups').exists())
+
+    def test_manual_rollback_failure_restores_current_topology_and_pointers(self):
+        from unittest.mock import Mock
+        self.prepare_manual_rollback()
+        compose = Mock(return_value=b'')
+        ready = Mock(side_effect=[RuntimeError('rollback unhealthy'), None])
+        with self.assertRaisesRegex(RuntimeError, 'rollback unhealthy'):
+            self.invoke(run=Mock(return_value=b''), compose=compose, wait_ready=ready)
+        compose.assert_any_call(self.old, 'up', '-d', '--no-build', '--no-deps', 'ml', 'qwen', 'api', 'worker', 'frontend')
+        self.assertEqual((self.root/'current-release').read_text().strip(), self.old)
+        self.assertEqual((self.root/'previous-release').read_text().strip(), self.target)
+
+    def test_manual_rollback_to_qwen_stops_it_when_restoring_legacy_after_failure(self):
+        from unittest.mock import Mock
+        self.prepare_manual_rollback(current_qwen=False, target_qwen=True)
+        compose = Mock(return_value=b'')
+        with self.assertRaisesRegex(RuntimeError, 'rollback unhealthy'):
+            self.invoke(run=Mock(return_value=b''), compose=compose,
+                wait_ready=Mock(side_effect=[RuntimeError('rollback unhealthy'),None]))
+        compose.assert_any_call(self.target, 'stop', 'qwen')
+        compose.assert_any_call(self.old, 'up', '-d', '--no-build', '--no-deps', 'ml', 'api', 'worker', 'frontend')
+
+    def test_manual_rollback_rejects_other_target_before_docker(self):
+        from unittest.mock import Mock
+        self.prepare_manual_rollback()
+        self.request['release'] = self.new
+        docker, compose = Mock(), Mock()
+        with self.assertRaisesRegex(ValueError, 'retained previous'):
+            self.invoke(run=docker, compose=compose)
+        docker.assert_not_called()
+        compose.assert_not_called()
+
+    def test_manual_rollback_requires_both_saved_manifests(self):
+        from unittest.mock import Mock
+        for missing_current in (True, False):
+            with self.subTest(current=missing_current):
+                manifests = self.root/'release-manifests'
+                if manifests.exists():
+                    for p in manifests.iterdir():p.unlink()
+                    manifests.rmdir()
+                self.prepare_manual_rollback()
+                (manifests/((self.old if missing_current else self.target)+'.yml')).unlink()
+                docker, compose = Mock(), Mock()
+                with self.assertRaisesRegex(RuntimeError, 'saved current and previous'):
+                    self.invoke(run=docker, compose=compose)
+                docker.assert_not_called()
+                compose.assert_not_called()
+
+    def test_rollback_flag_does_not_bypass_reviewed_compose_hash(self):
+        from unittest.mock import Mock
+        self.prepare_manual_rollback()
+        self.request['compose_sha256'] = 'wrong'
+        docker = Mock()
+        with self.assertRaises(ValueError):self.invoke(run=docker)
+        docker.assert_not_called()
+
+    def test_normal_deploy_still_rejects_changed_saved_manifest(self):
+        from unittest.mock import Mock
+        self.prepare_manual_rollback()
+        self.request['rollback'] = False
+        compose = Mock()
+        with self.assertRaisesRegex(RuntimeError, 'Release manifest is immutable'):
+            self.invoke(run=Mock(return_value=b''), compose=compose)
+        compose.assert_not_called()
+
+    def test_rollback_flags_are_boolean_and_exclusive(self):
+        from unittest.mock import Mock
+        for extra in ({'rollback':'true'}, {'rollback':True,'probe_only':True}):
+            self.request.update(extra)
+            docker = Mock()
+            with self.assertRaises(ValueError):self.invoke(run=docker)
+            docker.assert_not_called()
+
     def test_probe_never_changes_release_or_runs_migrations(self):
         from unittest.mock import Mock
         self.request['probe_only']=True

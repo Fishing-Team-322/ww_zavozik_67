@@ -73,12 +73,17 @@ Commands on the server (do not print runtime.env or docker compose config):
   curl -fsS http://127.0.0.1:18080/readyz
   curl -fsS http://127.0.0.1:13000/build-info.json
 
-To restore the retained preceding images, submit a local request as root:
+To restore the retained preceding images, submit a local request as root. Both
+current and previous releases must have saved release-manifests/<SHA>.yml files,
+and all runtime images for the previous topology must remain local. This request
+does not run or reverse database migrations. If readiness fails, it restores
+the current topology and leaves the release pointers unchanged:
 
   python3 - <<'PY'
   import hashlib,json,pathlib,subprocess
   root=pathlib.Path('/opt/puls')
-  request={'release':(root/'previous-release').read_text().strip(),
+  request={'rollback':True,
+           'release':(root/'previous-release').read_text().strip(),
            'compose_sha256':hashlib.sha256((root/'compose.yml').read_bytes()).hexdigest()}
   subprocess.run(['python3',str(root/'bin/deploy-release.py')],input=json.dumps(request).encode(),check=True)
   PY

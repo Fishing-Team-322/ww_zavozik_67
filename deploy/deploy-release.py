@@ -81,6 +81,38 @@ def activate(tag):
     wait_ready(tag)
 
 
+def restore_containers(current, target):
+    if has_qwen(current) and not has_qwen(target):
+        compose(current, 'stop', 'qwen')
+    compose(target, 'up', '-d', '--no-build', '--no-deps', *runtime_services(target))
+    wait_ready(target)
+
+
+def manual_rollback(tag, current):
+    retained = ROOT/'previous-release'
+    target = retained.read_text().strip() if retained.exists() else None
+    if tag != target or tag == current or not current or not re.fullmatch(r'[0-9a-f]{40}', current):
+        raise ValueError('Rollback must target the retained previous release')
+    # Both directions must use immutable saved topology, never today's manifest.
+    for revision in (current, tag):
+        if not (ROOT/'release-manifests'/(revision+'.yml')).is_file():
+            raise RuntimeError('Rollback requires saved current and previous release manifests')
+    compose(tag, 'config', '--quiet')
+    for service in runtime_services(tag):
+        run(['docker', 'image', 'inspect', PREFIX+service+':'+tag], quiet=True)
+    try:
+        restore_containers(current, tag)
+    except Exception:
+        restore_containers(tag, current)
+        raise
+    # Publish pointers only after target readiness; replace each file atomically.
+    for name, revision in (('previous-release', current), ('current-release', tag)):
+        temporary = ROOT/(name+'.tmp')
+        temporary.write_text(revision+'\n')
+        temporary.replace(ROOT/name)
+    print(f'PULS rolled back and healthy: {tag}', flush=True)
+
+
 def main():
     os.umask(0o077)
     request = json.loads(sys.stdin.buffer.read(32769))
@@ -93,6 +125,9 @@ def main():
         raise ValueError('Production Compose differs from the reviewed infrastructure; update it explicitly')
     probe_only=request.get('probe_only',False)
     if not isinstance(probe_only,bool):raise ValueError('probe_only must be boolean')
+    rollback=request.get('rollback',False)
+    if not isinstance(rollback,bool):raise ValueError('rollback must be boolean')
+    if rollback and probe_only:raise ValueError('rollback and probe_only are mutually exclusive')
     token = request.get('registry_token', '')
     if not isinstance(token, str) or '\n' in token or len(token) > 16384:
         raise ValueError('Invalid registry token')
@@ -103,6 +138,9 @@ def main():
         fcntl.flock(lock, fcntl.LOCK_EX)
         previous_file = ROOT/'current-release'
         previous = previous_file.read_text().strip() if previous_file.exists() else None
+        if rollback:
+            manual_rollback(tag, previous)
+            return
         if not probe_only and previous and b'\n  qwen:\n' in (ROOT/'compose.yml').read_bytes() and not (ROOT/'release-manifests'/(previous+'.yml')).exists():
             raise RuntimeError('Seed the previous release manifest before upgrading production infrastructure')
         print(f'Preparing PULS {tag}', flush=True)
