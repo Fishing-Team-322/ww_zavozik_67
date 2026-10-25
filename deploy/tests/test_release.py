@@ -123,6 +123,16 @@ class ReleaseTests(unittest.TestCase):
         self.assertEqual((self.root/'current-release').read_text().strip(),self.old)
         with patch.object(release,'ROOT',self.root):self.assertFalse(release.has_qwen(self.old))
 
+    def test_probe_never_changes_release_or_runs_migrations(self):
+        from unittest.mock import Mock
+        self.request['probe_only']=True
+        docker=Mock(return_value=b'');compose=Mock()
+        self.invoke(run=docker,compose=compose)
+        compose.assert_not_called()
+        self.assertEqual((self.root/'current-release').read_text().strip(),self.old)
+        self.assertFalse((self.root/'backups').exists())
+        self.assertTrue(any('probe-qwen.py' in str(c) for c in docker.call_args_list))
+
 
 if __name__ == '__main__':
     unittest.main()

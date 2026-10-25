@@ -91,6 +91,8 @@ def main():
     actual = hashlib.sha256((ROOT/'compose.yml').read_bytes()).hexdigest()
     if expected != actual:
         raise ValueError('Production Compose differs from the reviewed infrastructure; update it explicitly')
+    probe_only=request.get('probe_only',False)
+    if not isinstance(probe_only,bool):raise ValueError('probe_only must be boolean')
     token = request.get('registry_token', '')
     if not isinstance(token, str) or '\n' in token or len(token) > 16384:
         raise ValueError('Invalid registry token')
@@ -101,7 +103,7 @@ def main():
         fcntl.flock(lock, fcntl.LOCK_EX)
         previous_file = ROOT/'current-release'
         previous = previous_file.read_text().strip() if previous_file.exists() else None
-        if previous and b'\n  qwen:\n' in (ROOT/'compose.yml').read_bytes() and not (ROOT/'release-manifests'/(previous+'.yml')).exists():
+        if not probe_only and previous and b'\n  qwen:\n' in (ROOT/'compose.yml').read_bytes() and not (ROOT/'release-manifests'/(previous+'.yml')).exists():
             raise RuntimeError('Seed the previous release manifest before upgrading production infrastructure')
         print(f'Preparing PULS {tag}', flush=True)
         if token:
@@ -109,8 +111,12 @@ def main():
                 env = {**os.environ, 'DOCKER_CONFIG': auth}
                 run(['docker', 'login', 'ghcr.io', '--username', registry_user, '--password-stdin'],
                     environment=env, input_data=token.encode(), quiet=True)
-                for service in SERVICES:
+                for service in (('qwen',) if probe_only else SERVICES):
                     run(['docker', 'pull', PREFIX+service+':'+tag], environment=env, quiet=True)
+        if probe_only:
+            run(['docker','image','inspect',PREFIX+'qwen:'+tag],quiet=True)
+            run(['python3',str(ROOT/'bin'/'probe-qwen.py'),tag],timeout=480)
+            return
         for service in SERVICES:
             run(['docker', 'image', 'inspect', PREFIX+service+':'+tag], quiet=True)
         free = os.statvfs(ROOT).f_bavail * os.statvfs(ROOT).f_frsize

@@ -98,6 +98,25 @@ jobs:
           cache-from: type=gha,scope=puls-${{ matrix.component }}
           cache-to: type=gha,mode=max,scope=puls-${{ matrix.component }}
 
+  probe:
+    if: inputs.prepare_images_only == true
+    needs: [release, images]
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with: { ref: '${{ needs.release.outputs.sha }}' }
+      - name: Probe private Qwen image without activating the application
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PULS_RELEASE: ${{ needs.release.outputs.sha }}
+          PULS_PROBE_ONLY: 'true'
+          PULS_DEPLOY_HOST: ${{ secrets.PULS_DEPLOY_HOST }}
+          PULS_DEPLOY_USER: ${{ secrets.PULS_DEPLOY_USER }}
+          PULS_DEPLOY_KEY: ${{ secrets.PULS_DEPLOY_KEY }}
+          PULS_DEPLOY_KNOWN_HOSTS: ${{ secrets.PULS_DEPLOY_KNOWN_HOSTS }}
+        run: python deploy/dispatch.py
+
   deploy:
     if: inputs.prepare_images_only != true
     needs: [release, images]
