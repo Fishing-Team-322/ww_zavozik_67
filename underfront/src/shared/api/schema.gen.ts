@@ -3793,6 +3793,10 @@ export interface operations {
         parameters: {
             query?: {
                 horizon?: number;
+                /** @description Inclusive boundary of a 30-day comparison window inside the 90-day forecast. Both from and to are required together; statement as_of is unchanged. */
+                from?: string;
+                /** @description Inclusive boundary of a 30-day comparison window inside the 90-day forecast. Both from and to are required together; statement as_of is unchanged. */
+                to?: string;
             };
             header?: never;
             path: {
@@ -5027,7 +5031,12 @@ export interface operations {
     };
     previewScenario: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Inclusive boundary of a 30-day comparison window inside the 90-day forecast. Both from and to are required together; statement as_of is unchanged. */
+                from?: string;
+                /** @description Inclusive boundary of a 30-day comparison window inside the 90-day forecast. Both from and to are required together; statement as_of is unchanged. */
+                to?: string;
+            };
             header?: never;
             path: {
                 companyId: string;
@@ -5056,6 +5065,10 @@ export interface operations {
         parameters: {
             query?: {
                 horizon?: number;
+                /** @description Inclusive boundary of a 30-day comparison window inside the 90-day forecast. Both from and to are required together; statement as_of is unchanged. */
+                from?: string;
+                /** @description Inclusive boundary of a 30-day comparison window inside the 90-day forecast. Both from and to are required together; statement as_of is unchanged. */
+                to?: string;
             };
             header?: never;
             path: {

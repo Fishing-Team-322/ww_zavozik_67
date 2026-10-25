@@ -268,15 +268,79 @@ func (s *Service) compare(ctx context.Context, op, uid, cid string, r *http.Requ
 	if e != nil {
 		return Result{}, e
 	}
-	base, _, e := s.build(ctx, uid, cid, h, "auto", nil, nil, false)
+	from, to := r.URL.Query().Get("from"), r.URL.Query().Get("to")
+	if from != "" || to != "" {
+		start, startErr := day(from)
+		end, endErr := day(to)
+		if startErr != nil || endErr != nil || end.Sub(start) != 29*24*time.Hour {
+			return Result{}, bad("Выберите период из 30 календарных дней")
+		}
+		h = 90
+	}
+	base, basePaths, e := s.build(ctx, uid, cid, h, "auto", nil, nil, false)
 	if e != nil {
 		return Result{}, e
 	}
-	other, _, e := s.build(ctx, uid, cid, h, "auto", steps, nil, false)
+	if from != "" {
+		if len(basePaths.Dates) == 0 || from < basePaths.Dates[0].Format(domain.DateLayout) || to > basePaths.Dates[len(basePaths.Dates)-1].Format(domain.DateLayout) {
+			return Result{}, bad("Период должен находиться внутри доступного прогноза на 90 дней")
+		}
+	}
+	other, otherPaths, e := s.build(ctx, uid, cid, h, "auto", steps, nil, false)
 	if e != nil {
 		return Result{}, e
+	}
+	if from != "" {
+		company, err := s.DB.GetCompany(ctx, uid, cid)
+		if err != nil {
+			return Result{}, err
+		}
+		base = s.scenarioWindow(base, basePaths, company.Reserve, from, to)
+		other = s.scenarioWindow(other, otherPaths, company.Reserve, from, to)
 	}
 	return ok(Doc{"base": base, "scenario": other, "delta": forecastDelta(base, other)})
+}
+
+// Keep the cumulative model balances from before the window. Recomputing paths
+// from the statement balance at the selected start would erase earlier flows.
+func (s *Service) scenarioWindow(out Doc, paths forecast.Result, reserve float64, from, to string) Doc {
+	start, _ := day(from)
+	end, _ := day(to)
+	i, j := paths.DayIndex(start), paths.DayIndex(end)+1
+	window := paths.Clone()
+	window.Dates = window.Dates[i:j]
+	for p := range window.Balances {
+		window.Balances[p] = window.Balances[p][i:j]
+	}
+	prefix := paths.Clone()
+	prefix.Dates = prefix.Dates[:j]
+	for p := range prefix.Balances {
+		prefix.Balances[p] = prefix.Balances[p][:j]
+	}
+	for _, field := range []string{"points", "markers", "planned_flows"} {
+		selected := []Doc{}
+		for _, point := range docs(out[field]) {
+			if date := text(point, "date"); date >= from && date <= to {
+				selected = append(selected, point)
+			}
+		}
+		out[field] = selected
+	}
+	out["history"] = []Doc{}
+	out["gaps"] = s.gapDocuments(window, reserve, prefix)
+	out["status"], out["headline"] = "ok", "По прогнозу денег хватает"
+	for _, gap := range docs(out["gaps"]) {
+		out["status"], out["headline"] = "warning", "Есть риск, что денег не хватит"
+		if number(gap, "probability") >= .5 {
+			out["status"] = "danger"
+		}
+	}
+	out["horizon"], out["forecast_end"] = j-i, to
+	annotateForecast(out, s.currentDay(), int(number(out, "unconfirmed_recurring")))
+	// This future comparison is not an allowance for spending today.
+	out["safe_to_spend"], out["spending_available"] = float64(0), false
+	out["spending_restrictions"] = append(stringsList(out["spending_restrictions"]), "scenario_window")
+	return out
 }
 func (s *Service) gapResult(ctx context.Context, op, uid, cid string, gap, out Doc, res forecast.Result, b Doc) (Result, error) {
 	// IDs must identify the actual recommendation, including its horizon/model

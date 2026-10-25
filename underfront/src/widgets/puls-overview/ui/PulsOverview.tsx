@@ -4,13 +4,13 @@ import { ContentHeading, ContentText, contentTypography } from "@/src/shared/ui/
  * ПУЛЬС / Runway-inspired overview — pure TSX + Tailwind CSS.
  *
  * USAGE:  import { PulsOverview } from "@/src/widgets/puls-overview";
- *         <PulsOverview />             // synthetic, visibly marked example
+ *         <PulsOverview />             // empty state until data is loaded
  *         <PulsOverview data={null} /> // empty state until data is loaded
  *         <PulsOverview data={apiData} onAddSource={() => ...} />
  *
  * Rendered by the home page inside the persistent CabinetShell, below Breadcrumbs.
  * No CSS modules or extra stylesheet required.
- * All fictional data are labelled. Risk probability is never invented.
+ * Missing financial data stay unavailable. Risk probability is never invented.
  */
 import Link from "next/link";
 import type { Schemas } from "@/src/shared/api";
@@ -151,49 +151,7 @@ export function getForecastStats(points: ForecastDay[], key: ScenarioKey) {
     deficit: Math.max(0, -minimum),
   };
 }
-// Deterministic sample only. Do not show these figures as your backend's actual prediction.
-function createDemo(): PulsOverviewData {
-  const events: CashEvent[] = [
-    { id: "e1", title: "Оплата по счёту", counterparty: "ООО «Вектор»", day: 7, duration: 5, category: "revenue", amount: 180000, source: "Выставленный счёт", paymentDiscipline: "Обычно оплачивает вовремя" },
-    { id: "e2", title: "Оплата этапа работ", counterparty: "ООО «Сфера»", day: 13, duration: 5, category: "revenue", amount: 240000, source: "Договор", paymentDiscipline: "Средняя задержка — 3 дня" },
-    { id: "e3", title: "Финальный расчёт", counterparty: "ООО «Маяк»", day: 22, duration: 5, category: "revenue", amount: 390000, source: "Выставленный счёт", paymentDiscipline: "Истории оплат пока нет" },
-    { id: "e4", title: "Зарплата", counterparty: "Команда", day: 15, duration: 5, category: "payroll", amount: -600000, source: "Зарплатный проект" },
-    { id: "e5", title: "Аренда офиса", counterparty: "БЦ «Каскад»", day: 3, duration: 5, category: "suppliers", amount: -100000, source: "Регулярный платёж" },
-    { id: "e6", title: "Поставка материалов", counterparty: "ТехноСнаб", day: 9, duration: 5, category: "suppliers", amount: -135000, source: "Счёт поставщика" },
-    { id: "e7", title: "Налоги", counterparty: "ФНС", day: 18, duration: 4, category: "taxes", amount: -120000, source: "Налоговый календарь" },
-    { id: "e8", title: "Оборудование", counterparty: "ТехноСнаб", day: 26, duration: 4, category: "other", amount: -145000, source: "Ручное событие" },
-  ];
-  let base = 470000;
-  let delay = 470000;
-  let downturn = 470000;
-  const forecast: ForecastDay[] = [];
-  const reference = new Date("2026-10-24T00:00:00Z");
-  const history: HistoryDay[] = [];
-  for (let offset = -14; offset < 0; offset += 1) {
-    const date = new Date(reference);
-    date.setUTCDate(date.getUTCDate() + offset);
-    history.push({ date: date.toISOString().slice(0, 10), actual: 470000 + offset * 3400 + (offset % 4) * 4200 });
-  }
-  for (let day = 0; day <= 90; day += 1) {
-    if (day > 0) {
-      const dailyIncome = 18000 + (day % 5) * 2400;
-      const dailyExpense = 15500 + (day % 4) * 3100;
-      const todays = events.filter(event => event.day === day);
-      const receipts = todays.filter(event => event.amount > 0).reduce((acc, event) => acc + event.amount, 0);
-      const costs = todays.filter(event => event.amount < 0).reduce((acc, event) => acc + event.amount, 0);
-      base += dailyIncome - dailyExpense + receipts + costs;
-      delay += dailyIncome - dailyExpense + receipts + costs
-        - (day === 13 ? 240000 : 0) + (day === 27 ? 240000 : 0);
-      downturn += dailyIncome * 0.8 - dailyExpense + receipts * 0.8 + costs;
-    }
-    const d = new Date(reference);
-    d.setUTCDate(d.getUTCDate() + day);
-    const spread = day * 3400;
-    forecast.push({ date: d.toISOString().slice(0, 10), base: Math.round(base), delay: Math.round(delay), downturn: Math.round(downturn), actual: day === 0 ? 470000 : null, p10: Math.round(base - spread), p50: Math.round(base), p90: Math.round(base + spread * 0.85) });
-  }
-  return { currentBalance: 470000, company: "ООО «Горизонт»", forecast, history, events, reserve: 100000, shortfallProbability: 0.64, overdueReceipts: [{ title: "Просроченная оплата", counterparty: "ООО «Орион»", amount: 110000, dueDate: "2026-10-21" }], unusualExpenseIds: ["e8"], isDemo: true };
-}
-export const PULS_DEMO_DATA = createDemo();
+
 /** Small SVG, no charting dependencies or extra CSS. */
 export function KpiSparkline({
   first, second, id,
@@ -689,7 +647,7 @@ export function PulsEmptyState({ onAddSource }: { onAddSource?: () => void }) {
   </section>;
 }
 export default function PulsOverview({
-  data = PULS_DEMO_DATA,
+  data = null,
   onAddSource,
   onOpenForecast,
   onOpenCalendar,

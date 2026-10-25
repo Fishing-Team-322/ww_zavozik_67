@@ -10,20 +10,14 @@ import { Button, Input, Select, EmptyState, Table, TableHeader, TableBody, Table
 import { SectionCard } from "@/src/widgets/cabinet-shell";
 import { FinanceState } from "./FinanceState";
 import { PlanFactChart } from "./PlanFactChart";
+import { planFactProbability, type SavedForecastChange } from "@/src/entities/forecast/model/plan-fact";
 import { money, percent, linkClass } from "./finance-utils";
 
 type Missed = {
   missed: Array<Schemas["PlannedEvent"] & { days_late: number }>;
   unexpected: Schemas["Operation"][];
   data_as_of: string;
-  forecast_change: {
-    gap_date: string | null;
-    gap_date_before: string | null;
-    probability_before: number | null;
-    probability_after: number | null;
-    revision_before: number | null;
-    revision_after: number | null;
-  };
+  forecast_change: SavedForecastChange;
 };
 export function PlanFactScreen() {
   const { company } = useSession();
@@ -36,6 +30,10 @@ export function PlanFactScreen() {
   const rows = useApiResource<Schemas["PlanFactPoint"][]>(`${base}/plan-fact?${queryParams({ granularity, from, to })}`);
   const missed = useApiResource<Missed>(`${base}/plan-fact/missed`);
   const change = missed.data?.forecast_change;
+  const probability = (side: "before" | "after") => {
+    const value = change ? planFactProbability(change, side) : null;
+    return value === null ? "Точная вероятность недоступна" : percent(value);
+  };
   const totalPages = Math.max(1, Math.ceil((rows.data?.length ?? 0) / 10));
   const currentPage = Math.min(page, totalPages);
   const missedTotalPages = Math.max(1, Math.ceil((missed.data?.missed.length ?? 0) / 10));
@@ -78,8 +76,8 @@ export function PlanFactScreen() {
         <ContentText variant="body">Данные на {missed.data.data_as_of}</ContentText>
         {change?.revision_before !== null && change?.revision_before !== undefined &&
           <ContentText className="rounded-md border border-[color:var(--border)] p-3">
-            Сохранённые ревизии {change.revision_before} → {change.revision_after}: вероятность разрыва {percent(change.probability_before)} → {percent(change.probability_after)}.
-            Первый разрыв: {change.gap_date_before ?? "не выявлен"} → {change.gap_date ?? "не выявлен"}. Изменение отражает все новые данные.
+            Сохранённые ревизии {change.revision_before} → {change.revision_after}: вероятность разрыва {probability("before")} → {probability("after")}.
+            Первый разрыв: {change.gap_date_before ?? "предупреждения нет"} → {change.gap_date ?? "предупреждения нет"}. Изменение отражает все новые данные. Оценка риска не гарантирует исход платежей.
           </ContentText>}
 
         <ContentHeading level={3}>Ожидались, но не пришли</ContentHeading>

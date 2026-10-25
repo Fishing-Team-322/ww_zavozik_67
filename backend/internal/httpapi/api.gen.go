@@ -1945,9 +1945,24 @@ type PreviewRegistryDocumentMultipartBody struct {
 	File openapi_types.File `json:"file"`
 }
 
+// PreviewScenarioParams defines parameters for PreviewScenario.
+type PreviewScenarioParams struct {
+	// From Inclusive boundary of a 30-day comparison window inside the 90-day forecast. Both from and to are required together; statement as_of is unchanged.
+	From *openapi_types.Date `form:"from,omitempty" json:"from,omitempty"`
+
+	// To Inclusive boundary of a 30-day comparison window inside the 90-day forecast. Both from and to are required together; statement as_of is unchanged.
+	To *openapi_types.Date `form:"to,omitempty" json:"to,omitempty"`
+}
+
 // CompareScenarioParams defines parameters for CompareScenario.
 type CompareScenarioParams struct {
 	Horizon *int `form:"horizon,omitempty" json:"horizon,omitempty"`
+
+	// From Inclusive boundary of a 30-day comparison window inside the 90-day forecast. Both from and to are required together; statement as_of is unchanged.
+	From *openapi_types.Date `form:"from,omitempty" json:"from,omitempty"`
+
+	// To Inclusive boundary of a 30-day comparison window inside the 90-day forecast. Both from and to are required together; statement as_of is unchanged.
+	To *openapi_types.Date `form:"to,omitempty" json:"to,omitempty"`
 }
 
 // GetTaxesParams defines parameters for GetTaxes.
@@ -1969,6 +1984,12 @@ type LookupFNSParams struct {
 // CompareSavedScenarioParams defines parameters for CompareSavedScenario.
 type CompareSavedScenarioParams struct {
 	Horizon *int `form:"horizon,omitempty" json:"horizon,omitempty"`
+
+	// From Inclusive boundary of a 30-day comparison window inside the 90-day forecast. Both from and to are required together; statement as_of is unchanged.
+	From *openapi_types.Date `form:"from,omitempty" json:"from,omitempty"`
+
+	// To Inclusive boundary of a 30-day comparison window inside the 90-day forecast. Both from and to are required together; statement as_of is unchanged.
+	To *openapi_types.Date `form:"to,omitempty" json:"to,omitempty"`
 }
 
 // ConfirmSheetMappingJSONBody defines parameters for ConfirmSheetMapping.
@@ -2322,7 +2343,7 @@ type ServerInterface interface {
 	CreateScenario(w http.ResponseWriter, r *http.Request, companyId openapi_types.UUID)
 
 	// (POST /v1/companies/{companyId}/scenarios/preview)
-	PreviewScenario(w http.ResponseWriter, r *http.Request, companyId openapi_types.UUID)
+	PreviewScenario(w http.ResponseWriter, r *http.Request, companyId openapi_types.UUID, params PreviewScenarioParams)
 
 	// (GET /v1/companies/{companyId}/scenarios/{scenarioId}/compare)
 	CompareScenario(w http.ResponseWriter, r *http.Request, companyId openapi_types.UUID, scenarioId openapi_types.UUID, params CompareScenarioParams)
@@ -5192,8 +5213,27 @@ func (siw *ServerInterfaceWrapper) PreviewScenario(w http.ResponseWriter, r *htt
 
 	r = r.WithContext(ctx)
 
+	// Parameter object where we will unmarshal all parameters from the context
+	var params PreviewScenarioParams
+
+	// ------------- Optional query parameter "from" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "from", r.URL.Query(), &params.From)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "from", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "to" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "to", r.URL.Query(), &params.To)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "to", Err: err})
+		return
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.PreviewScenario(w, r, companyId)
+		siw.Handler.PreviewScenario(w, r, companyId, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -5240,6 +5280,22 @@ func (siw *ServerInterfaceWrapper) CompareScenario(w http.ResponseWriter, r *htt
 	err = runtime.BindQueryParameter("form", true, false, "horizon", r.URL.Query(), &params.Horizon)
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "horizon", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "from" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "from", r.URL.Query(), &params.From)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "from", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "to" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "to", r.URL.Query(), &params.To)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "to", Err: err})
 		return
 	}
 
@@ -6193,6 +6249,22 @@ func (siw *ServerInterfaceWrapper) CompareSavedScenario(w http.ResponseWriter, r
 	err = runtime.BindQueryParameter("form", true, false, "horizon", r.URL.Query(), &params.Horizon)
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "horizon", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "from" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "from", r.URL.Query(), &params.From)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "from", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "to" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "to", r.URL.Query(), &params.To)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "to", Err: err})
 		return
 	}
 
@@ -9008,6 +9080,7 @@ func (response CreateScenariodefaultJSONResponse) VisitCreateScenarioResponse(w 
 
 type PreviewScenarioRequestObject struct {
 	CompanyId openapi_types.UUID `json:"companyId"`
+	Params    PreviewScenarioParams
 	Body      *PreviewScenarioJSONRequestBody
 }
 
@@ -12790,10 +12863,11 @@ func (sh *strictHandler) CreateScenario(w http.ResponseWriter, r *http.Request, 
 }
 
 // PreviewScenario operation middleware
-func (sh *strictHandler) PreviewScenario(w http.ResponseWriter, r *http.Request, companyId openapi_types.UUID) {
+func (sh *strictHandler) PreviewScenario(w http.ResponseWriter, r *http.Request, companyId openapi_types.UUID, params PreviewScenarioParams) {
 	var request PreviewScenarioRequestObject
 
 	request.CompanyId = companyId
+	request.Params = params
 
 	var body PreviewScenarioJSONRequestBody
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {

@@ -36,6 +36,43 @@ test('old statements never advertise current cash and limited risk probability i
   const shots=process.env.E2E_SCREENSHOTS_DIR||path.resolve('test-results/screenshots');mkdirSync(shots,{recursive:true});await page.screenshot({path:path.join(shots,'business-stale-statement-fixed.png')});
   expect(errors).toEqual([]);
 });
+
+test('scenario dates select one real 30-day window and limited plan-fact never exposes percentages', async ({page,request}) => {
+  const {base,headers} = await workspace(page,request,26);
+  await request.get(`${base}/forecast`, {headers});
+  const event = await request.post(`${base}/events`, {headers, data:{date:dateAt(-20),title:'Window carry-forward expense',direction:'out',amount:250000,additional:true}});
+  expect(event.status()).toBe(201);
+  await expect.poll(async()=>(await(await request.get(`${base}/updates`,{headers})).json()).pending_jobs,{timeout:90000}).toBe(0);
+  await request.get(`${base}/forecast`, {headers});
+  const missed=await(await request.get(`${base}/plan-fact/missed`,{headers})).json();
+  expect(missed.forecast_change.revision_before).not.toBeNull();
+  expect(missed.forecast_change.probability_before).toBeNull();
+  expect(missed.forecast_change.probability_after).toBeNull();
+  await page.goto('/plan-fact');
+  const revision = page.getByText(/Сохранённые ревизии/);
+  await expect(revision).toContainText('Точная вероятность недоступна');
+  await expect(revision).not.toContainText('%');
+  await page.goto('/scenarios');
+  await page.getByRole('button',{name:'Внеплановый расход',exact:true}).click();
+  const first = dateAt(-25), from = dateAt(-15), to = dateAt(14);
+  await expect(page.getByLabel('С даты',{exact:true})).toHaveValue(first);
+  const response = page.waitForResponse(r => new URL(r.url()).pathname.endsWith('/scenarios/preview') && new URL(r.url()).searchParams.get('from')===from && r.status()===200);
+  await page.getByLabel('С даты',{exact:true}).fill(from);
+  const comparison = await (await response).json();
+  await expect(page.getByLabel('По дату',{exact:true})).toHaveValue(to);
+  for (const forecast of [comparison.base,comparison.scenario]) {
+    expect(forecast.as_of).toBe(dateAt(-26));
+    expect(forecast.points).toHaveLength(30);
+    expect(forecast.points[0].date).toBe(from);
+    expect(forecast.points.at(-1).date).toBe(to);
+  }
+  const rubles=n=>new Intl.NumberFormat('ru-RU',{style:'currency',currency:'RUB',maximumFractionDigits:2}).format(n);
+  const minimum=page.getByText('Минимальный остаток',{exact:true}).locator('..');
+  await expect(minimum).toContainText(rubles(Math.min(...comparison.base.points.map(p=>p.p50))));
+  await expect(minimum).toContainText(rubles(Math.min(...comparison.scenario.points.map(p=>p.p50))));
+  await expect(page.getByRole('group',{name:'Период сравнения'})).toBeVisible();
+  await expect(page.getByText('Пересчитываем прогноз…',{exact:true})).toHaveCount(0);
+});
 test('invoice refines one calendar payment and risk wording stays consistent',async({page,request})=>{
   const {base,headers}=await workspace(page,request);
   const event=await request.post(`${base}/events`,{headers,data:{date:dateAt(2),amount:10000,direction:'out',title:'Ремонт оборудования',counterparty_name:'Сервис оборудования',additional:true}});expect(event.status()).toBe(201);

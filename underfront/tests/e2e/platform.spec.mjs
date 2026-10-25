@@ -281,10 +281,12 @@ test('synthetic CSV drives dashboard, forecast and a persistent manual event', a
     if (route === '/calendar') await page.screenshot({ path: path.join(screenshots, 'calendar-mobile-synthetic.png') });
   }
   await page.setViewportSize({ width: 1280, height: 720 });
-  await page.goto('/test');
-  await expect(page.getByText(/Демонстрационная симуляция/)).toBeVisible();
-  await page.goto('/development/components');
-  await expect(page.getByRole('heading', { name: 'Кнопки', exact: true })).toBeVisible();
+  for (const route of ['/test', '/development/components']) {
+    const response = await page.goto(route);
+    expect(response.status()).toBe(404);
+    await expect(page.getByText('Такой страницы нет', { exact: true })).toBeVisible();
+    await expect(page.getByText(/Демонстрационная симуляция/)).toHaveCount(0);
+  }
   const secondTab = await page.context().newPage();
   await secondTab.goto('/sources');
   await expect(secondTab.getByRole('heading', { name: 'Источники данных' })).toBeVisible();

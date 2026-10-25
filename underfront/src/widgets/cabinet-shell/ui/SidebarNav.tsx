@@ -4,7 +4,7 @@ import { forwardRef, useId, useLayoutEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { LucideIcon, LucideProps } from "lucide-react";
-import { Activity, ChevronDown, FileSpreadsheet, FlaskConical, LayoutGrid, SlidersHorizontal, X } from "lucide-react";
+import { Activity, ChevronDown, FileSpreadsheet, SlidersHorizontal, X } from "lucide-react";
 import { cn } from "@/src/shared/lib/cn";
 import { useSidebarNavState } from "./SidebarNavStateProvider";
 
@@ -121,8 +121,6 @@ export const defaultCabinetNav: SidebarNavItem[] = [
   { href: "/notifications", label: "Уведомления", icon: Activity, section: "Дополнительно" },
   { href: "/methodology", label: "Проверка прогнозов", icon: MethodologyIcon, section: "Дополнительно" },
   { href: "/settings", label: "Настройки", icon: SlidersHorizontal, section: "Дополнительно" },
-  { href: "/development/components", label: "Buttons and fields", icon: LayoutGrid, section: "Development" },
-  { href: "/test", label: "Payment calendar demo", icon: FlaskConical, section: "Development" },
 ];
 
 const fallbackIcon = Activity;
