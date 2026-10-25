@@ -76,7 +76,10 @@ class _EventForecaster(Forecaster):
     fit_options = FitOptions
 
     def __init__(self) -> None:
-        self._model = None
+        # Priors from an explicit fit(). Never cache a model fitted on one request:
+        # the registry stores a shared singleton, so that would leak one company's
+        # history into the next request (and into concurrent ones).
+        self._prior = None
 
     @property
     def ready(self) -> bool:
@@ -87,14 +90,19 @@ class _EventForecaster(Forecaster):
         adapted = [history_to_events(h) for h in histories if len(h.dates)]
         model = self.model_class(self.fit_options())
         model.fit(adapted)
-        self._model = model
+        self._prior = model
 
     def _fitted(self, history: History):
-        if self._model is None:
-            model = self.model_class(self.fit_options())
-            model.fit([history_to_events(history)])  # priors from this company only
-            self._model = model
-        return self._model
+        """Global priors if the model was explicitly fitted, else a per-request fit.
+
+        A per-request model keeps requests independent: identical history and seed
+        always give identical output regardless of what was forecast before.
+        """
+        if self._prior is not None:
+            return self._prior
+        model = self.model_class(self.fit_options())
+        model.fit([history_to_events(history)])
+        return model
 
     def forecast(self, history: History, horizon: int, n_paths: int,
                  rng: np.random.Generator) -> Paths:

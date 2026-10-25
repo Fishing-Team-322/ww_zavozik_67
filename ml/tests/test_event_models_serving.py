@@ -122,3 +122,27 @@ def test_sampling_300_paths_stays_fast():
     tick = time.monotonic()
     model.forecast(history, 30, 300, np.random.default_rng(0))
     assert time.monotonic() - tick < 5.0
+
+
+@pytest.mark.parametrize("name", ["event_blocks", "event_hybrid"])
+def test_requests_are_independent_of_previous_requests(name):
+    """A silent request must not poison the next company (shared registry singleton)."""
+    model = forecasters.get(name)
+    silent = make_history(days=60, zero=True)
+    positive = make_history(days=90, seed=11)
+    model.forecast(silent, 30, 20, np.random.default_rng(5))
+    reused = model.forecast(positive, 30, 20, np.random.default_rng(9))
+    fresh = type(model)().forecast(positive, 30, 20, np.random.default_rng(9))
+    np.testing.assert_array_equal(reused.inflow, fresh.inflow)
+    np.testing.assert_array_equal(reused.outflow, fresh.outflow)
+
+
+@pytest.mark.parametrize("name", ["event_blocks", "event_hybrid"])
+def test_explicit_fit_priors_are_reused_without_leaking_request_state(name):
+    wrapper = type(forecasters.get(name))()
+    wrapper.fit([make_history(days=120, seed=2), make_history(days=120, seed=3)])
+    assert wrapper._prior is not None
+    first = wrapper.forecast(make_history(days=90, seed=4), 30, 10, np.random.default_rng(1))
+    second = wrapper.forecast(make_history(days=90, seed=6), 30, 10, np.random.default_rng(1))
+    assert first.inflow.shape == second.inflow.shape == (10, 30)
+    assert wrapper._prior is not None
