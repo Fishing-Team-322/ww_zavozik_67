@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/dataset"
@@ -326,6 +328,40 @@ func (s *Service) build(ctx context.Context, uid, cid string, h int, model strin
 		warnings = append(warnings, "stale_statement_forecast_starts_after_data_as_of")
 	}
 	out := Doc{"as_of": asOf.Format(domain.DateLayout), "horizon": h, "model_used": res.Stochastic.ModelUsed, "model_version": res.Stochastic.ModelVersion, "flow_scope": res.Stochastic.FlowScope, "fallback_used": res.Stochastic.FallbackUsed, "warnings": warnings, "low_confidence": res.Stochastic.LowConfidence, "opening_balance": opening.Float(), "safe_to_spend": money(risk.SafeToSpend(res, domain.Money(company.Reserve), .1).Float()), "status": state, "headline": headline, "history": history, "points": points, "markers": markers, "gaps": gaps}
+	unconfirmed := 0
+	for _, pattern := range patterns {
+		if flag(pattern, "active") && !flag(pattern, "confirmed") {
+			unconfirmed++
+		}
+	}
+	planned := []Doc{}
+	for index, dt := range res.Dates {
+		inflow, outflow := 0.0, 0.0
+		for path := range res.Stochastic.Inflow {
+			inflow += res.Stochastic.Inflow[path][index]
+			outflow += res.Stochastic.Outflow[path][index]
+		}
+		inflow /= float64(len(res.Stochastic.Inflow))
+		outflow /= float64(len(res.Stochastic.Outflow))
+		for _, component := range res.Deterministic {
+			if component.Date.Equal(dt) {
+				amount := component.Amount.Float()
+				switch {
+				case strings.HasPrefix(component.Key, "recurring:baseline:out:"):
+					outflow -= amount
+				case strings.HasPrefix(component.Key, "recurring:baseline:in:"):
+					inflow += amount
+				case amount >= 0:
+					inflow += amount
+				default:
+					outflow -= amount
+				}
+			}
+		}
+		planned = append(planned, Doc{"date": dt.Format(domain.DateLayout), "in": money(inflow), "out": money(outflow)})
+	}
+	out["planned_flows"] = planned
+	annotateForecast(out, s.currentDay(), unconfirmed)
 	out["update_mode"], out["model_as_of"] = res.Stochastic.UpdateMode, res.Stochastic.BaseAsOf
 	if persist {
 		if e = s.persistForecast(ctx, uid, cid, revision, out); e != nil {
@@ -484,9 +520,10 @@ func (s *Service) financial(ctx context.Context, op, uid, cid string, r *http.Re
 		if e != nil {
 			return Result{}, e
 		}
+		sort.Slice(alerts, func(i, j int) bool { return text(alerts[i], "created_at") > text(alerts[j], "created_at") })
 		av := []Doc{}
 		for _, a := range alerts {
-			if len(av) < 5 {
+			if !flag(a, "resolved") && len(av) < 5 {
 				av = append(av, view("alert", a))
 			}
 		}

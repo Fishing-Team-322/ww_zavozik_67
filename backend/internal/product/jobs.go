@@ -616,7 +616,13 @@ func (s *Service) evaluateAlerts(ctx context.Context, uid, cid string, out Doc) 
 		}
 		id := idFor(cid, "alert:missed:"+text(event, "id")+":"+date(event["event_date"]))
 		activeMissed[id] = true
-		if _, e := s.DB.ProductGet(ctx, uid, "alert", id); e == nil {
+		if previous, e := s.DB.ProductGet(ctx, uid, "alert", id); e == nil {
+			if flag(previous, "resolved") {
+				previous["resolved"], previous["read"] = false, false
+				if _, e = s.DB.ProductSave(ctx, uid, cid, "alert", id, previous, false); e != nil {
+					return e
+				}
+			}
 			continue
 		}
 		d := Doc{"id": id, "severity": "warning", "title": "Плановый платёж не подтверждён выпиской", "body": text(event, "title") + " · " + date(event["event_date"]) + ". Проверьте срок, факт оплаты и актуальность выписки.", "kind": "missed_payment", "read": false, "ref": Doc{"screen": "event", "id": event["id"]}}
@@ -633,8 +639,8 @@ func (s *Service) evaluateAlerts(ctx context.Context, uid, cid string, out Doc) 
 		activeGaps[idFor(cid, "alert:"+text(gap, "id"))] = true
 	}
 	for _, alert := range alerts {
-		if text(alert, "kind") == "missed_payment" && !activeMissed[text(alert, "id")] && !flag(alert, "read") {
-			alert["read"] = true
+		if text(alert, "kind") == "missed_payment" && !activeMissed[text(alert, "id")] && !flag(alert, "resolved") {
+			alert["read"], alert["resolved"] = true, true
 			if _, e = s.DB.ProductSave(ctx, uid, cid, "alert", text(alert, "id"), alert, false); e != nil {
 				return e
 			}

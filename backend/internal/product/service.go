@@ -18,6 +18,7 @@ import (
 	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/categorize"
 	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/domain"
 	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/forecast"
+	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/llm"
 	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/platform"
 	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/store"
 	"github.com/google/uuid"
@@ -31,6 +32,7 @@ type Result struct {
 	Filename, MIME string
 }
 type Service struct {
+	CashflowNarrator *llm.CashflowNarrator
 	// Now supplies the current date for schedules and risk countdowns; nil uses wall time.
 	Now                                                 func() time.Time
 	IntegrationSandbox                                  bool
@@ -216,6 +218,11 @@ func view(kind string, d Doc) Doc {
 		}
 	case "event":
 		copyKeys("id amount direction title category probability status")
+		for _, key := range []string{"source_ref", "request_id"} {
+			if value := text(d, key); value != "" {
+				out[key] = value
+			}
+		}
 		out["additional"] = flag(d, "additional")
 		for _, key := range []string{"linked_event_id", "linked_sources", "link_status"} {
 			if value, ok := d[key]; ok {
@@ -231,7 +238,7 @@ func view(kind string, d Doc) Doc {
 		out["date"] = date(d["event_date"])
 		out["source"] = d["source_kind"]
 		out["counterparty"] = cpRef(cid, d)
-		out["editable"] = text(d, "source_kind") == "manual" || text(d, "source_kind") == "recurring"
+		out["editable"] = text(d, "status") != "linked" && (text(d, "source_kind") == "manual" || text(d, "source_kind") == "recurring")
 		if out["category"] == nil {
 			out["category"] = "other"
 		}
@@ -254,6 +261,7 @@ func view(kind string, d Doc) Doc {
 		copyKeys("id title preset steps created_at")
 	case "alert":
 		copyKeys("id created_at severity kind title body read")
+		out["resolved"] = flag(d, "resolved")
 		out["ref"] = d["ref"]
 		if out["ref"] == nil {
 			out["ref"] = Doc{"screen": "dashboard", "id": nil}
@@ -263,6 +271,9 @@ func view(kind string, d Doc) Doc {
 		}
 	case "invoice":
 		copyKeys("id number direction amount paid_amount issued_at due_at expected_pay_at status source additional")
+		if ref := text(d, "replaces_event_id"); ref != "" {
+			out["replaces_event_id"] = ref
+		}
 		out["additional"] = flag(d, "additional")
 		out["counterparty"] = cpRef(cid, d)
 	case "contract":
@@ -444,6 +455,9 @@ func (s *Service) crud(ctx context.Context, uid, cid string, desc [3]string, r *
 	if e := validateResource(kind, body, create); e != nil {
 		return Result{}, e
 	}
+	if create && kind == "event" && text(body, "request_id") != "" {
+		id = idFor(cid, "manual-request:"+text(body, "request_id"))
+	}
 	// "Mark paid" is an explicit transition, not a standing instruction to
 	// manufacture another payment whenever an already-paid invoice is edited.
 	if kind == "invoice" && text(body, "status") == "paid" && (create || text(d, "status") != "paid") {
@@ -521,7 +535,7 @@ func validateResource(kind string, b Doc, create bool) error {
 			return bad("Неизвестный статус счёта")
 		}
 	}
-	allowed := map[string]string{"event": "date amount direction title category counterparty_name counterparty_inn probability status additional", "recurring": "title direction amount period day_of_month counterparty_name counterparty_inn category confirmed active", "scenario": "title steps", "invoice": "number direction amount paid_amount issued_at due_at expected_pay_at status counterparty_name counterparty_inn additional", "contract": "number direction total prepayment deferral_days start_date schedule counterparty_name counterparty_inn additional", "source": "kind title config enabled", "operation": "category", "alert": "read"}[kind]
+	allowed := map[string]string{"event": "date amount direction title category counterparty_name counterparty_inn probability status additional source_ref request_id", "recurring": "title direction amount period day_of_month counterparty_name counterparty_inn category confirmed active", "scenario": "title steps", "invoice": "number direction amount paid_amount issued_at due_at expected_pay_at status counterparty_name counterparty_inn additional replaces_event_id", "contract": "number direction total prepayment deferral_days start_date schedule counterparty_name counterparty_inn additional", "source": "kind title config enabled", "operation": "category", "alert": "read"}[kind]
 	if e := fields(b, allowed); e != nil {
 		return e
 	}
@@ -568,6 +582,10 @@ func validateResource(kind string, b Doc, create bool) error {
 			}
 			if _, e := day(s); e != nil {
 				return e
+			}
+		case "replaces_event_id", "request_id":
+			if _, err := uuid.Parse(text(b, k)); err != nil {
+				return bad("Некорректный идентификатор платежа")
 			}
 		case "active", "enabled", "confirmed", "read", "additional":
 			if _, ok := v.(bool); !ok {

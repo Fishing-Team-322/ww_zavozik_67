@@ -1,13 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { fallbackNotice } from "@/src/entities/forecast";
+import { forecastReliability, riskProbability } from "@/src/entities/forecast";
 import { useRouter } from "next/navigation";
 import PulsOverview, { type PulsOverviewData } from "./PulsOverview";
+import { ForecastNotice } from "@/app/[section]/_ui/FinanceState";
 import { AccountGate, useSession } from "@/src/features/auth";
 import { useApiResource } from "@/src/shared/api/use-api-resource";
 import type { Schemas } from "@/src/shared/api";
 import { Button, Dialog } from "@/src/shared/ui";
+import { CashflowSuggestions } from "@/src/widgets/finance-panels/ui/CashflowSuggestions";
 import { ForecastDayDetails } from "@/src/widgets/finance-panels";
 import { overviewDelayStep, overviewForecastPoints } from "@/src/entities/forecast/model/overview-adapters";
 
@@ -40,17 +42,19 @@ export function PulsOverviewHome() {
       ? {
           company: company?.name,
           currentBalance: dashboard.balance_now,
-          safeToSpend: horizon === 30 ? dashboard.safe_to_spend : forecast.safe_to_spend,
+          safeToSpend: forecastReliability(forecast).spendingAvailable ? (horizon === 30 ? dashboard.safe_to_spend : forecast.safe_to_spend) : null,
+          spendingAvailable: forecastReliability(forecast).spendingAvailable,
+          forecastEnd: forecastReliability(forecast).end,
           minimumBalance: horizon === 30 ? dashboard.min_balance : undefined,
           reserve: company?.reserve,
-          serverStatus: horizon === 30 ? dashboard.status : forecast.status,
+          serverStatus: !forecastReliability(forecast).spendingAvailable && !topGap ? "warning" : horizon === 30 ? dashboard.status : forecast.status,
           headline: horizon === 30 ? dashboard.headline : forecast.headline,
           horizon,
           history: forecast.history.filter(p => p.date < forecast.as_of).map(p => ({ date: p.date, actual: p.balance })),
           isDemo: false,
           updatedAt: dashboard.data_as_of || undefined,
           forecast: overviewForecastPoints(forecast, delay.data, downturn.data),
-          shortfallProbability: topGap?.probability ?? null,
+          shortfallProbability: topGap ? riskProbability(topGap, forecast) : null,
           events: [...dashboard.upcoming_in, ...dashboard.upcoming_out].map(
             (event) => ({
               id: event.id,
@@ -94,16 +98,7 @@ export function PulsOverviewHome() {
           </Button>
         </p>
       )}
-      {(horizon === 30 ? dashboard?.low_confidence : forecast?.low_confidence) && (
-        <p
-          role="status"
-          className="mb-4 text-sm text-[color:var(--text-secondary)]"
-        >
-          {forecast?.fallback_used
-            ? fallbackNotice(forecast.warnings)
-            : "Надёжность прогноза ограничена. Проверьте полноту истории."}
-        </p>
-      )}
+      {forecast && <ForecastNotice forecast={forecast} />}
       {!resource.loading && !extended.loading && !resource.error && !extended.error && <PulsOverview
         horizon={horizon}
         onChangeHorizon={value => { setDay(null); setHorizon(value); }}
@@ -117,6 +112,7 @@ export function PulsOverviewHome() {
         onOpenCalendar={() => router.push("/calendar")}
         onOpenScenarios={() => router.push("/scenarios")}
       />}
+      {company && topGap && <CashflowSuggestions key={`${company.id}:${horizon}:${topGap.id}`} companyId={company.id} gap={topGap} horizon={horizon} />}
       <Dialog open={day !== null} title={`Прогноз на ${day ?? ""}`} onClose={() => setDay(null)} className="max-w-xl"
         headerActions={<Button variant="ghost" onClick={() => setDay(null)} aria-label="Закрыть детализацию дня">Закрыть</Button>}>
         {day && company && <ForecastDayDetails companyId={company.id} date={day} horizon={horizon} />}

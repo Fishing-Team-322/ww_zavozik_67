@@ -293,6 +293,11 @@ func (s *Service) applyEventReceipt(ctx context.Context, tx pgx.Tx, cid string, 
 			return e
 		}
 	}
+	if ref := text(event, "replaces_event_id"); ref != "" {
+		if _, e = tx.Exec(ctx, `UPDATE planned_events SET status='received',matched_operation_id=$3,extra=extra||jsonb_build_object('_revision',COALESCE((extra->>'_revision')::int,0)+1,'replacement_settled_by',$4::text) WHERE company_id=$1 AND id::text=$2`, cid, ref, match["id"], event["document_id"]); e != nil {
+			return e
+		}
+	}
 	if text(event, "source_kind") == "contract" {
 		if e = store.ApplyContractReceipt(ctx, tx, cid, text(event, "document_id"), text(event, "id")); e != nil {
 			return e

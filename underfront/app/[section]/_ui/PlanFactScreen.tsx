@@ -58,12 +58,12 @@ export function PlanFactScreen() {
       {!!rows.data?.length && <>
         <Select density="form" label="Показать на графике" value={direction} options={[{ value: "net", label: "Чистый поток" }, { value: "in", label: "Поступления" }, { value: "out", label: "Списания" }]} onChange={e => setDirection(e.target.value as typeof direction)} />
         <PlanFactChart rows={rows.data} direction={direction} />
-        <ContentText variant="description" tone="muted">Пустой участок факта означает неполную выписку. Красным выделено отрицательное отклонение денежного потока от плана. Открытые экраны обновляются после обработки новых данных.</ContentText>
+        <ContentText variant="description" tone="muted">Пустой участок плана означает, что план не был составлен. Это не нулевой поток. Сохранённый прогноз сравнивается с фактом только за даты после его создания. Пустой участок факта означает неполную выписку. Красным выделено отрицательное отклонение денежного потока от плана. Открытые экраны обновляются после обработки новых данных.</ContentText>
         <Table pagination={{ page: currentPage, totalPages, onPageChange: setPage }}>
           <TableHeader><TableRow>{["Период", "План: поступления", "Факт: поступления", "План: списания", "Факт: списания", "Отклонение потока"].map((label, index) => <TableHead numeric={index > 0} key={label}>{label}</TableHead>)}</TableRow></TableHeader>
           <TableBody>{rows.data.slice((currentPage - 1) * 10, currentPage * 10).map(row =>
             <TableRow key={row.period} className={row.deviation !== null && row.deviation < 0 ? "bg-[color:var(--danger-soft)]" : undefined}>
-              <TableCell>{row.period}{!row.observed && <ContentText variant="meta">Выписка неполная</ContentText>}</TableCell>
+              <TableCell>{row.period}{!row.observed && <ContentText variant="meta">Выписка неполная</ContentText>}{row.plan_available === false && <ContentText variant="meta">План отсутствовал</ContentText>}{row.plan_basis === "documents" && <ContentText variant="meta">План документов</ContentText>}</TableCell>
               {[row.plan_in, row.fact_in, row.plan_out, row.fact_out, row.deviation].map((value, index) => <TableCell numeric key={index}>{money(value)}</TableCell>)}
             </TableRow>
           )}</TableBody>
@@ -72,7 +72,7 @@ export function PlanFactScreen() {
     </SectionCard>
     <SectionCard className="space-y-4">
       <ContentHeading level={2}>Несопоставленные платежи</ContentHeading>
-      <ContentText variant="description" tone="muted">За последние 30 дней относительно актуальности выписки. Неоднозначные совпадения требуют проверки.</ContentText>
+      <ContentText variant="description" tone="muted">За последние 30 дней относительно актуальности выписки. Обычная выручка и расходы могут не иметь отдельного документа; это не означает ошибку. Неоднозначные совпадения требуют проверки.</ContentText>
       <FinanceState loading={missed.loading} error={missed.error} retry={missed.refresh} />
       {missed.data && <>
         <ContentText variant="body">Данные на {missed.data.data_as_of}</ContentText>
@@ -90,7 +90,7 @@ export function PlanFactScreen() {
               <TableRow key={event.id}><TableCell>{event.title}</TableCell><TableCell>{event.date}</TableCell><TableCell numeric>{money(event.amount)}</TableCell><TableCell numeric>{event.days_late} дн.</TableCell><TableCell><Link className={linkClass} href={`/calendar?date=${event.date}&event=${event.id}`}>{event.editable ? "Проверить и изменить" : "Открыть событие"}</Link></TableCell></TableRow>
             )}</TableBody>
           </Table>}
-        <ContentHeading level={3}>Факт без однозначного плана</ContentHeading>
+        <ContentHeading level={3}>Операции без привязки к документам</ContentHeading>
         {missed.data.unexpected.length === 0 ? <EmptyState title="Неожиданных операций нет" /> :
           <Table pagination={{ page: currentUnexpectedPage, totalPages: unexpectedTotalPages, onPageChange: setUnexpectedPage }}>
             <TableHeader><TableRow><TableHead>Дата</TableHead><TableHead>Контрагент</TableHead><TableHead>Назначение</TableHead><TableHead numeric>Сумма</TableHead></TableRow></TableHeader>

@@ -1,0 +1,60 @@
+Business audit fixes — 2026-10-25
+
+Deployment
+----------
+Apply embedded migration 00012 with backend/cmd/migrate before starting the
+updated API and worker. Deploy the matching frontend/API contract together.
+The migration repairs only automatic "other" owner-loan categories, retains
+user corrections, queues affected companies and resolves paid/cancelled overdue
+alerts. No ML source, weights, training or prediction paths are changed.
+
+Product rules
+-------------
+Statements older than seven days, future-dated statements, fallback/low-confidence
+forecasts and unconfirmed active recurring schedules cannot supply a spending
+recommendation. safe_to_spend=0 is retained for older API consumers; consult
+spending_available and spending_restrictions before displaying an allowance.
+The UI labels the actual statement date and the final forecast date explicitly.
+All risk screens respect probability_reliable. A stochastic risk with a positive
+median balance displays shortfall_p90 as an adverse-case amount, rather than zero.
+
+Invoices may explicitly replace one unpaid manual or confirmed detected recurring
+event through replaces_event_id. Company ownership, direction, counterparty and
+single use are validated under the company lock. The original remains linked
+provenance. Removing an unpaid invoice restores the original plan. Paid history
+and bank-settlement reservations survive removing the invoice.
+
+Missing plan values and deviations are null, not zero. A saved model plan can
+only be compared with dates after its actual creation. Explicit document plans
+retain their full amount through partial/full payment and are labelled separately.
+Resolved overdue alerts are retained in notification history but excluded from
+the dashboard. A recurring overdue condition reopens its existing notification.
+
+New confirmed tax entries include their full schedule by default. The UI offers
+an explicit calendar-only alternative. Existing liabilities are not reclassified
+automatically. Ordinary ENP/USN/VAT double-entry checks remain enforced.
+
+Marketplace accounting rows remain separate from bank facts. The owner can
+confirm an expected payout amount/date/payer and create a manual forecast event
+with visible report provenance. request_id prevents a repeat submission from
+creating a second event; conflicting retries return 409. A bank statement is
+still required to establish actual cash.
+
+Validation
+----------
+Use an isolated PostgreSQL test database via TEST_DATABASE_URL:
+  cd backend
+  go test ./... -count=1
+  go vet ./...
+
+Frontend:
+  cd underfront
+  npm run typecheck
+  npm test
+  npm run build
+
+Against an explicitly isolated application with synthetic provider responses:
+  E2E_BASE_URL=http://localhost:13000 E2E_API_URL=http://localhost:18080 E2E_INTEGRATION_SANDBOX=1 npx playwright test tests/e2e/business-audit.spec.mjs tests/e2e/finance-crud.spec.mjs tests/e2e/case-completion.spec.mjs tests/e2e/marketplaces.spec.mjs
+
+Live external provider connectivity requires approved provider URLs, host
+allowlisting and read credentials. Synthetic acceptance is not a live pass.

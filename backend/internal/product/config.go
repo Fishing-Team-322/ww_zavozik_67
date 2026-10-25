@@ -11,6 +11,7 @@ import (
 
 	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/config"
 	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/forecast"
+	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/llm"
 	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/store"
 )
 
@@ -30,6 +31,10 @@ func New(db *store.Postgres, c config.Config, ml forecast.StochasticForecaster) 
 		}
 	}
 
+	narrator, err := llm.NewCashflowNarrator(c.CashflowLLMBaseURL, c.CashflowLLMAPIKey, c.CashflowLLMModel)
+	if err != nil {
+		return nil, err
+	}
 	var key []byte
 	if c.DataEncryptionKey != "" {
 		var e error
@@ -55,7 +60,7 @@ func New(db *store.Postgres, c config.Config, ml forecast.StochasticForecaster) 
 			hosts = append(hosts, h)
 		}
 	}
-	service := &Service{IntegrationSandbox: c.IntegrationSandbox, FNSHubURL: c.FNSHubURL, FNSHubToken: c.FNSHubToken, FNSHubCompany: c.FNSHubCompany, DB: db, ML: forecast.NewCachedForecaster(ml, time.Minute, 16), Fallback: forecast.SeasonalNaive{}, EncryptionKey: key, AllowedSourceHosts: hosts, DaDataToken: c.DaDataToken, ReportsDir: c.ModelReportsDir, TrainingURL: c.TrainingURL, TrainingToken: c.TrainingToken}
+	service := &Service{CashflowNarrator: narrator, IntegrationSandbox: c.IntegrationSandbox, FNSHubURL: c.FNSHubURL, FNSHubToken: c.FNSHubToken, FNSHubCompany: c.FNSHubCompany, DB: db, ML: forecast.NewCachedForecaster(ml, time.Minute, 16), Fallback: forecast.SeasonalNaive{}, EncryptionKey: key, AllowedSourceHosts: hosts, DaDataToken: c.DaDataToken, ReportsDir: c.ModelReportsDir, TrainingURL: c.TrainingURL, TrainingToken: c.TrainingToken}
 	if c.IntegrationSandbox {
 		service.HTTP = &http.Client{Transport: sandboxTransport{}}
 		service.DaDataToken = "sandbox-key"

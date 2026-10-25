@@ -26,12 +26,12 @@ func TestRiskDatesStayConsistentAcrossForecastOverviewDetailAndSimulation(t *tes
 			smallPaymentID = created["id"].(string)
 		}
 	}
-	check := func(label string, gap map[string]any) {
+	check := func(label string, gap map[string]any, worst string) {
 		t.Helper()
-		if gap["date"] != "2026-10-27" || gap["days_left"] != float64(2) || gap["worst_date"] != "2026-10-28" {
+		if gap["date"] != "2026-10-27" || gap["days_left"] != float64(2) || gap["worst_date"] != worst {
 			t.Fatalf("%s: wrong risk dates: %s", label, mustAuditJSON(gap))
 		}
-		if gap["explanation"].(map[string]any)["date"] != "2026-10-28" {
+		if gap["explanation"].(map[string]any)["date"] != worst {
 			t.Fatal("wrong explanation date", gap)
 		}
 	}
@@ -40,10 +40,26 @@ func TestRiskDatesStayConsistentAcrossForecastOverviewDetailAndSimulation(t *tes
 		t.Fatal("fixture must contain a stale statement", fc["as_of"])
 	}
 	gap := fc["gaps"].([]any)[0].(map[string]any)
-	check("forecast", gap)
-	check("overview", auditCall(t, h, token, "GET", base+"/dashboard", nil, 200)["top_gap"].(map[string]any))
+	check("forecast", gap, "2026-10-28")
+	check("overview", auditCall(t, h, token, "GET", base+"/dashboard", nil, 200)["top_gap"].(map[string]any), "2026-10-28")
 	detail := auditCall(t, h, token, "GET", base+"/gaps/"+gap["id"].(string), nil, 200)
-	check("detail", detail)
+	check("detail", detail, "2026-10-28")
+	if len(detail["actions"].([]any)) != 0 {
+		t.Fatal("stale statement must not offer actionable recommendations", detail)
+	}
+	// Refresh bank history before offering actions. Date projections must stay
+	// consistent in the independently calculated simulation as well.
+	if _, err := h.db.Pool.Exec(context.Background(), "UPDATE operations SET op_date=op_date+24 WHERE company_id=$1", cid); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.DB.QueueRecompute(context.Background(), auditOwner(t, h, cid), cid); err != nil {
+		t.Fatal(err)
+	}
+	drainCase(t, s)
+	fc = auditForecast(t, h, token, cid)
+	gap = fc["gaps"].([]any)[0].(map[string]any)
+	check("fresh forecast", gap, "2026-10-28")
+	detail = auditCall(t, h, token, "GET", base+"/gaps/"+gap["id"].(string), nil, 200)
 	var actionID string
 	for _, raw := range detail["actions"].([]any) {
 		action := raw.(map[string]any)
@@ -60,5 +76,5 @@ func TestRiskDatesStayConsistentAcrossForecastOverviewDetailAndSimulation(t *tes
 	if len(simulatedGaps) != 1 {
 		t.Fatal("moving the small payment must keep the later risk", simulated)
 	}
-	check("simulation", simulatedGaps[0].(map[string]any))
+	check("simulation", simulatedGaps[0].(map[string]any), "2026-11-09")
 }

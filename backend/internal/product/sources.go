@@ -544,7 +544,7 @@ func readTable(data []byte, format string) ([][]string, error) {
 	return table, nil
 }
 func proposeMapping(header []string) Doc {
-	aliases := map[string]string{"date": "date", "дата": "date", "op_date": "date", "amount": "amount", "сумма": "amount", "direction": "direction", "направление": "direction", "counterparty": "counterparty", "counterparty_name": "counterparty", "контрагент": "counterparty", "inn": "inn", "counterparty_inn": "inn", "инн": "inn", "purpose": "purpose", "назначение": "purpose", "balance": "balance", "balance_eod": "balance", "остаток": "balance", "id": "id"}
+	aliases := map[string]string{"date": "date", "дата": "date", "op_date": "date", "operation_date": "date", "amount": "amount", "сумма": "amount", "direction": "direction", "направление": "direction", "counterparty": "counterparty", "counterparty_name": "counterparty", "контрагент": "counterparty", "inn": "inn", "counterparty_inn": "inn", "инн": "inn", "purpose": "purpose", "payment_purpose": "purpose", "назначение": "purpose", "balance": "balance", "balance_eod": "balance", "остаток": "balance", "id": "id", "operation_id": "id"}
 	out := Doc{}
 	for _, v := range header {
 		if key, yes := aliases[strings.ToLower(strings.TrimSpace(v))]; yes {

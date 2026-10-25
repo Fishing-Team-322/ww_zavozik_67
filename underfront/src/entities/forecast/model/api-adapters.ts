@@ -1,3 +1,4 @@
+import { gapAmount, riskProbability } from "./reliability";
 import type { Forecast, Gap, Schemas } from "@/src/shared/api";
 
 export function fallbackNotice(warnings: string[]) {
@@ -56,12 +57,14 @@ export const displayDate = (date: string) =>
 export function riskView(
   gap: Gap,
   causes: Schemas["GapDetail"]["causes"] = [],
+  forecast?: Forecast,
 ) {
   return {
     id: gap.id,
     date: displayDate(gap.date),
-    deficit: gap.shortfall,
-    probability: gap.probability,
+    deficit: gapAmount(gap).amount,
+    deficitLabel: gapAmount(gap).label,
+    probability: forecast ? riskProbability(gap, forecast) : gap.probability_reliable === false ? null : gap.probability,
     reasons: causes.map((cause) => `${cause.title}: ${rubles(cause.amount)}`),
   };
 }

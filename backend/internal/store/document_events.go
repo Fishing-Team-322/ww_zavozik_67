@@ -121,13 +121,18 @@ func syncDocumentEvents(ctx context.Context, tx pgx.Tx, cid, kind, id string, d 
 			status = "received"
 		}
 		entries = append(entries, Doc{"date": d["expected_pay_at"], "amount": amount, "status": status})
+		if status == "received" && str("replaces_event_id") != "" {
+			if _, err := tx.Exec(ctx, `UPDATE planned_events SET status='received',extra=extra||jsonb_build_object('_revision',COALESCE((extra->>'_revision')::int,0)+1,'replacement_settled_by',$3::text) WHERE company_id=$1 AND id::text=$2`, cid, str("replaces_event_id"), id); err != nil {
+				return dbError(err)
+			}
+		}
 	} else {
 		entries = contractEntries(d)
 	}
 	additional, _ := d["additional"].(bool)
 	for i, entry := range entries {
 		eventID := DocumentEventID(cid, id, i)
-		extra := Doc{"document_id": id, "document_kind": kind, "additional": additional, "counterparty_inn": d["counterparty_inn"]}
+		extra := Doc{"document_id": id, "document_kind": kind, "additional": additional, "counterparty_inn": d["counterparty_inn"], "replaces_event_id": d["replaces_event_id"]}
 		_, e := tx.Exec(ctx, `INSERT INTO planned_events(id,company_id,source_kind,event_date,amount,direction,title,category,counterparty_name,probability,status,extra,matched_operation_id) VALUES($1,$2,$3,$4,$5,$6,$7,'other',$8,1,$9,$10,NULLIF($11,''))`, eventID, cid, kind, entry["date"], entry["amount"], direction, str("number"), str("counterparty_name"), entry["status"], string(JSON(extra)), matches[eventID])
 		if e != nil {
 			return dbError(e)

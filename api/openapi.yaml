@@ -3665,6 +3665,24 @@ components:
       - limitations
       - series
       properties:
+        gap_precision:
+          type: number
+          nullable: true
+        gap_alerts:
+          type: number
+          nullable: true
+        gap_false_alerts:
+          type: number
+          nullable: true
+        gap_events:
+          type: number
+          nullable: true
+        new_gap_events:
+          type: number
+          nullable: true
+        runs:
+          type: number
+          nullable: true
         name:
           type: string
         wape_7:
@@ -3754,6 +3772,8 @@ components:
       - days_left
       - headline
       properties:
+        probability_reliable:
+          type: boolean
         worst_date:
           type: string
           format: date
@@ -3804,6 +3824,35 @@ components:
       - markers
       - gaps
       properties:
+        spending_available:
+          type: boolean
+          description: False means safe_to_spend must not be presented as a spending recommendation.
+        spending_restrictions:
+          type: array
+          items:
+            type: string
+        probability_reliable:
+          type: boolean
+        data_age_days:
+          type: integer
+        unconfirmed_recurring:
+          type: integer
+        forecast_end:
+          type: string
+          format: date
+        planned_flows:
+          type: array
+          items:
+            type: object
+            required: [date, in, out]
+            properties:
+              date:
+                type: string
+                format: date
+              in:
+                type: number
+              out:
+                type: number
         update_mode:
           type: string
           description: fresh_paths, reused_paths or updated_from_actuals. Empty for fallback.
@@ -3928,6 +3977,27 @@ components:
       - draft_message
       - refs
       properties:
+        explanation:
+          type: string
+          description: Explanation of the action mechanism, without financial calculations.
+        explanation_source:
+          type: string
+          enum: [rules, llm]
+        conditions:
+          type: string
+        original_date:
+          type: string
+          format: date
+          nullable: true
+        deferred_beyond_horizon:
+          type: boolean
+        date:
+          type: string
+          format: date
+        amount:
+          type: number
+        cost_known:
+          type: boolean
         id:
           type: string
           format: uuid
@@ -3947,6 +4017,28 @@ components:
           - new_probability
           - new_shortfall
           properties:
+            baseline_shortfall:
+              type: number
+            baseline_shortfall_p90:
+              type: number
+            shortfall_reduction:
+              type: number
+            shortfall_p90_reduction:
+              type: number
+            baseline_min_balance:
+              type: number
+            new_min_balance:
+              type: number
+            baseline_probability:
+              type: number
+            new_gap_date:
+              type: string
+              format: date
+              nullable: true
+            new_shortfall_p90:
+              type: number
+            probability_reliable:
+              type: boolean
             closes_gap:
               type: boolean
             new_probability:
@@ -4026,13 +4118,20 @@ components:
       type: object
       additionalProperties: false
       properties:
+        plan_available:
+          type: boolean
+        plan_basis:
+          type: string
+          enum: [none, documents, forecast]
         period:
           type: string
           format: date
         plan_in:
           type: number
+          nullable: true
         plan_out:
           type: number
+          nullable: true
         fact_in:
           type: number
           nullable: true
@@ -4067,6 +4166,12 @@ components:
       - status
       - editable
       properties:
+        source_ref:
+          type: string
+          maxLength: 1024
+        request_id:
+          type: string
+          format: uuid
         additional:
           type: boolean
           description: true adds this obligation to the modeled business flow; false explicitly marks it as already covered.
@@ -4280,6 +4385,8 @@ components:
       - ref
       - read
       properties:
+        resolved:
+          type: boolean
         id:
           type: string
           format: uuid
@@ -4334,6 +4441,10 @@ components:
       - status
       - source
       properties:
+        replaces_event_id:
+          type: string
+          format: uuid
+          description: Explicitly replaces one unpaid manual or confirmed detected recurring payment. The invoice is counted once.
         additional:
           type: boolean
           description: true adds this obligation to the modeled business flow; false explicitly marks it as already covered.
@@ -4507,6 +4618,12 @@ components:
       type: object
       additionalProperties: false
       properties:
+        source_ref:
+          type: string
+          maxLength: 1024
+        request_id:
+          type: string
+          format: uuid
         date:
           type: string
           format: date
@@ -4683,6 +4800,10 @@ components:
       type: object
       additionalProperties: false
       properties:
+        replaces_event_id:
+          type: string
+          format: uuid
+          description: Explicitly replaces one unpaid manual or confirmed detected recurring payment. The invoice is counted once.
         number:
           type: string
           minLength: 1
@@ -4739,6 +4860,10 @@ components:
       type: object
       additionalProperties: false
       properties:
+        replaces_event_id:
+          type: string
+          format: uuid
+          description: Explicitly replaces one unpaid manual or confirmed detected recurring payment. The invoice is counted once.
         number:
           type: string
           minLength: 1

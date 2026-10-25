@@ -32,7 +32,7 @@ func re(s string) *regexp.Regexp { return regexp.MustCompile("(?i)" + s) }
 
 // DefaultRules — стартовый набор по шаблонам из датасета кейса.
 var DefaultRules = Rules{
-	{Category: domain.CatOwnerLoan, Purpose: re(`займ.*учредител|учредител.*займ`)},
+	{Category: domain.CatOwnerLoan, Purpose: re(`за[еёий]м.*учредител|учредител.*за[еёий]м`)},
 	{Category: domain.CatOwnTransfer, Purpose: re(`собственн\S* средств`)},
 	{Category: domain.CatEnforcement, Purpose: re(`исполнительн\S* лист|инкассов\S* поручен`)},
 	{Category: domain.CatRefund, Purpose: re(`^возврат`)},
@@ -53,11 +53,21 @@ var DefaultRules = Rules{
 	{Category: domain.CatServices, Direction: domain.Out, Purpose: re(`услуг`)},
 }
 
+var ownerName = re(`учредител|собственник`)
+var ownerLoanPurpose = re(`за[еёий]м`)
+
 func (rs Rules) Categorize(_ context.Context, ops []domain.Operation) ([]Result, error) {
 	out := make([]Result, len(ops))
 	for i, op := range ops {
 		purpose := strings.TrimSpace(string(op.Purpose))
 		name := string(op.CounterpartyName)
+		// The counterparty identifies the lender even when the purpose only says
+		// «предоставление беспроцентного займа». Do not classify arbitrary
+		// payments to the owner as financing.
+		if ownerName.MatchString(name) && ownerLoanPurpose.MatchString(purpose) {
+			out[i] = Result{Category: domain.CatOwnerLoan, Confidence: 0.9, Method: domain.MethodRule}
+			continue
+		}
 		for _, r := range rs {
 			if r.match(op, purpose, name) {
 				out[i] = Result{Category: r.Category, Confidence: 0.9, Method: domain.MethodRule}

@@ -12,7 +12,6 @@ import (
 	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/domain"
 	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/forecast"
 	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/platform"
-	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/risk"
 	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/store"
 )
 
@@ -290,23 +289,20 @@ func (s *Service) gapResult(ctx context.Context, op, uid, cid string, gap, out D
 	}
 	actions := []Doc{}
 	causes := docs(gap["causes"])
-	for _, event := range events {
-		dt, included := eventForecastDate(event, res.AsOf)
-		if text(event, "direction") != "out" || !included || dt.Format(domain.DateLayout) > text(gap, "date") {
-			continue
-		}
-		if len(actions) >= 4 || text(event, "status") != "expected" || !in(text(event, "source_kind"), "manual recurring") {
-			continue
-		}
-		newDate := dt.AddDate(0, 0, 14)
-		steps := []Doc{{"kind": "move_event", "event_id": event["id"], "date": newDate.Format(domain.DateLayout)}}
-		actions = append(actions, Doc{"id": idFor(cid, forecastKey+":shift:"+text(event, "id")), "kind": "shift_supplier_payment", "title": "Перенести платёж", "description": "Согласовать перенос платежа на 14 дней", "cost": float64(0), "steps": steps, "refs": Doc{"event_id": event["id"]}, "draft_message": nil})
+	now := today()
+	if s.Now != nil {
+		now = domain.Day(s.Now().UTC())
 	}
-	amount := number(gap, "shortfall_p90")
-	if amount <= 0 {
-		amount = number(gap, "shortfall")
+	statementDate, err := day(text(out, "as_of"))
+	if err != nil {
+		return Result{}, err
 	}
-	actions = append(actions, Doc{"id": idFor(cid, forecastKey+":overdraft"), "kind": "overdraft", "title": "Запланировать привлечение средств", "description": "Добавляет плановое поступление; банк не выдаёт кредит через этот метод", "cost": float64(0), "steps": []Doc{}, "refs": Doc{}, "date": gap["date"], "amount": amount, "draft_message": nil})
+	age := int(now.Sub(statementDate).Hours() / 24)
+	if age > 7 || age < 0 {
+		gap["actions"] = actions
+		return ok(gap)
+	}
+	actions = cashflowCandidates(cid, forecastKey, gap, res, events)
 	company, e := s.DB.GetCompany(ctx, uid, cid)
 	if e != nil {
 		return Result{}, e
@@ -324,18 +320,21 @@ func (s *Service) gapResult(ctx context.Context, op, uid, cid string, gap, out D
 		if e != nil {
 			return Result{}, e
 		}
-		gs := risk.FindGaps(changed, domain.Money(company.Reserve))
-		np, ns := float64(0), float64(0)
-		if len(gs) > 0 {
-			np = gs[0].Probability
-			ns = gs[0].Shortfall.Float()
-		}
-		a["effect"] = Doc{"closes_gap": len(gs) == 0, "new_probability": np, "new_shortfall": ns}
+		a["effect"] = cashflowEffect(res, changed, company.Reserve, cashflowProbabilityReliable(out))
 		if old, e := s.DB.ProductGet(ctx, uid, "action", text(a, "id")); e == nil {
 			a["applied"] = old["applied"]
+			if text(old, "explanation_source") == "llm" {
+				a["explanation"], a["explanation_source"] = old["explanation"], "llm"
+			}
 		} else if !platform.IsStatus(e, 404) {
 			return Result{}, e
 		}
+	}
+	rankCashflowActions(actions)
+	if op != "simulateGap" {
+		s.explainCashflowActions(ctx, actions)
+	}
+	for _, a := range actions {
 		if _, e = s.DB.ProductSave(ctx, uid, cid, "action", text(a, "id"), a, true); e != nil {
 			return Result{}, e
 		}
@@ -384,7 +383,7 @@ func (s *Service) gapResult(ctx context.Context, op, uid, cid string, gap, out D
 	}
 	public := []Doc{}
 	for _, a := range actions {
-		public = append(public, Doc{"id": a["id"], "kind": a["kind"], "title": a["title"], "description": a["description"], "cost": a["cost"], "effect": a["effect"], "draft_message": a["draft_message"], "refs": a["refs"]})
+		public = append(public, Doc{"id": a["id"], "kind": a["kind"], "title": a["title"], "description": a["description"], "cost": a["cost"], "cost_known": a["cost_known"], "date": a["date"], "amount": a["amount"], "effect": a["effect"], "draft_message": a["draft_message"], "refs": a["refs"], "conditions": a["conditions"], "explanation": a["explanation"], "explanation_source": a["explanation_source"], "original_date": a["original_date"], "deferred_beyond_horizon": a["deferred_beyond_horizon"]})
 	}
 	gap["causes"], gap["actions"] = causes, public
 	return ok(gap)
@@ -425,16 +424,21 @@ func (s *Service) applyAction(ctx context.Context, uid, id string) (Result, erro
 	case "overdraft":
 		ref = idFor(cid, "applied:"+id)
 		_, e = tx.Exec(ctx, `INSERT INTO planned_events(id,company_id,source_kind,event_date,amount,direction,title,category,probability,status,extra) VALUES($1,$2,'manual',$3,$4,'in','Плановое привлечение средств','owner_loan',1,'expected','{"additional":true}') ON CONFLICT(id) DO NOTHING`, ref, cid, text(d, "date"), number(d, "amount"))
-	case "shift_supplier_payment":
+	case "shift_supplier_payment", "accelerate_receivable":
 		steps := docs(d["steps"])
 		if len(steps) != 1 {
 			return Result{}, bad("Некорректное действие")
 		}
 		ref = text(steps[0], "event_id")
-		tag, err := tx.Exec(ctx, "UPDATE planned_events SET event_date=$3::text::date,extra=extra||jsonb_build_object('date',$3::text,'user_override',true,'_revision',COALESCE((extra->>'_revision')::int,0)+1) WHERE id=$1 AND company_id=$2 AND status='expected' AND source_kind IN ('manual','recurring')", ref, cid, text(steps[0], "date"))
+		tag, err := tx.Exec(ctx, "UPDATE planned_events SET event_date=$3::text::date,extra=extra||jsonb_build_object('date',$3::text,'user_override',true,'_revision',COALESCE((extra->>'_revision')::int,0)+1) WHERE id=$1 AND company_id=$2 AND status='expected' AND source_kind IN ('manual','recurring','invoice')", ref, cid, text(steps[0], "date"))
 		e = err
 		if e == nil && tag.RowsAffected() == 0 {
 			return Result{}, platform.ErrNotFound
+		}
+		if e == nil {
+			// Invoice calendar entries are projections: update their source too,
+			// so reconciliation cannot restore the previous expected date.
+			_, e = tx.Exec(ctx, `UPDATE product_documents d SET data=d.data||jsonb_build_object('expected_pay_at',$3::text,'_revision',COALESCE((d.data->>'_revision')::int,0)+1),updated_at=now() FROM planned_events p WHERE p.id=$1 AND p.company_id=$2 AND p.source_kind='invoice' AND d.id::text=p.extra->>'document_id' AND d.company_id=$2 AND d.kind='invoice'`, ref, cid, text(steps[0], "date"))
 		}
 	default:
 		return Result{}, bad("Действие не поддерживается")

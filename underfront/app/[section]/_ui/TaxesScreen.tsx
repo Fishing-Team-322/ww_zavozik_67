@@ -39,7 +39,7 @@ export function TaxesScreen() {
     title: "Аванс УСН",
     source_ref: "",
     confirmed: false,
-    additional: false,
+    additional: true,
   });
   const requestID = useRef<string | null>(null);
   const [preview, setPreview] = useState<Schemas["TaxDraft"] | null>(null);
@@ -253,16 +253,8 @@ export function TaxesScreen() {
               onChange={(e) => change({ source_ref: e.target.value })}
             />
           </div>
-          <Checkbox
-            label="Это дополнительная сумма сверх обычных налоговых платежей: включить её в прогноз"
-            checked={draft.additional}
-            onChange={(e) => change({ additional: e.target.checked })}
-          />
-          <p className="text-xs text-[color:var(--text-secondary)]">
-            Обычные повторяющиеся расходы уже входят в базовый прогноз. Без
-            этого флажка обязательство видно в календаре и план-факте;
-            дополнительного списания в прогнозе не будет.
-          </p>
+          <Select density="form" label="Как учесть в прогнозе" value={draft.additional ? "new" : "covered"} onChange={event => change({ additional: event.target.value === "new" })} options={[{ value: "new", label: "Новый платёж — включить всю сумму по графику" }, { value: "covered", label: "Только календарь — без изменения прогноза" }]} />
+          <p className="text-xs text-[color:var(--text-secondary)]">{draft.additional ? "Подтверждённая сумма войдёт в прогноз по рассчитанным датам. Проверьте, что такое обязательство не было добавлено ранее." : "Сумма и даты останутся только в календаре и план-факте; прогноз не изменится."}</p>
           <Checkbox
             label="Подтверждаю сумму и отсутствие второго обязательства на тот же платёж"
             checked={draft.confirmed}

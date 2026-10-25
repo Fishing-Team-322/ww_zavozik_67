@@ -76,6 +76,8 @@ export type PulsOverviewData = {
   company?: string;
   currentBalance: number;
   safeToSpend?: number | null;
+  spendingAvailable?: boolean;
+  forecastEnd?: string;
   minimumBalance?: { date: string; p50: number } | null;
   serverStatus?: string;
   headline?: string;
@@ -239,15 +241,15 @@ export function KpiStrip({ data, selected }: { data: PulsOverviewData; selected:
 
   const items = [
     {
-      label: "Текущий баланс",
+      label: "Последний подтверждённый остаток",
       value: compactMoney(data.currentBalance),
       detail: data.reserve != null ? `Резерв ${compactMoney(data.reserve)}` : "На счетах компании",
-      foot: "На текущую дату",
+      foot: data.updatedAt ? `На ${displayDate(data.updatedAt)}` : "По последней выписке",
       alert: false,
     },
     {
       label: "Можно потратить сегодня",
-      value: spendable == null ? "Нет оценки" : compactMoney(spendable),
+      value: data.spendingAvailable === false || spendable == null ? "Нет рекомендации" : compactMoney(spendable),
       detail: "С учётом резерва и рисков",
       foot: "По базовому прогнозу",
       alert: false,
@@ -264,9 +266,9 @@ export function KpiStrip({ data, selected }: { data: PulsOverviewData; selected:
       alert: minimum < 0,
     },
     {
-      label: `Через ${data.horizon ?? 30} дней`,
+      label: data.forecastEnd ? `На ${displayDate(data.forecastEnd)}` : `Через ${data.horizon ?? 30} дней`,
       value: compactMoney(stats.last),
-      detail: `${change > 0 ? "+" : ""}${compactMoney(change)} к текущему`,
+      detail: `${change > 0 ? "+" : ""}${compactMoney(change)} к остатку по выписке`,
       foot: selected === "base" ? "Базовый прогноз" : "Выбранный сценарий",
       alert: stats.last < 0,
     },

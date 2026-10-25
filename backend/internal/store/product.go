@@ -110,6 +110,11 @@ func (p *Postgres) ProductSave(ctx context.Context, uid, cid, kind, id string, d
 	if err = lockCompany(ctx, tx, uid, cid); err != nil {
 		return nil, err
 	}
+	if kind == "event" && !create {
+		if err = guardReplacedEvent(ctx, tx, cid, id); err != nil {
+			return nil, err
+		}
+	}
 	if create {
 		query, e := productQuery(kind)
 		if e != nil {
@@ -118,7 +123,15 @@ func (p *Postgres) ProductSave(ctx context.Context, uid, cid, kind, id string, d
 		var raw []byte
 		e = tx.QueryRow(ctx, "SELECT doc FROM ("+query+") existing WHERE doc->>'id'=$1 AND doc->>'company_id'=$2", id, cid).Scan(&raw)
 		if e == nil {
-			return Decode(raw), nil
+			old := Decode(raw)
+			if kind == "event" && d["request_id"] != nil {
+				for _, key := range []string{"date", "amount", "direction", "title", "category", "counterparty_name", "source_ref", "probability", "additional"} {
+					if string(JSON(old[key])) != string(JSON(d[key])) {
+						return nil, platform.Fail(409, "request_conflict", "Этот платёж уже сохранён с другими условиями. Измените его в календаре.")
+					}
+				}
+			}
+			return old, nil
 		} // Derived IDs are idempotent and must never overwrite an edit.
 		if !errors.Is(e, pgx.ErrNoRows) {
 			return nil, dbError(e)
@@ -137,6 +150,11 @@ func (p *Postgres) ProductSave(ctx context.Context, uid, cid, kind, id string, d
 		}
 		if revision(Decode(old)) != revision(d) {
 			return nil, platform.Fail(409, "version_conflict", "Запись уже изменена. Обновите данные")
+		}
+	}
+	if kind == "invoice" {
+		if err = validateInvoiceReplacement(ctx, tx, cid, id, d); err != nil {
+			return nil, err
 		}
 	}
 	d["_revision"] = revision(d) + 1
@@ -216,6 +234,11 @@ func (p *Postgres) ProductDelete(ctx context.Context, uid, cid, kind, id string)
 	defer tx.Rollback(ctx)
 	if err = lockCompany(ctx, tx, uid, cid); err != nil {
 		return err
+	}
+	if kind == "event" {
+		if err = guardReplacedEvent(ctx, tx, cid, id); err != nil {
+			return err
+		}
 	}
 	table := productTables[kind]
 	var n int64
