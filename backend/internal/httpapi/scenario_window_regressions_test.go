@@ -1,10 +1,39 @@
 package httpapi_test
 
 import (
+	"context"
+	"sync"
 	"testing"
 
+	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/forecast"
 	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/product"
 )
+
+type changingWindowML struct {
+	auditFlatML
+	once   sync.Once
+	change func()
+}
+
+func (m *changingWindowML) Forecast(ctx context.Context, r forecast.StochasticRequest) (forecast.StochasticForecast, error) {
+	value, err := m.auditFlatML.Forecast(ctx, r)
+	m.once.Do(m.change)
+	return value, err
+}
+
+func TestScenarioWindowDataChangeReturnsRetryInsteadOfSlicingDifferentDates(t *testing.T) {
+	h, s, token, cid := auditSetup(t)
+	s.ML = &changingWindowML{change: func() {
+		auditOperation(t, h, cid, "2026-10-24", "Later import", "", 1000, 120000)
+		if _, err := h.db.Pool.Exec(context.Background(), "UPDATE companies SET data_revision=data_revision+1 WHERE id=$1", cid); err != nil {
+			t.Fatal(err)
+		}
+	}}
+	got := auditCall(t, h, token, "POST", "/v1/companies/"+cid+"/scenarios/preview?from=2026-10-24&to=2026-11-22", product.Doc{"steps": []product.Doc{{"kind": "scale_revenue", "factor": .8}}}, 409)
+	if got["code"] != "data_changed" {
+		t.Fatal("expected explicit retry after an intervening import", got)
+	}
+}
 
 func TestScenarioWindowRetainsEarlierFlowsAndExcludesLaterRisk(t *testing.T) {
 	h, _, token, cid := auditSetup(t)

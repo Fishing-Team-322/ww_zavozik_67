@@ -2315,6 +2315,9 @@ type ServerInterface interface {
 	// (GET /v1/companies/{companyId}/plan-fact)
 	GetPlanFact(w http.ResponseWriter, r *http.Request, companyId openapi_types.UUID, params GetPlanFactParams)
 
+	// (GET /v1/companies/{companyId}/plan-fact/backtest)
+	GetHistoricalBacktest(w http.ResponseWriter, r *http.Request, companyId openapi_types.UUID)
+
 	// (GET /v1/companies/{companyId}/plan-fact/missed)
 	GetMissedPlanFact(w http.ResponseWriter, r *http.Request, companyId openapi_types.UUID)
 
@@ -4903,6 +4906,37 @@ func (siw *ServerInterfaceWrapper) GetPlanFact(w http.ResponseWriter, r *http.Re
 	handler.ServeHTTP(w, r)
 }
 
+// GetHistoricalBacktest operation middleware
+func (siw *ServerInterfaceWrapper) GetHistoricalBacktest(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "companyId" -------------
+	var companyId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "companyId", r.PathValue("companyId"), &companyId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "companyId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetHistoricalBacktest(w, r, companyId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetMissedPlanFact operation middleware
 func (siw *ServerInterfaceWrapper) GetMissedPlanFact(w http.ResponseWriter, r *http.Request) {
 
@@ -6775,6 +6809,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc("POST "+options.BaseURL+"/v1/companies/{companyId}/operations/recategorize", wrapper.RecategorizeOperations)
 	m.HandleFunc("GET "+options.BaseURL+"/v1/companies/{companyId}/operations/summary", wrapper.SummarizeOperations)
 	m.HandleFunc("GET "+options.BaseURL+"/v1/companies/{companyId}/plan-fact", wrapper.GetPlanFact)
+	m.HandleFunc("GET "+options.BaseURL+"/v1/companies/{companyId}/plan-fact/backtest", wrapper.GetHistoricalBacktest)
 	m.HandleFunc("GET "+options.BaseURL+"/v1/companies/{companyId}/plan-fact/missed", wrapper.GetMissedPlanFact)
 	m.HandleFunc("GET "+options.BaseURL+"/v1/companies/{companyId}/recurring", wrapper.ListRecurring)
 	m.HandleFunc("POST "+options.BaseURL+"/v1/companies/{companyId}/recurring", wrapper.CreateRecurring)
@@ -8812,6 +8847,35 @@ func (response GetPlanFactdefaultJSONResponse) VisitGetPlanFactResponse(w http.R
 	return json.NewEncoder(w).Encode(response.Body)
 }
 
+type GetHistoricalBacktestRequestObject struct {
+	CompanyId openapi_types.UUID `json:"companyId"`
+}
+
+type GetHistoricalBacktestResponseObject interface {
+	VisitGetHistoricalBacktestResponse(w http.ResponseWriter) error
+}
+
+type GetHistoricalBacktest200JSONResponse Object
+
+func (response GetHistoricalBacktest200JSONResponse) VisitGetHistoricalBacktestResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetHistoricalBacktestdefaultJSONResponse struct {
+	Body       Error
+	StatusCode int
+}
+
+func (response GetHistoricalBacktestdefaultJSONResponse) VisitGetHistoricalBacktestResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(response.StatusCode)
+
+	return json.NewEncoder(w).Encode(response.Body)
+}
+
 type GetMissedPlanFactRequestObject struct {
 	CompanyId openapi_types.UUID `json:"companyId"`
 }
@@ -10580,6 +10644,9 @@ type StrictServerInterface interface {
 
 	// (GET /v1/companies/{companyId}/plan-fact)
 	GetPlanFact(ctx context.Context, request GetPlanFactRequestObject) (GetPlanFactResponseObject, error)
+
+	// (GET /v1/companies/{companyId}/plan-fact/backtest)
+	GetHistoricalBacktest(ctx context.Context, request GetHistoricalBacktestRequestObject) (GetHistoricalBacktestResponseObject, error)
 
 	// (GET /v1/companies/{companyId}/plan-fact/missed)
 	GetMissedPlanFact(ctx context.Context, request GetMissedPlanFactRequestObject) (GetMissedPlanFactResponseObject, error)
@@ -12592,6 +12659,32 @@ func (sh *strictHandler) GetPlanFact(w http.ResponseWriter, r *http.Request, com
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetPlanFactResponseObject); ok {
 		if err := validResponse.VisitGetPlanFactResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetHistoricalBacktest operation middleware
+func (sh *strictHandler) GetHistoricalBacktest(w http.ResponseWriter, r *http.Request, companyId openapi_types.UUID) {
+	var request GetHistoricalBacktestRequestObject
+
+	request.CompanyId = companyId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetHistoricalBacktest(ctx, request.(GetHistoricalBacktestRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetHistoricalBacktest")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetHistoricalBacktestResponseObject); ok {
+		if err := validResponse.VisitGetHistoricalBacktestResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

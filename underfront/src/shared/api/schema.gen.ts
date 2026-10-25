@@ -1087,6 +1087,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/companies/{companyId}/plan-fact/backtest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getHistoricalBacktest"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/companies/{companyId}/plan-fact/missed": {
         parameters: {
             query?: never;
@@ -5138,6 +5154,29 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TaxObligation"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    getHistoricalBacktest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                companyId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Retrospective 30-day holdout computed now from company history only; not a previously issued forecast. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Object"];
                 };
             };
             default: components["responses"]["Error"];

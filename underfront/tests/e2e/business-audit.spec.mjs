@@ -60,6 +60,7 @@ test('scenario dates select one real 30-day window and limited plan-fact never e
   await page.getByLabel('С даты',{exact:true}).fill(from);
   const comparison = await (await response).json();
   await expect(page.getByLabel('По дату',{exact:true})).toHaveValue(to);
+  await expect(page.getByLabel('Дата расхода',{exact:true})).toHaveValue(from);
   for (const forecast of [comparison.base,comparison.scenario]) {
     expect(forecast.as_of).toBe(dateAt(-26));
     expect(forecast.points).toHaveLength(30);

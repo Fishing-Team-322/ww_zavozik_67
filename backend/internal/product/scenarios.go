@@ -290,7 +290,20 @@ func (s *Service) compare(ctx context.Context, op, uid, cid string, r *http.Requ
 	if e != nil {
 		return Result{}, e
 	}
+	if basePaths.DataRevision != otherPaths.DataRevision || !basePaths.AsOf.Equal(otherPaths.AsOf) || len(basePaths.Dates) != len(otherPaths.Dates) {
+		return Result{}, platform.Fail(409, "data_changed", "Данные компании изменились во время расчёта. Повторите сравнение.")
+	}
+	for i := range basePaths.Dates {
+		if !basePaths.Dates[i].Equal(otherPaths.Dates[i]) {
+			return Result{}, platform.Fail(409, "data_changed", "Даты прогноза изменились. Повторите сравнение.")
+		}
+	}
 	if from != "" {
+		start, _ := day(from)
+		end, _ := day(to)
+		if otherPaths.DayIndex(start) < 0 || otherPaths.DayIndex(end) < 0 {
+			return Result{}, platform.Fail(409, "data_changed", "Период больше не доступен. Повторите сравнение.")
+		}
 		company, err := s.DB.GetCompany(ctx, uid, cid)
 		if err != nil {
 			return Result{}, err

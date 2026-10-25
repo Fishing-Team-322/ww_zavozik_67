@@ -50,6 +50,7 @@ export function ScenariosScreen() {
   const [params, setParams] = useState<ScenarioParams>(DEFAULT_SCENARIO);
   const [counterparty, setCounterparty] = useState("");
   const [date, setDate] = useState("");
+  const effectiveExpenseDate = date || window.from;
   const [title, setTitle] = useState("Мой сценарий");
   const scenarios = useApiResource<Schemas["Scenario"][]>(`${base}/scenarios`);
   const presets = useApiResource<Array<{ kind: Schemas["ScenarioStep"]["kind"]; title: string }>>("/v1/scenario-presets");
@@ -73,7 +74,7 @@ export function ScenariosScreen() {
     sliderSteps.push({
       kind: "add_expense",
       amount: params.unexpectedExpense,
-      date: date || window.from,
+      date: effectiveExpenseDate,
     });
   if (selectedCondition === "delay_counterparty" && params.paymentDelayDays && counterparty)
     sliderSteps.push({
@@ -208,7 +209,7 @@ export function ScenariosScreen() {
             {selectedCondition && customSteps === null && <div className="mt-4 space-y-4">
               {selectedCondition !== "scale_fixed_costs" && <ScenarioControls bare visibleKeys={[selectedCondition === "delay_counterparty" ? "paymentDelayDays" : selectedCondition === "scale_revenue" ? "revenueDropPercent" : "unexpectedExpense"]} value={params} onChange={value => { setParams(value); setDirty(true); setSaved(null); }} />}
               {selectedCondition === "delay_counterparty" && <><Select density="form" size="md" label="Клиент с плановым поступлением" placeholder="Выберите клиента" value={counterparty} onChange={event => { setCounterparty(event.target.value); setDirty(true); }} options={clients} />{missingClient && <ContentText variant="description">Выберите клиента, чтобы рассчитать задержку поступления.</ContentText>}</>}
-              {selectedCondition === "add_expense" && <Input type="date" label="Дата расхода" min={forecast.data?.points[0]?.date} max={forecast.data?.points.at(-1)?.date} value={date || forecast.data?.points[0]?.date || ""} onChange={event => { setDate(event.target.value); setDirty(true); }} />}
+              {selectedCondition === "add_expense" && <Input type="date" label="Дата расхода" min={forecast.data?.points[0]?.date} max={forecast.data?.points.at(-1)?.date} value={effectiveExpenseDate} onChange={event => { setDate(event.target.value); setDirty(true); }} />}
               {selectedCondition === "scale_fixed_costs" && <Input label="Рост постоянных расходов, %" type="number" min="0" max="900" value={fixedIncrease} onChange={event => { setFixedIncrease(Number(event.target.value)); setDirty(true); }} />}
             </div>}
             {customSteps && <div className="mt-3 space-y-3">

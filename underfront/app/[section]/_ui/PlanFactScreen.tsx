@@ -10,6 +10,7 @@ import { Button, Input, Select, EmptyState, Table, TableHeader, TableBody, Table
 import { SectionCard } from "@/src/widgets/cabinet-shell";
 import { FinanceState } from "./FinanceState";
 import { PlanFactChart } from "./PlanFactChart";
+import { HistoricalBacktest } from "./HistoricalBacktest";
 import { planFactProbability, type SavedForecastChange } from "@/src/entities/forecast/model/plan-fact";
 import { money, percent, linkClass } from "./finance-utils";
 
@@ -41,9 +42,11 @@ export function PlanFactScreen() {
   const currentMissedPage = Math.min(missedPage, missedTotalPages);
   const currentUnexpectedPage = Math.min(unexpectedPage, unexpectedTotalPages);
   return <div className="space-y-4">
+    <ContentHeading level={1}>План и факт</ContentHeading>
+    <HistoricalBacktest companyId={company!.id}/>
     <SectionCard className="space-y-4">
       <div className="flex items-center justify-between gap-3">
-        <ContentHeading level={1}>План и факт</ContentHeading>
+        <ContentHeading level={2}>Сохранённый план и факт</ContentHeading>
         <Button variant="outline" onClick={() => { rows.refresh(); missed.refresh(); }}>Обновить</Button>
       </div>
       <div className="grid gap-3 sm:grid-cols-3">

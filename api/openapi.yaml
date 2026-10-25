@@ -2157,6 +2157,24 @@ paths:
                 $ref: '#/components/schemas/TaxObligation'
         default:
           $ref: '#/components/responses/Error'
+  /v1/companies/{companyId}/plan-fact/backtest:
+    get:
+      tags: [product]
+      operationId: getHistoricalBacktest
+      parameters:
+      - name: companyId
+        in: path
+        required: true
+        schema: {type: string, format: uuid}
+      responses:
+        default:
+          $ref: '#/components/responses/Error'
+        '200':
+          description: Retrospective 30-day holdout computed now from company history only; not a previously issued forecast.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Object'
   /v1/companies/{companyId}/plan-fact/missed:
     get:
       tags:

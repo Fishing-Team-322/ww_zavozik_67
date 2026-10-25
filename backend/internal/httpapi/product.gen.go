@@ -138,6 +138,10 @@ func (s *Server) GetGap(ctx context.Context, r GetGapRequestObject) (GetGapRespo
 	return s.productReply(ctx, "getGap", nil)
 }
 func (a reply) VisitGetGapResponse(w http.ResponseWriter) error { return a.write(w) }
+func (s *Server) GetHistoricalBacktest(ctx context.Context, r GetHistoricalBacktestRequestObject) (GetHistoricalBacktestResponseObject, error) {
+	return s.productReply(ctx, "getHistoricalBacktest", nil)
+}
+func (a reply) VisitGetHistoricalBacktestResponse(w http.ResponseWriter) error { return a.write(w) }
 func (s *Server) GetImport(ctx context.Context, r GetImportRequestObject) (GetImportResponseObject, error) {
 	return s.productReply(ctx, "getImport", nil)
 }

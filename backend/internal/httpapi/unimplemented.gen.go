@@ -272,6 +272,10 @@ func (Unimplemented) GetPlanFact(ctx context.Context, request GetPlanFactRequest
 	return nil, ErrNotImplemented
 }
 
+func (Unimplemented) GetHistoricalBacktest(ctx context.Context, request GetHistoricalBacktestRequestObject) (GetHistoricalBacktestResponseObject, error) {
+	return nil, ErrNotImplemented
+}
+
 func (Unimplemented) GetMissedPlanFact(ctx context.Context, request GetMissedPlanFactRequestObject) (GetMissedPlanFactResponseObject, error) {
 	return nil, ErrNotImplemented
 }
