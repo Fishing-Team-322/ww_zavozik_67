@@ -90,8 +90,8 @@ the current topology and leaves the release pointers unchanged:
 
 Additional provider/SMTP/OAuth/training settings belong in runtime.env. They are
 initially absent rather than replaced with synthetic production responses.
-The default application forecast is the existing serving model; connecting the
-new TrxGPT is a separate model release, not part of this deployment bootstrap.
+The default application forecast is structural_m6. TrxGPT is not selected by
+this release and requires a separate validated model release.
 
 Validation
 ----------

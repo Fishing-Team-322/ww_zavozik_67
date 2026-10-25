@@ -18,9 +18,28 @@ WAPE 30 дн. 0.393 против 0.478 у seasonal naive и 1.315 у trx; Brier 
 from __future__ import annotations
 
 import os
+import json
+import logging
+import time
+import uuid
 import numpy as np
 
 from .base import Forecaster, History, InsufficientHistoryError, NotTrainedError, Paths, register
+
+
+_checkpoint_log = logging.getLogger("zavozik_ml.checkpoint")
+
+
+def _checkpoint_event(trace: str, phase: str, **fields) -> None:
+    # Observability must not alter a successful forecast or replace its error.
+    # Call sites pass only wrapper counts, shapes, timing and exception type.
+    try:
+        _checkpoint_log.info("%s", json.dumps({
+            "event": "m6_wrapper_observation", "trace": trace,
+            "phase": phase, **fields,
+        }, sort_keys=True))
+    except Exception:
+        pass
 
 
 @register
@@ -56,14 +75,39 @@ class StructuralM6(Forecaster):
         return self._engine
 
     def forecast(self, history: History, horizon: int, n_paths: int, rng: np.random.Generator) -> Paths:
-        if history.valid_days == 0:
-            raise InsufficientHistoryError("history contains no observed days")
-        engine = self._get_engine()
-        res = engine.forecast(
-            history.dates, history.inflow, history.outflow, history.missing,
-            horizon=horizon, n_paths=n_paths, seed=int(rng.integers(0, 2**31 - 1)),
-            categories=history.categories or None,
-            transactions=[dict(t) for t in history.transactions] or None,
-            industry=history.industry,
-        )
-        return Paths(res.inflow, res.outflow, low_confidence=res.low_confidence, warnings=tuple(res.warnings))
+        trace = uuid.uuid4().hex
+        started = time.monotonic()
+        phase = "history_validation"
+        try:
+            if history.valid_days == 0:
+                raise InsufficientHistoryError("history contains no observed days")
+            _checkpoint_event(
+                trace, "history_accepted", history_days=len(history.dates),
+                valid_days=history.valid_days, transaction_count=len(history.transactions),
+                category_count=len(history.categories), horizon=horizon, n_paths=n_paths,
+            )
+            phase = "engine_loading"
+            engine = self._get_engine()
+            _checkpoint_event(trace, "engine_ready")
+            phase = "engine_call"
+            _checkpoint_event(trace, "engine_call_started")
+            res = engine.forecast(
+                history.dates, history.inflow, history.outflow, history.missing,
+                horizon=horizon, n_paths=n_paths, seed=int(rng.integers(0, 2**31 - 1)),
+                categories=history.categories or None,
+                transactions=[dict(t) for t in history.transactions] or None,
+                industry=history.industry,
+            )
+            result = Paths(res.inflow, res.outflow, low_confidence=res.low_confidence, warnings=tuple(res.warnings))
+            _checkpoint_event(
+                trace, "engine_call_returned", inflow_shape=list(res.inflow.shape),
+                outflow_shape=list(res.outflow.shape), low_confidence=bool(res.low_confidence),
+                elapsed_ms=round((time.monotonic() - started) * 1000),
+            )
+            return result
+        except Exception as exc:
+            _checkpoint_event(
+                trace, "error", failed_phase=phase, exception_type=type(exc).__name__,
+                elapsed_ms=round((time.monotonic() - started) * 1000),
+            )
+            raise
