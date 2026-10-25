@@ -31,12 +31,9 @@ export function actualBalances(operations: ControlOperation[]): ActualDay[] {
     }
     anchor = index; movement = 0;
   }
-  let last: number | null = null;
   return days.map(row => {
-    if (row.missing) { last = row.balance; return { date: row.date, balance: null, observed: false, reason: row.conflict ? "conflicting_balances" : "unreconciled_interval" }; }
-    if (row.balance !== null) last = row.balance;
-    else if (row.count) last = null;
-    return { date: row.date, balance: row.balance ?? last, observed: (row.balance ?? last) !== null, ...((row.balance ?? last) === null ? { reason: "missing_balance" } : {}) };
+    if (row.missing) { return { date: row.date, balance: null, observed: false, reason: row.conflict ? "conflicting_balances" : "unreconciled_interval" }; }
+    return { date: row.date, balance: row.balance, observed: row.balance !== null, ...(row.balance === null ? { reason: "missing_balance" } : {}) };
   });
 }
 
@@ -56,7 +53,7 @@ export function evaluateForecast(forecast: Forecast, truth: ActualDay[], reserve
     if (predictedGap && actualGap) tp++; else if (predictedGap) fp++; else if (actualGap) fn++; else tn++;
   }
   const n = observed.length;
-  return { samples: n, excluded: enabled ? points.length - n : 0, mae: n ? absolute / n : null, mse: n ? squared / n : null, rmse: n ? Math.sqrt(squared / n) : null,
+  return { truthBasis: "explicit_nonconflicting_eod", samples: n, excluded: enabled ? points.length - n : 0, mae: n ? absolute / n : null, mse: n ? squared / n : null, rmse: n ? Math.sqrt(squared / n) : null,
     wape: n && denominator ? absolute / denominator : null, coverage: n ? inside / n : null,
     accuracy: n ? (tp + tn) / n : null, precision: tp + fp ? tp / (tp + fp) : null, recall: tp + fn ? tp / (tp + fn) : null,
     f1: 2 * tp + fp + fn ? 2 * tp / (2 * tp + fp + fn) : null, confusion: n ? { tp, fp, fn, tn } : null,

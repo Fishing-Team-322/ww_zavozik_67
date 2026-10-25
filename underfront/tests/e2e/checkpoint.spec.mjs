@@ -1,6 +1,8 @@
 import { test, expect } from '@playwright/test';
 import { randomUUID, createHash } from 'node:crypto';
-import { readFile } from 'node:fs/promises';
+import { readFile, mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { strFromU8, unzipSync } from 'fflate';
 
 const api = process.env.E2E_API_URL || 'http://localhost:8080';
@@ -111,3 +113,59 @@ test('failed API execution remains a failed run with downloadable observations',
   expect(text).not.toContain('Authorization'); expect(text).not.toContain('access_token');
   expect(await w.report()).toBeUndefined();
 });
+
+
+async function folderFixture(kind = 'valid') {
+  const root = await mkdtemp(join(tmpdir(), 'checkpoint-folder-'));
+  const operations = csv('C900');
+  let metadata = `company_id;company_name;company_inn;legal_form;industry;first_operation_date;last_operation_date;operations_count\nC900;Synthetic folder company;0012345673;ООО;Tests;${dayAt(-90)};${dayAt(-1)};180\n`;
+  if (kind === 'metadata_id') metadata = metadata.replace('C900;', 'C901;');
+  if (kind === 'metadata_count') metadata = metadata.replace(';180\n', ';360\n');
+  await mkdir(join(root, 'statements'));
+  await Promise.all([
+    writeFile(join(root, 'all_operations.csv'), operations),
+    writeFile(join(root, 'companies.csv'), metadata),
+    writeFile(join(root, 'README.md'), '# Descriptive README; dates in operations remain authoritative.'),
+    writeFile(join(root, 'statements/C900.csv'), kind === 'mirror' ? operations.replace(';1000;', ';1001;') : operations),
+  ]);
+  return { root, operations };
+}
+
+test('folder picker verifies mirrors once, uses source metadata and exports the complete manifest', async ({ page, request }) => {
+  const w = await workspace(page, request), fixture = await folderFixture();
+  try {
+    await page.getByLabel('Папка контрольного датасета', { exact: true }).setInputFiles(fixture.root);
+    await expect(page.getByText('Уникальных операций: 180. Зеркальная выписка не добавлена.', { exact: true })).toBeVisible();
+    await expect(page.getByText('Проверено файлов: 4.', { exact: false })).toBeVisible();
+    await expect(page.getByText('Synthetic folder company · ИНН 0012345673 · ООО · Tests', { exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Запустить проверку', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Результат расчёта', exact: true })).toBeVisible({ timeout: 120000 });
+    const report = await w.report();
+    expect(report.input.training_rows).toBe(120); expect(report.input.withheld_rows).toBe(60);
+    expect(report.metrics.truthBasis).toBe('explicit_nonconflicting_eod'); expect(report.metrics.samples).toBe(30);
+    const response = await request.get(`${api}/v1/companies/${report.company_id}`, { headers: w.headers });
+    expect(response.status()).toBe(200); expect((await response.json()).inn).toBe('0012345673');
+    const downloadEvent = page.waitForEvent('download'); await page.getByRole('button', { name: 'Скачать результаты ZIP', exact: true }).click();
+    const archive = unzipSync(await readFile(await (await downloadEvent).path()));
+    const protocol = JSON.parse(strFromU8(archive['protocol.json']));
+    expect(protocol.input.directory.manifest).toHaveLength(4);
+    expect(protocol.input.directory.manifest.find(item => item.role === 'canonical').sha256).toBe(createHash('sha256').update(fixture.operations).digest('hex'));
+    expect(protocol.input.directory.mirrors[0].unique_operations).toBe(180);
+    expect(protocol.input.directory.raw_files_modified).toBe(false);
+    expect(protocol.input.directory.raw_files_uploaded).toBe(false);
+    expect(strFromU8(archive['history.csv'])).not.toContain(dayAt(-1));
+  } finally { await rm(fixture.root, { recursive: true, force: true }); }
+});
+
+for (const kind of ['mirror', 'metadata_id', 'metadata_count']) {
+  test(`folder rejects ${kind} mismatch before creating any control company`, async ({ page, request }) => {
+    const w = await workspace(page, request), fixture = await folderFixture(kind);
+    try {
+      await page.getByLabel('Папка контрольного датасета', { exact: true }).setInputFiles(fixture.root);
+      await expect(page.getByRole('alert').filter({ hasText: kind === 'mirror' ? 'не совпадает' : /company_id|operations_count/ })).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Запустить проверку', exact: true })).toHaveCount(0);
+      const profile = await request.get(api + '/v1/me', { headers: w.headers }); expect((await profile.json()).companies).toHaveLength(1);
+      expect(await w.report()).toBeUndefined();
+    } finally { await rm(fixture.root, { recursive: true, force: true }); }
+  });
+}

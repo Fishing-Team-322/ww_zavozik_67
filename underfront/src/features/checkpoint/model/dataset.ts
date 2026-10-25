@@ -85,6 +85,16 @@ function operation(row: string[], map: Record<string, number>, fallback: string,
   return { id: get(row, map.id) || `row-${index}`, company: get(row, map.company) || fallback, date, amount, direction,
     counterparty: get(row, map.counterparty), inn: get(row, map.inn), purpose: get(row, map.purpose), balance: numeric(get(row, map.balance), true) };
 }
+/** Directory audits require explicit IDs; single CSV keeps its existing optional-ID contract. */
+export async function* operationRecords(blob: Blob): AsyncGenerator<ControlOperation> {
+  let map: Record<string, number> | undefined, index = 0;
+  for await (const row of csvRecords(blob)) {
+    if (!map) { map = columns(row); if (map.company < 0 || map.id < 0) throw new Error("В папке обязательны company_id и operation_id."); continue; }
+    if (!get(row, map.company) || !get(row, map.id)) throw new Error("В папке company_id и operation_id не могут быть пустыми.");
+    yield operation(row, map, "single", ++index);
+  }
+}
+
 export async function inspectDataset(file: File, progress?: (rows: number) => void): Promise<ControlSource> {
   if (!file.size) throw new Error("Файл пуст.");
   if (!/\.csv$/i.test(file.name)) throw new Error("Для контрольного набора выберите CSV с исходными полями датасета.");
