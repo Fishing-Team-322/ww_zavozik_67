@@ -118,6 +118,8 @@ jobs:
       COOKIE_SECURE: "false"
       INTEGRATION_SANDBOX: "true"
       CATEGORIZER_MODE: hybrid
+      E2E_ADMIN_EMAIL: ci-ui-admin@example.invalid
+      E2E_ADMIN_PASSWORD: Synthetic-isolated-ci-admin-2026!
       GIT_SHA: ${{ github.sha }}
     steps:
       - uses: actions/checkout@v4
@@ -153,6 +155,16 @@ jobs:
         working-directory: underfront
       - run: npx playwright install --with-deps chromium
         working-directory: underfront
+      - name: Prepare a synthetic administrator only in the isolated acceptance database
+        run: |
+          python - <<'PY'
+          import json, os, urllib.request
+          payload = json.dumps({"email": os.environ["E2E_ADMIN_EMAIL"], "password": os.environ["E2E_ADMIN_PASSWORD"], "consent_pd": True}).encode()
+          request = urllib.request.Request("http://localhost:8080/v1/auth/register", data=payload, headers={"Content-Type": "application/json"})
+          with urllib.request.urlopen(request) as response:
+              assert response.status == 201
+          PY
+          docker compose exec -T postgres psql -U zavozik -d zavozik -v ON_ERROR_STOP=1 -c "UPDATE users SET role='admin' WHERE email='ci-ui-admin@example.invalid';"
       - name: Browser acceptance on the isolated synthetic stack
         run: npm run test:e2e
         working-directory: underfront

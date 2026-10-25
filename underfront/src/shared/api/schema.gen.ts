@@ -2828,6 +2828,10 @@ export interface components {
             payments: components["schemas"]["TaxPayment"][];
         };
         TaxObligation: components["schemas"]["TaxDraft"] & {
+            /** @description Owning system; tax_api obligations are changed through their source. */
+            source?: string;
+            /** @description False for synchronized obligations managed by their accounting source. */
+            editable?: boolean;
             /** Format: uuid */
             id: string;
             /** Format: date-time */

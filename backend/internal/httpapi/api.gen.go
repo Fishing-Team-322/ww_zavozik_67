@@ -1452,22 +1452,28 @@ type TaxKind string
 
 // TaxObligation defines model for TaxObligation.
 type TaxObligation struct {
-	Additional       bool                `json:"additional"`
-	Amount           float64             `json:"amount"`
-	CalculationBasis string              `json:"calculation_basis"`
-	Confirmed        bool                `json:"confirmed"`
-	CreatedAt        time.Time           `json:"created_at"`
-	DateRule         string              `json:"date_rule"`
-	Id               openapi_types.UUID  `json:"id"`
-	Kind             TaxKind             `json:"kind"`
-	PaidAmount       float64             `json:"paid_amount"`
-	Payments         []TaxPayment        `json:"payments"`
-	Period           string              `json:"period"`
-	SourceRef        string              `json:"source_ref"`
-	SourceUrl        string              `json:"source_url"`
-	Status           TaxObligationStatus `json:"status"`
-	Title            string              `json:"title"`
-	Year             int                 `json:"year"`
+	Additional       bool      `json:"additional"`
+	Amount           float64   `json:"amount"`
+	CalculationBasis string    `json:"calculation_basis"`
+	Confirmed        bool      `json:"confirmed"`
+	CreatedAt        time.Time `json:"created_at"`
+	DateRule         string    `json:"date_rule"`
+
+	// Editable False for synchronized obligations managed by their accounting source.
+	Editable   *bool              `json:"editable,omitempty"`
+	Id         openapi_types.UUID `json:"id"`
+	Kind       TaxKind            `json:"kind"`
+	PaidAmount float64            `json:"paid_amount"`
+	Payments   []TaxPayment       `json:"payments"`
+	Period     string             `json:"period"`
+
+	// Source Owning system; tax_api obligations are changed through their source.
+	Source    *string             `json:"source,omitempty"`
+	SourceRef string              `json:"source_ref"`
+	SourceUrl string              `json:"source_url"`
+	Status    TaxObligationStatus `json:"status"`
+	Title     string              `json:"title"`
+	Year      int                 `json:"year"`
 }
 
 // TaxObligationStatus defines model for TaxObligation.Status.

@@ -211,10 +211,17 @@ func (s *Service) admin(ctx context.Context, op string, p platform.Principal, r 
 		return ok(Doc{"items": rows})
 	case "retryAdminIntegration":
 		id := r.PathValue("sourceId")
-		var cid, owner string
-		e := s.DB.Pool.QueryRow(ctx, "SELECT s.company_id::text,m.user_id::text FROM sources s JOIN memberships m ON m.company_id=s.company_id WHERE s.id=$1 AND m.role='owner' LIMIT 1", id).Scan(&cid, &owner)
+		var cid, owner, kind string
+		var enabled bool
+		e := s.DB.Pool.QueryRow(ctx, "SELECT s.company_id::text,m.user_id::text,s.kind,s.enabled FROM sources s JOIN memberships m ON m.company_id=s.company_id WHERE s.id=$1 AND m.role='owner' LIMIT 1", id).Scan(&cid, &owner, &kind, &enabled)
 		if e != nil {
 			return Result{}, platform.ErrNotFound
+		}
+		if !in(kind, "onec_odata gsheets fns wb ozon bank_api tax_api") {
+			return Result{}, platform.Fail(409, "source_not_syncable", "Файловый источник обновляется повторной загрузкой выписки")
+		}
+		if !enabled {
+			return Result{}, platform.Fail(409, "source_disabled", "Сначала включите источник")
 		}
 		j, e := s.DB.ProductJob(ctx, owner, cid, "sync", Doc{"source_id": id, "requested_by_admin": uid})
 		if e != nil {

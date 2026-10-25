@@ -15,7 +15,7 @@ import { Dialog, ConfirmDialog, Checkbox, Table, TableHeader, TableBody, TableRo
 import type { Schemas } from "@/src/shared/api";
 import { rubles } from "@/src/entities/forecast";
 import { CloudUpload, RefreshCw, CheckCircle2, AlertCircle, Landmark, Database, FileSpreadsheet, Store, FileCheck2, ShieldCheck, X } from "lucide-react";
-import { sourceApi, type CreateSourceInput, type DataSource, type ImportReport, type Job, type SourceKind, type UploadNeedsMapping, type UploadPreview } from "@/src/entities/source";
+import { sourceApi, SYNCABLE_SOURCE_KINDS, type CreateSourceInput, type DataSource, type ImportReport, type Job, type SourceKind, type UploadNeedsMapping, type UploadPreview } from "@/src/entities/source";
 import { useCompany } from "@/src/features/company-context/CompanyProvider";
 import { Button } from "@/src/shared/ui/button";
 import { Input } from "@/src/shared/ui/input";
@@ -40,7 +40,7 @@ const paymentStatus = (status: string) => ({ expected: "Ожидает опла�
 const errorMessage = (cause: unknown) => cause instanceof Error ? cause.message : "Не удалось выполнить операцию";
 const sourceStatusNames: Record<string, string> = { ok: "Подключён", error: "Ошибка подключения", pending: "Ожидает проверки", syncing: "Синхронизируется", mapping_required: "Нужно сопоставить столбцы" };
 const importStatusNames: Record<string, string> = { done: "Завершён", failed: "Ошибка", error: "Ошибка", queued: "В очереди", running: "Обрабатывается" };
-const syncableKinds: SourceKind[] = ["gsheets", "onec_odata", "bank_api", "tax_api", "fns", "wb", "ozon"];
+const syncableKinds = SYNCABLE_SOURCE_KINDS;
 
 export function SourcesWorkspace() {
   const { companyId } = useCompany();

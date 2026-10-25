@@ -5989,6 +5989,12 @@ components:
             - created_at
             - paid_amount
           properties:
+            source:
+              type: string
+              description: Owning system; tax_api obligations are changed through their source.
+            editable:
+              type: boolean
+              description: False for synchronized obligations managed by their accounting source.
             id:
               type: string
               format: uuid
