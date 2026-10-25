@@ -1,4 +1,5 @@
 "use client";
+import { ContentHeading, ContentText } from "@/src/shared/ui/content";
 
 import { useEffect, useRef, useState } from "react";
 import { api, message, type Source, type SourceTest } from "@/src/shared/api";
@@ -11,6 +12,7 @@ type Props = {
   companyINN: string | null;
   sources: Source[];
   onChanged: () => void;
+  onOpenBankImport?: () => void;
 };
 
 function testMessage(result: SourceTest) {
@@ -22,7 +24,7 @@ function testMessage(result: SourceTest) {
 
 const sourceStatus = (status: string) => ({ pending: "Ожидает проверки", ok: "Подключено", error: "Ошибка", mapping_required: "Нужна настройка" })[status] ?? status;
 
-export function OneCConnection({ companyId, companyINN, sources, onChanged }: Props) {
+export function OneCConnection({ companyId, companyINN, sources, onChanged, onOpenBankImport }: Props) {
   const [address, setAddress] = useState("");
   const [inn, setInn] = useState(companyINN || "");
   const [account, setAccount] = useState("");
@@ -126,18 +128,18 @@ export function OneCConnection({ companyId, companyINN, sources, onChanged }: Pr
     }
   }
   return (
-    <SectionCard id="onec-connection" className="space-y-4 p-5">
+    <SectionCard id="onec-connection" className="space-y-4">
       <div>
-        <h2 className="text-lg font-semibold">Подключить 1С:Бухгалтерию 3.0</h2>
-        <p className="mt-1 text-sm text-[color:var(--text-secondary)]">
+        <ContentHeading level={2} >Подключить 1С:Бухгалтерию 3.0</ContentHeading>
+        <ContentText variant="description" tone="muted" className="mt-1">
           Выберите способ передачи данных. ПУЛЬС читает разрешённые данные, а организацию внутри базы создают и ведут в самой 1С. Один ИНН не открывает доступ к базе.
-        </p>
+        </ContentText>
       </div>
       <div className="flex flex-wrap gap-2"><Button type="button" variant={mode === "network" ? "default" : "outline"} onClick={() => setMode("network")}>Подключить 1С по сети</Button><Button type="button" variant={mode === "file" ? "default" : "outline"} onClick={() => setMode("file")}>Импортировать файлы из 1С</Button></div>
-      {mode === "file" ? <div className="space-y-3 text-sm"><p>Выгрузите банковскую выписку из 1С в формате 1CClientBankExchange, CSV или XLSX и загрузите её в разделе банковских операций. Адрес OData, логин и пароль для этого не нужны.</p><Button type="button" variant="outline" onClick={() => document.querySelector('input[accept=".csv,.xlsx,.txt,.1c"]')?.closest("section")?.scrollIntoView({ behavior: "smooth" })}>Перейти к импорту банковской выписки</Button></div> : <>
+      {mode === "file" ? <div className="space-y-3 text-sm"><p>Выгрузите банковскую выписку из 1С в формате 1CClientBankExchange, CSV или XLSX и загрузите её в разделе банковских операций. Адрес OData, логин и пароль для этого не нужны.</p><Button type="button" variant="outline" onClick={() => onOpenBankImport ? onOpenBankImport() : document.querySelector('input[accept=".csv,.xlsx,.txt,.1c"]')?.closest("section")?.scrollIntoView({ behavior: "smooth" })}>Перейти к импорту банковской выписки</Button></div> : <>
       <ol className="list-decimal space-y-1 pl-5 text-sm text-[color:var(--text-secondary)]"><li>Администратор вашей 1С публикует базу на веб-сервере и включает стандартный интерфейс OData. Универсального адреса для всех организаций нет.</li><li>Получите URL публикации и отдельного пользователя с правом чтения. Это адрес сервера, а не API-ключ. Сервер ПУЛЬС должен иметь доступ к адресу; локальная база потребует защищённого подключения и разрешения оператора.</li><li>Укажите адрес и учётную запись, нажмите «Найти организацию и счета», затем выберите найденный счёт.</li></ol>
       <form className="grid gap-4 sm:grid-cols-2" onSubmit={connect}>
-        {discovered && foundAccounts.length > 0 && <Select label="Найденный счёт организации" value={account} options={foundAccounts.map(item => ({ value: item.number, label: `${item.number} · ${item.name}` }))} onChange={event => setAccount(event.target.value)} />}
+        {discovered && foundAccounts.length > 0 && <Select density="form" label="Найденный счёт организации" value={account} options={foundAccounts.map(item => ({ value: item.number, label: `${item.number} · ${item.name}` }))} onChange={event => setAccount(event.target.value)} />}
         <Input
           label="ИНН компании"
           required
@@ -196,13 +198,13 @@ export function OneCConnection({ companyId, companyINN, sources, onChanged }: Pr
         </div>
       </form>
       </>}
-      <p className="text-xs text-[color:var(--text-secondary)]">
+      <ContentText variant="description" tone="muted" >
         Счета попадут в прогноз только при подтверждённой дате оплаты и связи с
         платежом. Если счета не опубликованы в OData, импортируются доступные
         банковские операции.
-      </p>
-      {notice && <p role="status" className="text-sm">{notice}</p>}
-      {error && <p role="alert" className="text-sm text-[color:var(--danger)]">{error}</p>}
+      </ContentText>
+      {notice && <ContentText variant="body" role="status" >{notice}</ContentText>}
+      {error && <ContentText variant="body" tone="danger" role="alert" >{error}</ContentText>}
       {sources.filter((source) => source.kind === "onec_odata").map((source) => (
         <div key={source.id} className="flex flex-wrap items-center justify-between gap-3 border-t border-[color:var(--border)] pt-3 text-sm">
           <div>

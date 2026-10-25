@@ -1,4 +1,5 @@
 "use client";
+import { ContentHeading, ContentText } from "@/src/shared/ui/content";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useState } from "react";
@@ -23,17 +24,18 @@ export function ForecastScreen() {
   const forecast = resource.data;
   return (
     <>
+      <ContentHeading level={1} className="mb-6">Прогноз</ContentHeading>
       <FinanceState
         loading={resource.loading}
         error={resource.error}
         retry={resource.refresh}
       />
       <div className="grid min-w-0 grid-cols-1 items-start gap-4 xl:grid-cols-[minmax(0,1fr)_330px]">
-        <SectionCard className="min-w-0 p-5">
+        <SectionCard className="min-w-0">
           <div className="mb-4 flex items-center justify-between gap-4">
-            <h2 className="text-lg font-semibold">Денежный остаток</h2>
+            <ContentHeading level={2} >Денежный остаток</ContentHeading>
             <div className="w-[120px] shrink-0">
-              <Select
+              <Select density="form"
                 aria-label="Горизонт прогноза"
                 size="md"
                 fitContent
@@ -46,7 +48,7 @@ export function ForecastScreen() {
               />
             </div>
           </div>
-          {scenario && <p className="text-sm">Выбран сохранённый сценарий · <Link className="underline" href="/forecast">Базовый прогноз</Link></p>}
+          {scenario && <ContentText variant="body" >Выбран сохранённый сценарий · <Link className="underline" href="/forecast">Базовый прогноз</Link></ContentText>}
           <ForecastNotice forecast={forecast} />
           <CashflowForecastChart
             days={forecast ? chartDays(forecast) : []}
@@ -54,12 +56,11 @@ export function ForecastScreen() {
             showScenario={false}
             onDayClick={setDay}
           />
-          {forecast && <Select label="Подробности дня" value={day ?? ""} options={[{ value: "", label: "Выберите день" }, ...forecast.points.map(p => ({ value: p.date, label: p.date }))]} onChange={e => setDay(e.target.value || null)} />}
           {forecast && (
-            <p className="mt-4 text-sm">
+            <ContentText variant="body" className="mt-4">
               Можно потратить с учётом резерва:{" "}
               <strong>{rubles(forecast.safe_to_spend)}</strong>
-            </p>
+            </ContentText>
           )}
         </SectionCard>
         <div className="space-y-3"><RiskCard

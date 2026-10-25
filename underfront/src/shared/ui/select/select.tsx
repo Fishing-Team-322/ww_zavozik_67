@@ -20,6 +20,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "@/src/shared/lib/cn";
+import { fieldTextClass, fieldSizeClasses, fieldEndPadding, fieldEndPosition, fieldLabelClass, fieldHelpClass, fieldErrorClass } from "../field-contract";
 
 export interface SelectOption {
   value: string;
@@ -34,6 +35,8 @@ export interface SelectProps extends Omit<
   "onChange" | "size"
 > {
   size?: "sm" | "md" | "lg";
+  /** Opt in to the 32/40/44px content form contract. Legacy shell sizing is unchanged. */
+  density?: "legacy" | "form";
   fitContent?: boolean;
   options?: SelectOption[];
   label?: string;
@@ -164,6 +167,7 @@ function Select(
     containerClassName,
     placeholder,
     size,
+    density = "legacy",
     fitContent = false,
     className,
     triggerClassName,
@@ -183,6 +187,8 @@ function Select(
   },
   ref
 ) {
+  const formField = density === "form";
+  const fieldSize = size ?? "md";
   const reactId = useId();
   const inputId = id ?? `select-${reactId.replace(/:/g, "")}`;
   const triggerId = `${inputId}-trigger`;
@@ -596,6 +602,7 @@ function Select(
           <div
             ref={listRef}
             role="listbox"
+            id={formField ? `${inputId}-listbox` : undefined}
             aria-label={menuAriaLabel}
             onKeyDown={(event) => {
               if (event.key === "Escape") {
@@ -710,7 +717,7 @@ function Select(
                       }}
                       className={cn(
                         "group flex w-full items-center justify-between text-left transition-colors focus:outline-none",
-                        size ? cn("gap-1.5", optionSizeClasses[size]) : "h-9 gap-3 rounded-[8px] px-3 text-sm",
+                        formField ? cn("gap-2 rounded-[6px]", fieldSizeClasses[fieldSize]) : size ? cn("gap-1.5", optionSizeClasses[size]) : "h-9 gap-3 rounded-[8px] px-3 text-sm",
                         isDisabled &&
                           "cursor-not-allowed text-[color:var(--text-muted)] opacity-60",
                         !isDisabled &&
@@ -751,7 +758,7 @@ function Select(
         <label
           htmlFor={inputId}
           className={cn(
-            "mb-1.5 block text-xs font-medium leading-none",
+            formField ? fieldLabelClass : "mb-1.5 block text-xs font-medium leading-none",
             hasError
               ? "text-[var(--status-danger-fg)]"
               : "text-[color:var(--input-label)]"
@@ -796,17 +803,21 @@ function Select(
           ref={buttonRef}
           type="button"
           id={triggerId}
+          role={formField ? "combobox" : undefined}
           disabled={disabled}
           onClick={handleToggle}
           onKeyDown={handleButtonKeyDown}
           onBlur={handleTriggerBlur}
           aria-expanded={open}
+          aria-controls={formField && open ? `${inputId}-listbox` : undefined}
           aria-haspopup="listbox"
           aria-label={triggerAriaLabel}
+          aria-invalid={formField ? hasError : undefined}
+          aria-describedby={formField ? (error ? `${inputId}-error` : helperText ? `${inputId}-helper` : undefined) : undefined}
           className={cn(
             "group relative flex cursor-pointer appearance-none items-center border bg-[var(--input-background)] text-left outline-none touch-manipulation",
             fitContent ? "max-w-full" : "w-full",
-            size ? triggerSizeClasses[size] : "h-[44.4px] rounded-[8px] pl-3 pr-7",
+            formField ? cn("rounded-[6px]", fieldSizeClasses[fieldSize], fieldEndPadding[fieldSize]) : size ? triggerSizeClasses[size] : "h-[44.4px] rounded-[8px] pl-3 pr-7",
             "shadow-none transition-[background,border,box-shadow,color] duration-150 ease-[ease]",
             "disabled:cursor-not-allowed disabled:bg-[var(--input-disabled-bg)] disabled:opacity-70",
             hasError
@@ -824,6 +835,8 @@ function Select(
             open &&
               !hasError &&
               "border-[color:var(--input-border-focus)] ring-[3px] ring-[color:var(--focus-ring)]",
+            formField && "disabled:text-[color:var(--input-disabled-fg)]",
+            formField && (hasError ? "focus-visible:shadow-[0_0_0_1px_var(--status-danger-border)]" : "focus-visible:shadow-[0_0_0_1px_var(--input-border-focus)]"),
             triggerClassName
           )}
         >
@@ -831,9 +844,9 @@ function Select(
             className={cn(
               "block min-w-0 truncate",
               fitContent ? "w-auto whitespace-nowrap" : "w-full",
-              size === "lg" ? "text-sm font-medium leading-5 tabular-nums" : size ? "text-xs font-medium leading-4 tabular-nums" : "text-base font-normal leading-[1.15]",
+              formField ? fieldTextClass : size === "lg" ? "text-sm font-medium leading-5 tabular-nums" : size ? "text-xs font-medium leading-4 tabular-nums" : "text-base font-normal leading-[1.15]",
               hasValue
-                ? (size ? "text-[color:var(--nav-item-active-text)]" : "text-[color:var(--input-text)]")
+                ? (formField ? "text-[color:var(--input-text)]" : size ? "text-[color:var(--nav-item-active-text)]" : "text-[color:var(--input-text)]")
                 : "text-[color:var(--input-placeholder)]"
             )}
           >
@@ -841,13 +854,14 @@ function Select(
           </span>
 
           <span
-            className={cn("pointer-events-none absolute top-1/2 flex -translate-y-1/2 items-center justify-center", size ? chevronPositionClasses[size] : "right-2.5")}
+            className={cn("pointer-events-none absolute top-1/2 flex -translate-y-1/2 items-center justify-center", formField ? fieldEndPosition[fieldSize] : size ? chevronPositionClasses[size] : "right-2.5")}
             aria-hidden="true"
           >
             <ChevronDownIcon
               className={cn(
-                "h-3 w-3 transition-transform duration-150 ease-out",
-                size ? "text-[color:var(--nav-item-icon)]" : "text-[color:var(--text-secondary)]",
+                "transition-transform duration-150 ease-out",
+                formField ? "h-4 w-4" : "h-3 w-3",
+                formField ? "text-[color:var(--text-secondary)]" : size ? "text-[color:var(--nav-item-icon)]" : "text-[color:var(--text-secondary)]",
                 open && "rotate-180"
               )}
             />
@@ -921,11 +935,11 @@ function Select(
       </div>
 
       {error ? (
-        <p className="pt-1.5 text-sm text-[color:var(--status-danger-fg,var(--danger))]">
+        <p id={formField ? `${inputId}-error` : undefined} className={formField ? fieldErrorClass : "pt-1.5 text-sm text-[color:var(--status-danger-fg,var(--danger))]"}>
           {error}
         </p>
       ) : helperText ? (
-        <p className="pt-1.5 text-sm text-[color:var(--text-secondary)]">
+        <p id={formField ? `${inputId}-helper` : undefined} className={formField ? fieldHelpClass : "pt-1.5 text-sm text-[color:var(--text-secondary)]"}>
           {helperText}
         </p>
       ) : null}

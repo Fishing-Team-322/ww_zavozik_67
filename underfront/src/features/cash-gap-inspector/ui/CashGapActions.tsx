@@ -1,4 +1,5 @@
 "use client";
+import { ContentHeading } from "@/src/shared/ui/content";
 
 import type { GapAction, GapActionPreview } from "@/src/entities/cash-gap";
 import { formatRub } from "@/src/shared/lib/charts";
@@ -24,7 +25,7 @@ export function CashGapActions({ actions, previews, selectedActionIds, disabled,
       return <div key={action.id} className={`flex items-start gap-3 px-4 py-3 transition-colors ${checked ? "bg-[color:var(--sidebar-bg)]" : "hover:bg-[color:var(--nav-item-hover-bg)]"}`}>
         <Checkbox size="sm" checked={checked} onChange={() => onToggle(action.id)} disabled={disabled || Boolean(conflict)} aria-label={`${checked ? "Исключить" : "Включить"}: ${action.title}`} className="mt-0.5 shrink-0" />
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1"><h4 className="text-[13px] font-medium leading-5">{action.title}</h4><span className={`text-[12px] font-medium tabular-nums ${improved ? "text-[color:var(--accent)]" : "text-[color:var(--nav-item-text)]"}`}>{preview ? `${improved ? "−" : ""}${formatRub(Math.abs(preview.improvement))} нехватки` : "Нет оценки"}</span></div>
+          <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1"><ContentHeading level={4}>{action.title}</ContentHeading><span className={`text-[12px] font-medium tabular-nums ${improved ? "text-[color:var(--accent)]" : "text-[color:var(--nav-item-text)]"}`}>{preview ? `${improved ? "−" : ""}${formatRub(Math.abs(preview.improvement))} нехватки` : "Нет оценки"}</span></div>
           <p className={`mt-1 ${gapMuted}`}>{action.description}</p>
           <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[12px] leading-4"><span className={eliminated ? "text-[color:var(--accent)]" : "text-[color:var(--nav-item-text)]"}>{eliminated ? "Разрыв устранён" : improved ? "Нехватка уменьшится" : "Недостаточно для устранения"}</span><span className="tabular-nums text-[color:var(--nav-item-text)]">Стоимость: {action.cost ? formatRub(action.cost.amount) : "не оценена"}</span></div>
           {conflict ? <p className="mt-1 text-[12px] leading-4 text-[color:var(--warning)]">Для выбора выключите «{conflict.title}».</p> : null}

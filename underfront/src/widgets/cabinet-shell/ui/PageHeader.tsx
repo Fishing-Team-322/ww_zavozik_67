@@ -4,6 +4,7 @@ import { ReactNode, useContext } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { Button } from "@/src/shared/ui/button";
+import { contentTypography } from "@/src/shared/ui/content";
 import { cn } from "@/src/shared/lib/cn";
 import { PageHeaderSlotContext } from "./PageHeaderSlot";
 
@@ -112,7 +113,8 @@ export function PageHeader({
 
             <HeadingTag
               className={cn(
-                "max-w-4xl text-[38px] font-semibold leading-tight text-[color:var(--text-primary)]",
+                "max-w-4xl text-[color:var(--text-primary)]",
+                contentTypography.page,
                 titleClassName
               )}
             >
@@ -122,7 +124,8 @@ export function PageHeader({
             {description ? (
               <p
                 className={cn(
-                  "mt-2 max-w-3xl text-[16px] leading-6 text-[color:var(--text-secondary)]",
+                  "mt-2 max-w-3xl text-[color:var(--text-secondary)]",
+                  contentTypography.description,
                   descriptionClassName
                 )}
               >

@@ -2056,29 +2056,59 @@ paths:
   /v1/companies/{companyId}/taxes:
     get:
       tags:
-      - product
+        - product
       operationId: getTaxes
       parameters:
-      - name: companyId
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-      - name: months
-        in: query
-        required: false
-        schema:
-          type: integer
+        - name: companyId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: months
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: year
+          in: query
+          schema:
+            type: integer
       responses:
-        default:
-          $ref: '#/components/responses/Error'
         '200':
           description: OK
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Object'
+                $ref: '#/components/schemas/TaxOverview'
+        default:
+          $ref: '#/components/responses/Error'
+    post:
+      tags:
+        - product
+      operationId: createTax
+      parameters:
+        - name: companyId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaxInput'
+      responses:
+        '201':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaxObligation'
+        default:
+          $ref: '#/components/responses/Error'
   /v1/companies/{companyId}/plan-fact/missed:
     get:
       tags:
@@ -2833,6 +2863,71 @@ paths:
                 $ref: '#/components/schemas/RegistryDocument'
         default:
           $ref: '#/components/responses/Error'
+  /v1/companies/{companyId}/taxes/preview:
+    post:
+      tags:
+        - product
+      operationId: previewTax
+      parameters:
+        - name: companyId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaxInput'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaxDraft'
+        default:
+          $ref: '#/components/responses/Error'
+  /v1/taxes/{taxId}/cancel:
+    post:
+      tags:
+        - product
+      operationId: cancelTax
+      parameters:
+        - name: taxId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Cancelled; received payments remain in history
+        default:
+          $ref: '#/components/responses/Error'
+  /v1/companies/{companyId}/updates:
+    get:
+      tags:
+        - product
+      operationId: getCompanyUpdates
+      parameters:
+        - name: companyId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompanyUpdates'
+        default:
+          $ref: '#/components/responses/Error'
 components:
   securitySchemes:
     bearerAuth:
@@ -3244,6 +3339,8 @@ components:
       - excel
       - gsheets
       - onec_odata
+      - bank_api
+      - tax_api
       - wb
       - ozon
       - fns
@@ -3260,7 +3357,7 @@ components:
       - records
       - error
       properties:
-        data_mode: {type: string, nullable: true, enum: [live, mock]}
+        data_mode: {type: string, nullable: true, enum: [live, mock, demo, unverified]}
         id:
           type: string
           format: uuid
@@ -3400,6 +3497,7 @@ components:
       required:
       - items
       - next_cursor
+      - total
       properties:
         items:
           type: array
@@ -3408,6 +3506,9 @@ components:
         next_cursor:
           type: string
           nullable: true
+        total:
+          type: integer
+          minimum: 0
     RecurringPattern:
       type: object
       required:
@@ -3644,6 +3745,16 @@ components:
       - days_left
       - headline
       properties:
+        worst_date:
+          type: string
+          format: date
+        probability_on_date:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: Probability of falling below reserve on the first risk date. probability is the risk anywhere in the horizon.
+        explanation:
+          $ref: '#/components/schemas/GapExplanation'
         id:
           type: string
         date:
@@ -3682,6 +3793,12 @@ components:
       - markers
       - gaps
       properties:
+        update_mode:
+          type: string
+          description: fresh_paths, reused_paths or updated_from_actuals. Empty for fallback.
+        model_as_of:
+          type: string
+          description: Last date observed by the model used for the stored paths. May precede as_of when new actuals rebase the forecast.
         as_of:
           type: string
           format: date
@@ -3907,17 +4024,23 @@ components:
           type: number
         fact_in:
           type: number
+          nullable: true
         fact_out:
           type: number
+          nullable: true
         deviation:
           type: number
+          nullable: true
+        observed:
+          type: boolean
       required:
-      - period
-      - plan_in
-      - plan_out
-      - fact_in
-      - fact_out
-      - deviation
+        - period
+        - plan_in
+        - plan_out
+        - fact_in
+        - fact_out
+        - deviation
+        - observed
     PlannedEvent:
       type: object
       required:
@@ -3933,6 +4056,9 @@ components:
       - status
       - editable
       properties:
+        additional:
+          type: boolean
+          description: true adds this obligation to the modeled business flow; false explicitly marks it as already covered.
         id:
           type: string
           format: uuid
@@ -3962,6 +4088,7 @@ components:
         source_id:
           type: string
           format: uuid
+          nullable: true
         external_id:
           type: string
         due_date:
@@ -3981,6 +4108,21 @@ components:
           type: boolean
         link_status:
           type: string
+        linked_event_id:
+          type: string
+          format: uuid
+          description: Canonical obligation for a linked bank payment order; the order is excluded from financial totals.
+        linked_sources:
+          type: array
+          description: Bank payment orders describing this same obligation.
+          items:
+            type: object
+            required: [event_id, source_id, source, external_id]
+            properties:
+              event_id: {type: string, format: uuid}
+              source_id: {type: string, format: uuid, nullable: true}
+              source: {type: string}
+              external_id: {type: string}
         data_mode:
           type: string
         payment_status:
@@ -4181,6 +4323,9 @@ components:
       - status
       - source
       properties:
+        additional:
+          type: boolean
+          description: true adds this obligation to the modeled business flow; false explicitly marks it as already covered.
         id:
           type: string
           format: uuid
@@ -4222,6 +4367,17 @@ components:
       - schedule
       - source
       properties:
+        start_date:
+          type: string
+          format: date
+          nullable: true
+        schedule_mode:
+          type: string
+          nullable: true
+          enum: [terms, explicit]
+        additional:
+          type: boolean
+          description: true adds this obligation to the modeled business flow; false explicitly marks it as already covered.
         id:
           type: string
           format: uuid
@@ -4624,6 +4780,10 @@ components:
       type: object
       additionalProperties: false
       properties:
+        start_date:
+          type: string
+          format: date
+          description: Advance is due on start_date, balance after deferral_days. Explicit schedule contains final dates.
         number:
           type: string
           minLength: 1
@@ -4685,11 +4845,14 @@ components:
       - number
       - direction
       - total
-      - schedule
     UpdateContractInput:
       type: object
       additionalProperties: false
       properties:
+        start_date:
+          type: string
+          format: date
+          description: Advance is due on start_date, balance after deferral_days. Explicit schedule contains final dates.
         number:
           type: string
           minLength: 1
@@ -4794,6 +4957,8 @@ components:
           - excel
           - gsheets
           - onec_odata
+          - bank_api
+          - tax_api
           - wb
           - ozon
           - fns
@@ -5698,3 +5863,300 @@ components:
           type: object
           additionalProperties:
             type: string
+
+    TaxKind:
+      type: string
+      enum:
+        - usn_advance
+        - usn_annual
+        - vat
+        - enp
+        - contributions
+        - other
+    TaxInput:
+      type: object
+      required:
+        - kind
+        - period
+        - year
+        - amount
+        - title
+        - source_ref
+        - confirmed
+        - additional
+      properties:
+        request_id:
+          type: string
+          format: uuid
+        kind:
+          $ref: '#/components/schemas/TaxKind'
+        period:
+          type: string
+        year:
+          type: integer
+        amount:
+          type: number
+          format: double
+        title:
+          type: string
+        due_date:
+          type: string
+          format: date
+        source_ref:
+          type: string
+        confirmed:
+          type: boolean
+        additional:
+          type: boolean
+    TaxPayment:
+      type: object
+      required:
+        - date
+        - amount
+        - status
+      properties:
+        date:
+          type: string
+          format: date
+        amount:
+          type: number
+          format: double
+        status:
+          type: string
+          enum:
+            - expected
+            - received
+            - missed
+            - cancelled
+        event_id:
+          type: string
+          format: uuid
+    TaxDraft:
+      type: object
+      required:
+        - kind
+        - period
+        - year
+        - amount
+        - title
+        - source_ref
+        - source_url
+        - confirmed
+        - additional
+        - status
+        - calculation_basis
+        - date_rule
+        - payments
+      properties:
+        kind:
+          $ref: '#/components/schemas/TaxKind'
+        period:
+          type: string
+        year:
+          type: integer
+        amount:
+          type: number
+          format: double
+        title:
+          type: string
+        source_ref:
+          type: string
+        source_url:
+          type: string
+        confirmed:
+          type: boolean
+        additional:
+          type: boolean
+        status:
+          type: string
+          enum:
+            - active
+            - cancelled
+        calculation_basis:
+          type: string
+        date_rule:
+          type: string
+        payments:
+          type: array
+          items:
+            $ref: '#/components/schemas/TaxPayment'
+    TaxObligation:
+      allOf:
+        - $ref: '#/components/schemas/TaxDraft'
+        - type: object
+          required:
+            - id
+            - created_at
+            - paid_amount
+          properties:
+            id:
+              type: string
+              format: uuid
+            created_at:
+              type: string
+              format: date-time
+            paid_amount:
+              type: number
+              format: double
+    TaxCalendarRule:
+      type: object
+      required:
+        - kind
+        - period
+        - year
+        - dates
+        - source_url
+      properties:
+        kind:
+          $ref: '#/components/schemas/TaxKind'
+        period:
+          type: string
+        year:
+          type: integer
+        dates:
+          type: array
+          items:
+            type: string
+            format: date
+        source_url:
+          type: string
+    TaxOverview:
+      type: object
+      required:
+        - tax_regime
+        - regime_detected
+        - items
+        - calendar
+        - obligations
+        - year
+        - calculation_basis
+        - notice
+      properties:
+        tax_regime:
+          $ref: '#/components/schemas/TaxRegime'
+        regime_detected:
+          type: string
+          nullable: true
+        items:
+          type: array
+          items:
+            type: object
+            required:
+              - date
+              - title
+              - amount_estimate
+              - how_calculated
+              - event_id
+            properties:
+              date:
+                type: string
+                format: date
+              title:
+                type: string
+              amount_estimate:
+                type: number
+                format: double
+              how_calculated:
+                type: string
+              event_id:
+                type: string
+                format: uuid
+        calendar:
+          type: array
+          items:
+            $ref: '#/components/schemas/TaxCalendarRule'
+        obligations:
+          type: array
+          items:
+            $ref: '#/components/schemas/TaxObligation'
+        year:
+          type: integer
+        calculation_basis:
+          type: string
+        notice:
+          type: string
+    CompanyUpdates:
+      type: object
+      required:
+        - data_revision
+        - forecast_revision
+        - data_as_of
+        - pending_jobs
+        - last_job_finished_at
+        - last_job_error
+      properties:
+        data_revision:
+          type: integer
+        forecast_revision:
+          type: integer
+          nullable: true
+        data_as_of:
+          type: string
+          format: date-time
+          nullable: true
+        pending_jobs:
+          type: integer
+        last_job_finished_at:
+          type: string
+          format: date-time
+          nullable: true
+        last_job_error:
+          type: string
+          nullable: true
+    GapExplanation:
+      type: object
+      required: [date, opening_balance, inflow, outflow, balance, reserve, shortfall, basis, summary]
+      properties:
+        date: {type: string, format: date}
+        opening_balance: {type: number}
+        inflow: {type: number}
+        outflow: {type: number}
+        balance: {type: number}
+        reserve: {type: number}
+        shortfall: {type: number}
+        basis: {type: string, enum: [median_balance_paths]}
+        summary: {type: string}
+    ExternalObligationFeed:
+      type: object
+      additionalProperties: false
+      required: [company_inn, as_of, complete, items]
+      description: Read-only GET response from an operator-approved bank_api or tax_api gateway. Bearer token is stored encrypted in source config. A complete snapshot is required; missing unpaid records are cancelled. This is a connector protocol, not a declaration of access to a particular bank.
+      properties:
+        company_inn: {type: string}
+        as_of: {type: string, format: date}
+        data_mode: {type: string, enum: [demo, live]}
+        complete: {type: boolean, enum: [true]}
+        items:
+          type: array
+          maxItems: 10000
+          items: {$ref: '#/components/schemas/ExternalObligation'}
+    ExternalObligation:
+      type: object
+      additionalProperties: false
+      required: [external_id, kind, title, amount_kopecks, direction, status]
+      properties:
+        external_id: {type: string, minLength: 1, maxLength: 200}
+        related_event_id:
+          type: string
+          format: uuid
+          description: Optional explicit reference to an existing payment event in this company. Amount, direction and date must agree.
+        document_number:
+          type: string
+          maxLength: 1024
+          description: Optional invoice number for unambiguous linking with matching party, amount, direction and date. Ambiguous orders remain separate.
+        kind: {type: string, enum: [loan_payment, salary, payment_order, tax]}
+        title: {type: string, minLength: 1, maxLength: 500}
+        due_date: {type: string, format: date}
+        amount_kopecks: {type: integer, format: int64, minimum: 0, maximum: 1000000000000000}
+        direction: {$ref: '#/components/schemas/Direction'}
+        status: {type: string, enum: [expected, paid, cancelled]}
+        counterparty_name: {type: string}
+        counterparty_inn: {type: string}
+        additional: {type: boolean, default: true}
+        tax_kind:
+          type: string
+          enum: [usn_advance, usn_annual, vat, enp, contributions, other]
+        period:
+          type: string
+          description: For ENP m01..m12 is the payment month; for employer contributions it is the accrual month, payable in the following month. Other contributions require an explicit due_date.
+        year: {type: integer, minimum: 2024, maximum: 2100}

@@ -11,8 +11,9 @@ type SectionCardProps = HTMLAttributes<HTMLDivElement>;
 export function SectionCard({ className, ...props }: SectionCardProps) {
   return (
     <Card
+      variant="content"
       className={cn(
-        "rounded-[18px] border border-[color:var(--border)] bg-[color:var(--card-bg)] shadow-[0_4px_12px_rgba(15,38,72,0.03)]",
+        "min-w-0",
         className
       )}
       {...props}

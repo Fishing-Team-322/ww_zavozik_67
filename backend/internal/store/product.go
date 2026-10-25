@@ -21,7 +21,7 @@ func productQuery(kind string) (string, error) {
 		return "SELECT t.extra||(to_jsonb(t)-'extra'-'config'-'config_secret') AS doc FROM " + table + " t", nil
 	}
 	switch kind {
-	case "invoice", "contract", "action", "signal", "import", "model_quality", "classifier_quality", "drift", "registry", "registry_preview", "marketplace_report":
+	case "invoice", "contract", "tax", "action", "signal", "import", "model_quality", "classifier_quality", "drift", "registry", "registry_preview", "marketplace_report":
 		return "SELECT data||jsonb_build_object('id',id,'company_id',company_id,'created_at',created_at,'updated_at',updated_at) AS doc FROM product_documents t WHERE kind='" + kind + "'", nil
 	}
 	return "", errors.New("unknown resource kind")
@@ -158,6 +158,11 @@ func (p *Postgres) ProductSave(ctx context.Context, uid, cid, kind, id string, d
 	return p.ProductGet(ctx, uid, kind, id)
 }
 func writeProduct(ctx context.Context, tx pgx.Tx, cid, kind, id string, d Doc) error {
+	if kind == "contract" {
+		if err := preserveContractReceipts(ctx, tx, cid, id, d); err != nil {
+			return err
+		}
+	}
 	sealed := d["_sealed_config"]
 	delete(d, "_sealed_config")
 	raw := string(JSON(d))
@@ -168,9 +173,9 @@ func writeProduct(ctx context.Context, tx pgx.Tx, cid, kind, id string, d Doc) e
  VALUES($1,$2,$3::jsonb->>'source',($3::jsonb->>'date')::date,($3::jsonb->>'amount')::numeric,$3::jsonb->>'direction',$3::jsonb->>'title',$3::jsonb->>'category',$3::jsonb->>'counterparty_name',($3::jsonb->>'probability')::float8,$3::jsonb->>'status',$3)
  ON CONFLICT(id) DO UPDATE SET event_date=EXCLUDED.event_date,amount=EXCLUDED.amount,direction=EXCLUDED.direction,title=EXCLUDED.title,category=EXCLUDED.category,counterparty_name=EXCLUDED.counterparty_name,probability=EXCLUDED.probability,status=EXCLUDED.status,extra=EXCLUDED.extra`, id, cid, raw)
 	case "recurring":
-		_, err = tx.Exec(ctx, `INSERT INTO recurring_patterns(id,company_id,title,category,direction,counterparty_name,period,day_of_month,amount,amount_spread,next_date,confirmed,active,extra)
- VALUES($1,$2,$3::jsonb->>'title',$3::jsonb->>'category',$3::jsonb->>'direction',$3::jsonb->>'counterparty_name',$3::jsonb->>'period',($3::jsonb->>'day_of_month')::int,($3::jsonb->>'amount')::numeric,COALESCE(($3::jsonb->>'amount_spread')::numeric,0),($3::jsonb->>'next_date')::date,($3::jsonb->>'confirmed')::boolean,($3::jsonb->>'active')::boolean,$3)
- ON CONFLICT(id) DO UPDATE SET title=EXCLUDED.title,amount=EXCLUDED.amount,period=EXCLUDED.period,day_of_month=EXCLUDED.day_of_month,confirmed=EXCLUDED.confirmed,active=EXCLUDED.active,next_date=EXCLUDED.next_date,extra=EXCLUDED.extra,updated_at=clock_timestamp()`, id, cid, raw)
+		_, err = tx.Exec(ctx, `INSERT INTO recurring_patterns(id,company_id,title,category,direction,counterparty_name,counterparty_inn,period,day_of_month,amount,amount_spread,next_date,confirmed,active,extra)
+ VALUES($1,$2,$3::jsonb->>'title',$3::jsonb->>'category',$3::jsonb->>'direction',$3::jsonb->>'counterparty_name',$3::jsonb->>'counterparty_inn',$3::jsonb->>'period',($3::jsonb->>'day_of_month')::int,($3::jsonb->>'amount')::numeric,COALESCE(($3::jsonb->>'amount_spread')::numeric,0),($3::jsonb->>'next_date')::date,($3::jsonb->>'confirmed')::boolean,($3::jsonb->>'active')::boolean,$3)
+ ON CONFLICT(id) DO UPDATE SET title=EXCLUDED.title,category=EXCLUDED.category,direction=EXCLUDED.direction,counterparty_name=EXCLUDED.counterparty_name,counterparty_inn=EXCLUDED.counterparty_inn,amount=EXCLUDED.amount,amount_spread=EXCLUDED.amount_spread,period=EXCLUDED.period,day_of_month=EXCLUDED.day_of_month,confirmed=EXCLUDED.confirmed,active=EXCLUDED.active,next_date=EXCLUDED.next_date,extra=EXCLUDED.extra,updated_at=clock_timestamp()`, id, cid, raw)
 	case "source":
 		_, err = tx.Exec(ctx, `INSERT INTO sources(id,company_id,kind,title,status,enabled,extra,config_secret) VALUES($1,$2,$3::jsonb->>'kind',$3::jsonb->>'title',$3::jsonb->>'status',($3::jsonb->>'enabled')::boolean,$3,$4)
  ON CONFLICT(id) DO UPDATE SET title=EXCLUDED.title,status=EXCLUDED.status,enabled=EXCLUDED.enabled,extra=EXCLUDED.extra,config_secret=COALESCE(EXCLUDED.config_secret,sources.config_secret)`, id, cid, raw, sealed)
@@ -190,8 +195,13 @@ func writeProduct(ctx context.Context, tx pgx.Tx, cid, kind, id string, d Doc) e
 	if kind == "invoice" || kind == "contract" {
 		return syncDocumentEvents(ctx, tx, cid, kind, id, d)
 	}
+	if kind == "tax" {
+		return syncTaxEvents(ctx, tx, cid, id, d)
+	}
 	if kind == "recurring" {
-		_, err = tx.Exec(ctx, "DELETE FROM planned_events WHERE company_id=$1 AND extra->>'recurring_id'=$2 AND event_date>=current_date AND status='expected' AND COALESCE((extra->>'user_override')::boolean,false)=false", cid, id)
+		_, err = tx.Exec(ctx, `DELETE FROM planned_events WHERE company_id=$1 AND extra->>'recurring_id'=$2
+		 AND matched_operation_id IS NULL AND COALESCE((extra->>'user_override')::boolean,false)=false
+		 AND ((event_date>=current_date AND status='expected') OR ($3=false AND status IN ('expected','missed')))`, cid, id, d["confirmed"] == true)
 	}
 	if kind == "operation" {
 		_, err = tx.Exec(ctx, "INSERT INTO category_corrections(company_id,operation_id,category) VALUES($1,$2,$3)", cid, id, d["category"])

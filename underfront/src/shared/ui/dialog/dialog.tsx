@@ -43,6 +43,8 @@ interface DialogProps {
   headerActions?: ReactNode;
   /** Рабочий редактор может занимать весь viewport, сохраняя обычный модальный стек и удержание фокуса. */
   fullScreen?: boolean;
+  /** Right-edge details panel; uses the same modal stack and focus handling. */
+  variant?: "dialog" | "drawer";
 }
 
 /**
@@ -62,6 +64,7 @@ export function Dialog({
   dismissDisabled = false,
   headerActions,
   fullScreen = false,
+  variant = "dialog",
 }: DialogProps) {
   const titleId = useId();
   const descriptionId = useId();
@@ -160,9 +163,10 @@ export function Dialog({
       {open ? (
         <motion.div
           className={cn(
-            "fixed inset-0 flex items-center justify-center",
+            "fixed inset-0 flex items-center",
+            variant === "drawer" && !fullScreen ? "justify-end" : "justify-center",
             "bg-[var(--overlay)] backdrop-blur-[2px]",
-            fullScreen ? "p-0" : "p-3 sm:p-4"
+            fullScreen || variant === "drawer" ? "p-0" : "p-3 sm:p-4"
           )}
           ref={overlayRef}
           style={{ zIndex: 9990 }}
@@ -185,15 +189,17 @@ export function Dialog({
             aria-describedby={description ? descriptionId : undefined}
             className={cn(
               "flex w-full min-w-0 flex-col overflow-hidden",
-              !fullScreen &&
+              !fullScreen && variant !== "drawer" &&
                 !/(?:^|\s)max-w-/.test(className ?? "") &&
                 "max-w-[448px]",
               fullScreen
                 ? "h-dvh max-h-dvh max-w-none rounded-none"
-                : "max-h-[calc(100dvh-24px)] rounded-[8px] sm:max-h-[calc(100dvh-32px)]",
+                : variant === "drawer"
+                  ? "h-dvh max-h-dvh max-w-[420px] rounded-none"
+                  : "max-h-[calc(100dvh-24px)] rounded-[8px] sm:max-h-[calc(100dvh-32px)]",
               "border border-[color:var(--dialog-border)]",
               "bg-[color:var(--surface)] text-[color:var(--dialog-text)]",
-              "text-sm font-normal leading-5 tabular-nums",
+              "text-[13px] font-normal leading-5 tabular-nums",
               "shadow-[var(--dialog-shadow)]",
               className
             )}
@@ -217,7 +223,7 @@ export function Dialog({
                   {title ? (
                     <h3
                       id={titleId}
-                      className="text-sm font-semibold leading-7 text-[color:var(--dialog-text)]"
+                      className="text-base font-semibold leading-6 text-[color:var(--dialog-text)]"
                     >
                       {title}
                     </h3>
@@ -226,7 +232,7 @@ export function Dialog({
                   {description ? (
                     <p
                       id={descriptionId}
-                      className="text-sm font-medium leading-5 text-[color:var(--dialog-description)]"
+                      className="text-xs font-normal leading-[18px] text-[color:var(--dialog-description)]"
                     >
                       {description}
                     </p>

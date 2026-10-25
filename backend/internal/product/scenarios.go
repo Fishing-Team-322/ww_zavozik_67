@@ -2,6 +2,8 @@ package product
 
 import (
 	"context"
+	"crypto/sha256"
+	"fmt"
 	"math"
 	"net/http"
 	"strings"
@@ -39,7 +41,7 @@ func validateSteps(steps []Doc) error {
 			}
 		case "add_expense":
 			amount, yes := step["amount"].(float64)
-			if !yes || amount < 0 || amount > 1e13 {
+			if !yes || math.IsNaN(amount) || math.IsInf(amount, 0) || amount < 0 || amount > 1e13 || math.Abs(amount*100-math.Round(amount*100)) > .001 {
 				return bad("Некорректная сумма расхода")
 			}
 			if _, e := day(text(step, "date")); e != nil {
@@ -67,12 +69,44 @@ func validateSteps(steps []Doc) error {
 	return nil
 }
 func (s *Service) applySteps(ctx context.Context, uid, cid string, base forecast.Result, events, steps []Doc) (forecast.Result, error) {
+	result, _, err := s.applyStepsAndEvents(ctx, uid, cid, base, events, steps)
+	return result, err
+}
+
+func (s *Service) applyStepsAndEvents(ctx context.Context, uid, cid string, base forecast.Result, events, steps []Doc) (forecast.Result, []Doc, error) {
 	if e := validateSteps(steps); e != nil {
-		return forecast.Result{}, e
+		return forecast.Result{}, nil, e
 	}
 	out := base.Clone()
-	move := func(event Doc, target time.Time) {
-		old, _ := day(date(event["event_date"]))
+	// Scenario steps compose over private event state. Dates and amounts from
+	// earlier steps must be visible to later steps, without editing real plans.
+	states := make([]Doc, 0, len(events))
+	for _, event := range events {
+		copy := Doc{}
+		for key, value := range event {
+			copy[key] = value
+		}
+		states = append(states, copy)
+	}
+	events = states
+	isRevenue := func(event Doc) bool {
+		return text(event, "direction") == "in" && !domain.Category(text(event, "category")).IsInternal()
+	}
+	revenueKeys := map[string]bool{}
+	for _, flow := range out.Deterministic {
+		revenueKeys[flow.Key] = flow.Amount > 0
+		if strings.HasPrefix(flow.Key, "recurring:baseline:") {
+			revenueKeys[flow.Key] = strings.HasPrefix(flow.Key, "recurring:baseline:in:")
+		}
+	}
+	for _, event := range events {
+		revenueKeys["event:"+text(event, "id")] = isRevenue(event)
+	}
+	move := func(event Doc, target time.Time) error {
+		old, included := eventForecastDate(event, out.AsOf)
+		if !included || !target.After(out.AsOf) {
+			return bad("Перенос доступен только для неоплаченного планового платежа на будущую дату")
+		}
 		amount := number(event, "amount")
 		if text(event, "direction") == "out" {
 			amount = -amount
@@ -80,32 +114,39 @@ func (s *Service) applySteps(ctx context.Context, uid, cid string, base forecast
 		key := "event:" + text(event, "id")
 		found := false
 		for i := range out.Deterministic {
-			if out.Deterministic[i].Key == key {
+			if out.Deterministic[i].Key == key || out.Deterministic[i].Key == "delta:new:"+key {
 				out.Deterministic[i].Date = target
 				found = true
 			}
 		}
-		if !found {
+		if !found && composedEvent(event) {
+			// Plans originally outside this horizon have no assembled component
+			// yet. Introduce their expected flow and per-path uncertainty together.
+			prob := number(event, "probability")
+			out.Deterministic = append(out.Deterministic, forecast.ComponentFlow{Date: target, Key: key, Title: text(event, "title"), Amount: domain.Money(amount * prob), Source: domain.SourceKind(text(event, "source_kind"))})
+			if prob > 0 && prob < 1 {
+				out.Uncertain = append(out.Uncertain, forecast.PathComponent{Date: target, Key: key, Values: planPathDeviations(event, out.AsOf, len(out.Balances))})
+			}
+		} else if !found {
 			out.Deterministic = append(out.Deterministic, forecast.ComponentFlow{Date: old, Key: "delta:old:" + key, Title: text(event, "title"), Amount: domain.Money(-amount)}, forecast.ComponentFlow{Date: target, Key: "delta:new:" + key, Title: text(event, "title"), Amount: domain.Money(amount)})
+			// A positive reversal of an expense is not revenue. Both legs of
+			// a moved receipt, including its negative offset, scale together.
+			revenueKeys["delta:old:"+key], revenueKeys["delta:new:"+key] = isRevenue(event), isRevenue(event)
 		}
 		for i := range out.Uncertain {
 			if out.Uncertain[i].Key == key {
 				out.Uncertain[i].Date = target
 			}
 		}
+		event["event_date"] = target.Format(domain.DateLayout)
+		return nil
 	}
 	for _, step := range steps {
 		switch text(step, "kind") {
 		case "scale_revenue":
 			factor := number(step, "factor")
-			incomeKeys := map[string]bool{}
-			for _, c := range out.Deterministic {
-				if c.Amount > 0 {
-					incomeKeys[c.Key] = true
-				}
-			}
 			for i := range out.Uncertain {
-				if incomeKeys[out.Uncertain[i].Key] {
+				if revenueKeys[out.Uncertain[i].Key] {
 					for p := range out.Uncertain[i].Values {
 						out.Uncertain[i].Values[p] *= factor
 					}
@@ -117,41 +158,61 @@ func (s *Service) applySteps(ctx context.Context, uid, cid string, base forecast
 				}
 			}
 			for i := range out.Deterministic {
-				if out.Deterministic[i].Amount > 0 {
+				if revenueKeys[out.Deterministic[i].Key] {
 					out.Deterministic[i].Amount *= domain.Money(factor)
+				}
+			}
+			for _, event := range events {
+				if isRevenue(event) {
+					event["amount"] = number(event, "amount") * factor
 				}
 			}
 		case "add_expense":
 			dt, _ := day(text(step, "date"))
+			if !dt.After(out.AsOf) {
+				return forecast.Result{}, nil, bad("Расход сценария должен быть после последней даты выписки")
+			}
 			out.Deterministic = append(out.Deterministic, forecast.ComponentFlow{Date: dt, Key: "scenario:add_expense", Title: "Дополнительный расход", Amount: domain.Money(-number(step, "amount")), Source: domain.SrcManual})
 		case "move_event":
 			found := false
 			for _, event := range events {
 				if text(event, "id") == text(step, "event_id") {
 					dt, _ := day(text(step, "date"))
-					move(event, dt)
+					if e := move(event, dt); e != nil {
+						return forecast.Result{}, nil, e
+					}
 					found = true
 					break
 				}
 			}
 			if !found {
-				return forecast.Result{}, platform.ErrNotFound
+				return forecast.Result{}, nil, platform.ErrNotFound
 			}
 		case "delay_counterparty":
 			found := false
 			for _, event := range events {
 				ref := cpRef(cid, event)
-				if text(step, "counterparty_id") != "" && ref["id"] == text(step, "counterparty_id") || text(step, "counterparty_name") != "" && strings.EqualFold(text(event, "counterparty_name"), text(step, "counterparty_name")) {
+				selectedID := text(step, "counterparty_id")
+				matches := selectedID != "" && ref["id"] == selectedID
+				if selectedID == "" {
+					matches = strings.EqualFold(text(event, "counterparty_name"), text(step, "counterparty_name"))
+				}
+				if matches {
 					if text(event, "direction") != "in" || text(event, "status") != "expected" {
 						continue
 					}
+					if _, included := eventForecastDate(event, out.AsOf); !included {
+						continue
+					}
 					dt, _ := day(date(event["event_date"]))
-					move(event, dt.AddDate(0, 0, int(number(step, "delay_days"))))
+					if e := move(event, dt.AddDate(0, 0, int(number(step, "delay_days")))); e != nil {
+						return forecast.Result{}, nil, e
+					}
 					found = true
 				}
 			}
 			if !found {
-				return forecast.Result{}, platform.Fail(422, "planned_receipt_required", "Для переноса нужны плановые поступления выбранного клиента")
+				return forecast.Result{}, nil, platform.Fail(422, "planned_receipt_required", "Для переноса нужны плановые поступления выбранного клиента")
 			}
 		case "scale_fixed_costs":
 			for _, event := range events {
@@ -159,12 +220,34 @@ func (s *Service) applySteps(ctx context.Context, uid, cid string, base forecast
 					continue
 				}
 				dt, _ := day(date(event["event_date"]))
-				delta := -number(event, "amount") * (number(step, "factor") - 1)
-				out.Deterministic = append(out.Deterministic, forecast.ComponentFlow{Date: dt, Key: "scenario:fixed:" + text(event, "id"), Title: text(event, "title"), Amount: domain.Money(delta)})
+				if !dt.After(out.AsOf) {
+					continue
+				}
+				factor := number(step, "factor")
+				key := "event:" + text(event, "id")
+				explicit := false
+				for i := range out.Deterministic {
+					if out.Deterministic[i].Key == key || out.Deterministic[i].Key == "delta:new:"+key {
+						out.Deterministic[i].Amount *= domain.Money(factor)
+						explicit = true
+					}
+				}
+				for i := range out.Uncertain {
+					if out.Uncertain[i].Key == key {
+						for p := range out.Uncertain[i].Values {
+							out.Uncertain[i].Values[p] *= factor
+						}
+					}
+				}
+				if !explicit {
+					delta := -number(event, "amount") * (factor - 1)
+					out.Deterministic = append(out.Deterministic, forecast.ComponentFlow{Date: dt, Key: "scenario:fixed:" + text(event, "id"), Title: text(event, "title"), Amount: domain.Money(delta)})
+				}
+				event["amount"] = number(event, "amount") * factor
 			}
 		}
 	}
-	return out, out.Recompute()
+	return out, events, out.Recompute()
 }
 func (s *Service) compare(ctx context.Context, op, uid, cid string, r *http.Request, b Doc) (Result, error) {
 	steps := docs(b["steps"])
@@ -197,35 +280,39 @@ func (s *Service) compare(ctx context.Context, op, uid, cid string, r *http.Requ
 	return ok(Doc{"base": base, "scenario": other, "delta": forecastDelta(base, other)})
 }
 func (s *Service) gapResult(ctx context.Context, op, uid, cid string, gap, out Doc, res forecast.Result, b Doc) (Result, error) {
-	events, e := s.DB.ProductList(ctx, uid, cid, "event")
+	// IDs must identify the actual recommendation, including its horizon/model
+	// output. Persisting another forecast must never reuse an old funding amount.
+	snapshot := sha256.Sum256(store.JSON(out))
+	forecastKey := fmt.Sprintf("%s:revision:%d:%x", text(gap, "id"), res.DataRevision, snapshot)
+	events, e := s.eventRows(ctx, uid, cid)
 	if e != nil {
 		return Result{}, e
 	}
 	actions := []Doc{}
-	causes := []Doc{}
+	causes := docs(gap["causes"])
 	for _, event := range events {
-		if text(event, "direction") != "out" || text(event, "status") != "expected" || date(event["event_date"]) <= text(out, "as_of") || date(event["event_date"]) > text(gap, "date") {
+		dt, included := eventForecastDate(event, res.AsOf)
+		if text(event, "direction") != "out" || !included || dt.Format(domain.DateLayout) > text(gap, "date") {
 			continue
 		}
-		causes = append(causes, Doc{"title": event["title"], "amount": -number(event, "amount"), "component_key": "event:" + text(event, "id"), "items_ref": event["id"]})
-		if len(actions) >= 4 || !in(text(event, "source_kind"), "manual recurring") {
+		if len(actions) >= 4 || text(event, "status") != "expected" || !in(text(event, "source_kind"), "manual recurring") {
 			continue
 		}
-		dt, _ := day(date(event["event_date"]))
 		newDate := dt.AddDate(0, 0, 14)
 		steps := []Doc{{"kind": "move_event", "event_id": event["id"], "date": newDate.Format(domain.DateLayout)}}
-		actions = append(actions, Doc{"id": idFor(cid, text(gap, "id")+":shift:"+text(event, "id")), "kind": "shift_supplier_payment", "title": "Перенести платёж", "description": "Согласовать перенос платежа на 14 дней", "cost": float64(0), "steps": steps, "refs": Doc{"event_id": event["id"]}, "draft_message": nil})
+		actions = append(actions, Doc{"id": idFor(cid, forecastKey+":shift:"+text(event, "id")), "kind": "shift_supplier_payment", "title": "Перенести платёж", "description": "Согласовать перенос платежа на 14 дней", "cost": float64(0), "steps": steps, "refs": Doc{"event_id": event["id"]}, "draft_message": nil})
 	}
 	amount := number(gap, "shortfall_p90")
 	if amount <= 0 {
 		amount = number(gap, "shortfall")
 	}
-	actions = append(actions, Doc{"id": idFor(cid, text(gap, "id")+":overdraft"), "kind": "overdraft", "title": "Запланировать привлечение средств", "description": "Добавляет плановое поступление; банк не выдаёт кредит через этот метод", "cost": float64(0), "steps": []Doc{}, "refs": Doc{}, "date": gap["date"], "amount": amount, "draft_message": nil})
+	actions = append(actions, Doc{"id": idFor(cid, forecastKey+":overdraft"), "kind": "overdraft", "title": "Запланировать привлечение средств", "description": "Добавляет плановое поступление; банк не выдаёт кредит через этот метод", "cost": float64(0), "steps": []Doc{}, "refs": Doc{}, "date": gap["date"], "amount": amount, "draft_message": nil})
 	company, e := s.DB.GetCompany(ctx, uid, cid)
 	if e != nil {
 		return Result{}, e
 	}
 	for _, a := range actions {
+		a["data_revision"] = res.DataRevision
 		changed := res.Clone()
 		if text(a, "kind") == "overdraft" {
 			dt, _ := day(text(a, "date"))
@@ -316,8 +403,8 @@ func (s *Service) applyAction(ctx context.Context, uid, id string) (Result, erro
 		return Result{}, e
 	}
 	defer tx.Rollback(ctx)
-	var locked string
-	if e = tx.QueryRow(ctx, "SELECT c.id::text FROM companies c JOIN memberships m ON m.company_id=c.id WHERE c.id=$1 AND m.user_id=$2 AND m.role='owner' FOR UPDATE OF c", cid, uid).Scan(&locked); e != nil {
+	var revision int64
+	if e = tx.QueryRow(ctx, "SELECT c.data_revision FROM companies c JOIN memberships m ON m.company_id=c.id WHERE c.id=$1 AND m.user_id=$2 AND m.role='owner' FOR UPDATE OF c", cid, uid).Scan(&revision); e != nil {
 		return Result{}, platform.ErrNotFound
 	}
 	var data []byte
@@ -327,6 +414,10 @@ func (s *Service) applyAction(ctx context.Context, uid, id string) (Result, erro
 	current := store.Decode(data)
 	if flag(current, "applied") {
 		return ok(Doc{"applied": true, "result_ref": current["result_ref"]})
+	}
+	version, recorded := current["data_revision"].(float64)
+	if !recorded || int64(version) != revision {
+		return Result{}, platform.Fail(409, "stale_action", "Данные изменились. Обновите прогноз и выберите рекомендацию заново.")
 	}
 	d = current
 	var ref string

@@ -32,20 +32,20 @@ export function Pagination({
   const counterCharacters = totalPageDigits * 2 + (label == null ? 3 : 1);
 
   return (
-    <div className={cn("flex items-center gap-2", className)}>
+    <div className={cn("flex items-center gap-1.5", className)}>
       <Button
         type="button"
         variant="back"
-        className="!px-0"
-        style={{ width: 36, minWidth: 36, height: 40 }}
+        className="!px-0 [&>svg]:!size-4"
+        style={{ width: 26, minWidth: 26, height: 26 }}
         aria-label="Предыдущая страница"
         disabled={disabled || !canPrev}
         onClick={() => onPageChange(page - 1)}
       >
-        <ChevronLeft className="h-5 w-5" strokeWidth={2.5} aria-hidden />
+        <ChevronLeft strokeWidth={2.5} aria-hidden />
       </Button>
       <span
-        className="inline-block whitespace-nowrap text-center text-[18px] font-medium leading-[1.5] tracking-[0.025em] text-[#626262] tabular-nums"
+        className="inline-block whitespace-nowrap text-center text-sm font-medium leading-[1.5] tracking-[0.025em] text-[#626262] tabular-nums"
         style={{ width: `${counterCharacters}ch` }}
       >
         {label ?? `${page} / ${totalPages}`}
@@ -53,13 +53,13 @@ export function Pagination({
       <Button
         type="button"
         variant="back"
-        className="!px-0"
-        style={{ width: 36, minWidth: 36, height: 40 }}
+        className="!px-0 [&>svg]:!size-4"
+        style={{ width: 26, minWidth: 26, height: 26 }}
         aria-label="Следующая страница"
         disabled={disabled || !canNext}
         onClick={() => onPageChange(page + 1)}
       >
-        <ChevronRight className="h-5 w-5" strokeWidth={2.5} aria-hidden />
+        <ChevronRight strokeWidth={2.5} aria-hidden />
       </Button>
     </div>
   );

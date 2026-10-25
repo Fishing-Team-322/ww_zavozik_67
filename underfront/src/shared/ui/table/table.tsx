@@ -1,6 +1,8 @@
 "use client";
 
 import {
+  createContext,
+  useContext,
   HTMLAttributes,
   ReactNode,
   TableHTMLAttributes,
@@ -10,8 +12,22 @@ import {
   useState,
 } from "react";
 import { motion } from "motion/react";
+import Link from "next/link";
 import { cn } from "@/src/shared/lib/cn";
 import { Pagination } from "@/src/shared/ui/pagination";
+
+export type TableDensity = "compact" | "comfortable";
+const DensityContext = createContext<TableDensity>("compact");
+const cellSpacing: Record<TableDensity, string> = {
+  compact: "px-3 py-2",
+  comfortable: "px-4 py-3",
+};
+type CellTone = "default" | "muted" | "danger";
+const cellTone: Record<CellTone, string> = {
+  default: "text-[color:var(--text-primary)]",
+  muted: "text-[color:var(--text-secondary)]",
+  danger: "text-[color:var(--danger)]",
+};
 
 export type SortDirection = "none" | "desc" | "asc";
 
@@ -32,6 +48,7 @@ export interface SortState<T> {
 export interface TablePaginationOptions {
   page: number;
   totalPages: number;
+  label?: ReactNode;
   disabled?: boolean;
   onPageChange: (page: number) => void;
 }
@@ -41,6 +58,10 @@ type TableElementProps<T> = T & { unstyled?: boolean };
 interface TableProps extends TableHTMLAttributes<HTMLTableElement> {
   /** Keep a composed table’s existing layout while reusing the shared overflow container. */
   unstyled?: boolean;
+  /** Compact analytical rows by default; comfortable adds space for multiline content. */
+  density?: TableDensity;
+  /** Scenario/forecast comparison matrix with subtle alternating rows. */
+  variant?: "default" | "matrix";
   pagination?: TablePaginationOptions;
 }
 
@@ -51,6 +72,8 @@ interface TableProps extends TableHTMLAttributes<HTMLTableElement> {
 export function Table({
   className,
   pagination,
+  density = "compact",
+  variant = "default",
   unstyled = false,
   ...props
 }: TableProps) {
@@ -58,6 +81,7 @@ export function Table({
   const page = Math.min(Math.max(1, pagination?.page ?? 1), totalPages);
 
   return (
+    <DensityContext.Provider value={density}>
     <div className="flex h-full min-h-0 min-w-0 w-full flex-col">
       <div
         className={cn(
@@ -76,7 +100,7 @@ export function Table({
         )}
       >
         <table
-          className={cn(!unstyled && "w-full border-collapse text-sm", className)}
+          className={cn(!unstyled && "w-full border-collapse text-[13px] leading-5", !unstyled && variant === "matrix" && "[&_tbody_tr:nth-child(odd)]:bg-[color:var(--surface-subtle)] [&_tbody_tr:hover]:bg-[color:var(--table-row-hover)]", className)}
           {...props}
         />
       </div>
@@ -87,10 +111,11 @@ export function Table({
           totalPages={totalPages}
           disabled={pagination?.disabled}
           onPageChange={pagination?.onPageChange ?? (() => undefined)}
-          label={`${page}/${totalPages}`}
+          label={pagination.label ?? `${page}/${totalPages}`}
         />
       </nav>}
     </div>
+    </DensityContext.Provider>
   );
 }
 
@@ -132,16 +157,23 @@ export function TableBody({
 export function TableRow({
   className,
   unstyled = false,
+  href,
+  hrefLabel = "Открыть запись",
+  children,
   ...props
-}: TableElementProps<HTMLAttributes<HTMLTableRowElement>>) {
+}: TableElementProps<HTMLAttributes<HTMLTableRowElement>> & { href?: string; hrefLabel?: string }) {
   return (
     <tr
       className={cn(
         !unstyled && "border-b border-[color:var(--divider)] transition-colors hover:bg-[color:var(--table-row-hover)]",
+        href && "group relative cursor-pointer",
         className
       )}
       {...props}
-    />
+    >
+      {children}
+      {href && <TableCell verticalAlign="middle" className="w-10 px-2 text-right"><Link href={href} aria-label={hrefLabel} className="inline-flex after:absolute after:inset-0 focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-inset focus-visible:after:ring-[color:var(--focus-ring-strong)]"><svg width="18" height="18" viewBox="0 0 16 16" fill="none" aria-hidden="true" className="ml-auto text-[color:var(--text-secondary)] transition-colors group-hover:text-[color:var(--accent)]"><path d="M2.5 8H12.5M8.5 4L12.5 8L8.5 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg></Link></TableCell>}
+    </tr>
   );
 }
 
@@ -151,6 +183,8 @@ interface TableHeadProps extends ThHTMLAttributes<HTMLTableCellElement> {
   sortDirection?: SortDirection;
   active?: boolean;
   onSortToggle?: () => void;
+  numeric?: boolean;
+  tone?: CellTone;
 }
 
 /**
@@ -165,8 +199,11 @@ export function TableHead({
   sortDirection = "none",
   active = false,
   onSortToggle,
+  numeric = false,
+  tone,
   ...props
 }: TableHeadProps) {
+  const density = useContext(DensityContext);
   const isInteractive = sortable && typeof onSortToggle === "function";
 
   const ariaSort =
@@ -179,7 +216,7 @@ export function TableHead({
   return (
     <th
       className={cn(
-        !unstyled && "px-4 py-2 text-left align-middle text-[16px] font-medium leading-6 text-[color:var(--text-secondary)]",
+        !unstyled && cn(cellSpacing[density], "align-top text-[13px] font-medium leading-5", numeric ? "text-right tabular-nums" : "text-left", cellTone[tone ?? "muted"]),
         className
       )}
       aria-sort={isInteractive ? ariaSort : undefined}
@@ -198,7 +235,8 @@ export function TableHead({
             mass: 0.35,
           }}
           className={cn(
-            "group inline-flex items-center gap-2 whitespace-nowrap text-left text-inherit font-[inherit] leading-[inherit] transition-colors duration-200",
+            "group inline-flex items-center gap-2 whitespace-nowrap text-inherit font-[inherit] leading-[inherit] transition-colors duration-200",
+            numeric && "justify-end",
             "cursor-pointer hover:text-[color:var(--text-primary)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring-strong)]"
           )}
         >
@@ -235,12 +273,17 @@ export function TableHead({
 export function TableCell({
   className,
   unstyled = false,
+  numeric = false,
+  highlighted = false,
+  tone = "default",
+  verticalAlign = "top",
   ...props
-}: TableElementProps<TdHTMLAttributes<HTMLTableCellElement>>) {
+}: TableElementProps<TdHTMLAttributes<HTMLTableCellElement>> & { numeric?: boolean; tone?: CellTone; highlighted?: boolean; verticalAlign?: "top" | "middle" }) {
+  const density = useContext(DensityContext);
   return (
     <td
       className={cn(
-        !unstyled && "px-4 py-3 align-middle text-[16px] leading-6 text-[color:var(--text-primary)]",
+        !unstyled && cn(cellSpacing[density], verticalAlign === "middle" ? "align-middle" : "align-top", "text-[13px] font-normal leading-5", cellTone[tone], numeric && "text-right tabular-nums", highlighted && "bg-[color:var(--accent-soft)]"),
         className
       )}
       {...props}

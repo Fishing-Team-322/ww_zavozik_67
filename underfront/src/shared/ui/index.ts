@@ -1,4 +1,5 @@
 // UI exports
+export * from "./content";
 export * from "./badge";
 export * from "./button";
 export * from "./breadcrumbs";

@@ -1,4 +1,5 @@
 "use client";
+import { ContentHeading, ContentText } from "@/src/shared/ui/content";
 
 import { useCallback, useEffect, useState } from "react";
 import { api, message } from "@/src/shared/api";
@@ -49,23 +50,23 @@ export function RegistryDocuments({ companyId, companyINN }: { companyId: string
     finally { setBusy(false); }
   }
   return <section id="registry-documents" className="min-w-0 space-y-4 rounded-md border border-[color:var(--border)] p-5">
-    <h2 className="text-lg font-semibold">Документы ФНС · ЕГРЮЛ и ЕГРИП</h2>
-    <p className="text-sm text-[color:var(--text-secondary)]">Официальная выписка содержит реквизиты и сведения об организации на дату документа. Это не банковская выписка: операции и остатки из неё не создаются. Ключ DaData не нужен.</p>
+    <ContentHeading level={2} >Документы ФНС · ЕГРЮЛ и ЕГРИП</ContentHeading>
+    <ContentText variant="description" tone="muted" >Официальная выписка содержит реквизиты и сведения об организации на дату документа. Это не банковская выписка: операции и остатки из неё не создаются. Ключ DaData не нужен.</ContentText>
     <Input label="Загрузить документ ФНС" type="file" accept=".pdf,.xml,.zip" disabled={busy} onChange={event => { const file = event.target.files?.[0]; if (file) void upload(file); event.target.value = ""; }} helperText="PDF с текстовым слоем, XML или ZIP ФНС · до 16 МиБ. Сканы без текстового слоя не поддерживаются." />
     {busy && <p role="status">Обрабатываем документ ФНС…</p>}
-    {error && <p role="alert" className="text-sm text-[color:var(--danger)]">{error}</p>}
-    {notice && <p role="status" className="text-sm">{notice}</p>}
+    {error && <ContentText variant="body" tone="danger" role="alert" >{error}</ContentText>}
+    {notice && <ContentText variant="body" role="status" >{notice}</ContentText>}
     {preview && selected && <div className="space-y-3 rounded-md bg-[color:var(--surface-subtle)] p-4">
-      <h3 className="font-semibold">Предпросмотр реквизитов</h3>
-      {preview.records.length > 1 && <Select label="Организация в документе" value={index} onChange={event => { setIndex(event.target.value); setTarget(preview.records[Number(event.target.value)]?.inn === companyINN ? "company" : "counterparty"); }} options={preview.records.map((record, i) => ({ value: String(i), label: `${record.inn} · ${record.name}` }))} />}
+      <ContentHeading level={3} >Предпросмотр реквизитов</ContentHeading>
+      {preview.records.length > 1 && <Select density="form" label="Организация в документе" value={index} onChange={event => { setIndex(event.target.value); setTarget(preview.records[Number(event.target.value)]?.inn === companyINN ? "company" : "counterparty"); }} options={preview.records.map((record, i) => ({ value: String(i), label: `${record.inn} · ${record.name}` }))} />}
       <RegistryProfile record={selected} />
-      <Select label="Привязать документ" value={target} onChange={event => setTarget(event.target.value)} options={[{ value: "counterparty", label: "Контрагент этого рабочего пространства" }, ...(selected.inn === companyINN ? [{ value: "company", label: "Моя компания · ИНН совпадает" }] : [])]} />
-      {selected.inn !== companyINN && <p className="text-sm">Для привязки к своей компании сначала укажите совпадающий корректный ИНН в настройках. Совпадение ИНН не подтверждает юридическое владение.</p>}
+      <Select density="form" label="Привязать документ" value={target} onChange={event => setTarget(event.target.value)} options={[{ value: "counterparty", label: "Контрагент этого рабочего пространства" }, ...(selected.inn === companyINN ? [{ value: "company", label: "Моя компания · ИНН совпадает" }] : [])]} />
+      {selected.inn !== companyINN && <ContentText variant="body" >Для привязки к своей компании сначала укажите совпадающий корректный ИНН в настройках. Совпадение ИНН не подтверждает юридическое владение.</ContentText>}
       <div className="flex flex-wrap gap-2"><Button disabled={busy} onClick={() => void confirm()}>Подтвердить и сохранить сведения ФНС</Button><Button variant="ghost" disabled={busy} onClick={() => setPreview(null)}>Отмена</Button></div>
     </div>}
-    <h3 className="font-semibold">Сохранённые сведения и история документов</h3>
-    {!records.length && <p className="text-sm text-[color:var(--text-secondary)]">Документов ФНС пока нет.</p>}
-    {records.map(record => <article key={record.id} className="space-y-2 border-t border-[color:var(--border)] pt-3"><RegistryProfile record={record} /><p className="text-xs">{record.target === "company" ? "Моя компания" : "Контрагент"} · владение не подтверждено · счёт не проверен</p></article>)}
+    <ContentHeading level={3} >Сохранённые сведения и история документов</ContentHeading>
+    {!records.length && <ContentText variant="description" tone="muted" >Документов ФНС пока нет.</ContentText>}
+    {records.map(record => <article key={record.id} className="space-y-2 border-t border-[color:var(--border)] pt-3"><RegistryProfile record={record} /><ContentText variant="meta" >{record.target === "company" ? "Моя компания" : "Контрагент"} · владение не подтверждено · счёт не проверен</ContentText></article>)}
   </section>;
 }
 

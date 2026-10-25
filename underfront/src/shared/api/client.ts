@@ -175,7 +175,10 @@ export class ApiClient {
     }
     if (!response.ok) {
       if (response.status === 401 && authenticated) this.clearSession();
-      const payload = await response.json().catch(() => ({}));
+      const body: unknown = await response.json().catch(() => null);
+      const payload = body !== null && typeof body === "object"
+        ? body as Record<string, unknown>
+        : {};
       throw new ApiError(
         response.status,
         typeof payload.code === "string" ? payload.code : "request_failed",
@@ -211,7 +214,9 @@ export class ApiClient {
           this.assertSession(generation);
           this.token = token.access_token;
         } catch (error) {
-          if (generation === this.generation && (this.token || error instanceof ApiError && error.status === 401)) this.clearSession();
+          // Transport/server failures do not revoke a still-valid refresh cookie.
+          // Keep the session recoverable; only an explicit 401 ends it.
+          if (generation === this.generation && error instanceof ApiError && error.status === 401) this.clearSession();
           throw error;
         }
       }).finally(() => {

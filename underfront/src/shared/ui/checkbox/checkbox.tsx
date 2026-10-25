@@ -20,9 +20,9 @@ export interface CheckboxProps extends Omit<
 }
 
 const SIZE_MAP: Record<Size, { box: string; icon: string; label: string }> = {
-  sm: { box: "h-4 w-4", icon: "h-3 w-3", label: "text-sm" },
-  md: { box: "h-5 w-5", icon: "h-4 w-4", label: "text-sm" },
-  lg: { box: "h-6 w-6", icon: "h-5 w-5", label: "text-base" },
+  sm: { box: "h-4 w-4", icon: "h-3 w-3", label: "text-xs font-medium leading-4" },
+  md: { box: "h-5 w-5", icon: "h-4 w-4", label: "text-xs font-medium leading-4" },
+  lg: { box: "h-6 w-6", icon: "h-5 w-5", label: "text-xs font-medium leading-4" },
 };
 
 /**

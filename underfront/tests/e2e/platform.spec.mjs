@@ -36,7 +36,7 @@ async function login(page, email) {
 }
 
 async function navigate(page, route) {
-  const groups = { '/overview': 'Компания', '/transactions': 'Компания', '/forecast': 'Аналитика', '/scenarios': 'Аналитика', '/risks': 'Аналитика', '/calendar': 'Планирование', '/sources': 'Планирование', '/counterparties': 'Компания', '/notifications': 'Компания', '/settings': 'Компания', '/documents': 'Планирование', '/recurring': 'Планирование', '/plan-fact': 'Аналитика', '/methodology': 'Аналитика' };
+  const groups = { '/overview': 'Обязательное', '/transactions': 'Обязательное', '/forecast': 'Обязательное', '/scenarios': 'Звёздочки', '/risks': 'Обязательное', '/calendar': 'Дополнительно', '/sources': 'Звёздочки', '/counterparties': 'Дополнительно', '/notifications': 'Дополнительно', '/settings': 'Дополнительно', '/documents': 'Звёздочки', '/recurring': 'Обязательное', '/plan-fact': 'Звёздочки', '/methodology': 'Дополнительно' };
   const link = page.locator(`a[href="${route}"]`).first();
   if (!await link.isVisible()) await page.getByRole('button', { name: groups[route], exact: true }).click();
   await link.click();
@@ -69,6 +69,7 @@ test('anonymous data is protected and an unavailable source fails clearly', asyn
   await login(page, user.email);
   await createCompany(page, 'E2E empty company');
   await expect(page.getByRole('heading', { name: 'Источники данных' })).toBeVisible();
+  await page.getByRole('button', { name: /^1С Подключение/ }).click();
   await page.getByRole('textbox', { name: 'Адрес OData 1С' }).fill('https://example.invalid/odata/');
   await page.getByRole('textbox', { name: 'ИНН компании' }).fill('7725895601');
   await page.getByText('Дополнительно: номер счёта вручную', { exact: true }).click();
@@ -178,11 +179,13 @@ test('synthetic CSV drives dashboard, forecast and a persistent manual event', a
     if (failJobPoll) { failJobPoll = false; return route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ message: 'E2E polling outage' }) }); }
     return route.continue();
   });
+  await page.getByRole('button', { name: /^Банковская выписка/ }).click();
   await page.locator('input[type="file"][accept=".csv,.xlsx,.txt,.1c"]').setInputFiles({ name: 'synthetic-statement.csv', mimeType: 'text/csv', buffer: Buffer.from(csv) });
   await expect(page.getByRole('alert').filter({ hasText: 'Проверка задания приостановлена' })).toBeVisible();
   await page.getByRole('button', { name: 'Повторить проверку задания' }).click();
   const report = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Результат импорта' }) });
   await expect(report).toContainText('240', { timeout: 60_000 });
+  await page.getByRole('dialog').getByRole('button', { name: 'Закрыть', exact: true }).click();
 
   await navigate(page, '/overview');
   await expect(page.getByRole('heading', { name: /Финансовый прогноз/ })).toBeVisible({ timeout: 60_000 });
@@ -195,16 +198,21 @@ test('synthetic CSV drives dashboard, forecast and a persistent manual event', a
   const dashboard = await dashboardResponse.json();
   expect(dashboard.points).toHaveLength(60);
   expect(dashboard.warnings).not.toContain('ml_service_fallback');
+  const downturnTab = page.getByRole('tab', { name: 'Выручка −20%', exact: true });
+  await expect(downturnTab).toBeEnabled({ timeout: 60_000 });
+  await downturnTab.click();
+  await expect(page.getByText('Снижение выручки', { exact: true })).toBeVisible();
+  await page.getByRole('tab', { name: 'Базовый', exact: true }).click();
   await navigate(page, '/forecast');
   await expect(page.getByRole('heading', { name: 'Денежный остаток' })).toBeVisible();
-  await page.getByRole('button', { name: 'Горизонт прогноза' }).click();
+  await page.getByRole('combobox', { name: 'Горизонт прогноза' }).click();
   const [forecastResponse] = await Promise.all([
     page.waitForResponse(response => response.url().includes('/forecast?') && new URL(response.url()).searchParams.get('horizon') === '60'),
     page.getByRole('option', { name: '60 дней', exact: true }).click(),
   ]);
   expect(forecastResponse.status()).toBe(200);
   expect((await forecastResponse.json()).points).toHaveLength(60);
-  await expect(page.getByRole('button', { name: 'Горизонт прогноза' })).toContainText('60 дней');
+  await expect(page.getByRole('combobox', { name: 'Горизонт прогноза' })).toContainText('60 дней');
   await expect(page.locator('main').getByRole('alert')).toHaveCount(0);
 
   await navigate(page, '/calendar');
@@ -226,20 +234,22 @@ test('synthetic CSV drives dashboard, forecast and a persistent manual event', a
   await page.getByLabel('Месяц', { exact: true }).fill(eventDate.slice(0, 7));
   await selectEventDay();
   await expect(page.locator('main')).toContainText('E2E manual payment');
-  for (const [route, heading] of [['/transactions', 'История операций'], ['/scenarios', 'Базовый и негативный прогноз']]) {
+  for (const [route, heading] of [['/transactions', 'История операций'], ['/scenarios', 'Сценарии']]) {
     await navigate(page, route);
     await expect(page.getByRole('heading', { name: heading })).toBeVisible();
   }
+  await page.getByRole('button', { name: 'Внеплановый расход', exact: true }).click();
   const [scenarioResponse] = await Promise.all([
     page.waitForResponse(response => response.url().includes('/scenarios/preview') && response.request().method() === 'POST'),
     page.getByRole('slider', { name: /Внеплановый расход/ }).press('ArrowRight'),
   ]);
   expect(scenarioResponse.status()).toBe(200);
-  await page.getByRole('button', { name: 'Сохранить сценарий', exact: true }).click();
+  await page.locator('main').getByRole('button', { name: 'Сохранить', exact: true }).click();
+  await page.getByRole('dialog').getByLabel('Название сценария', { exact: true }).fill('E2E negative scenario');
+  await page.getByRole('dialog').getByRole('button', { name: 'Сохранить', exact: true }).click();
   await expect(page.getByRole('status').filter({ hasText: 'Сценарий сохранён' })).toBeVisible();
   await navigate(page, '/risks');
-  await page.getByRole('button', { name: 'Причины и действия' }).first().click();
-  await expect(page.getByRole('heading', { name: /Что влияет на разрыв/ })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Почему не хватает денег', exact: true })).toBeVisible();
   await expect(page.locator('main')).toContainText('E2E manual payment');
   await page.screenshot({ path: path.join(screenshots, 'risk-synthetic.png') });
   for (const [route, heading] of [['/documents', 'Счета, договоры и налоги'], ['/recurring', 'Регулярные платежи'], ['/plan-fact', 'План и факт'], ['/counterparties', 'Контрагенты'], ['/notifications', 'Уведомления'], ['/settings', 'Настройки компании'], ['/methodology', 'Как мы считаем']]) {
@@ -250,12 +260,12 @@ test('synthetic CSV drives dashboard, forecast and a persistent manual event', a
     if(route==='/notifications'){
       await expect(page.getByRole('article')).toHaveCount(1);
       await page.getByRole('button',{name:'Прочитать все',exact:true}).click();
-      await page.getByRole('button',{name:'Прочтение',exact:true}).click();
+      await page.getByRole('combobox',{name:'Прочтение',exact:true}).click();
       await page.getByRole('option',{name:'Прочитанные',exact:true}).click();
       await expect(page.getByRole('article')).toHaveCount(1);
       await page.getByRole('button',{name:'Отметить непрочитанным',exact:true}).click();
       await expect(page.getByRole('article')).toHaveCount(0);
-      await page.getByRole('button',{name:'Прочтение',exact:true}).click();
+      await page.getByRole('combobox',{name:'Прочтение',exact:true}).click();
       await page.getByRole('option',{name:'Непрочитанные',exact:true}).click();
       await expect(page.getByRole('article')).toHaveCount(1);
     }
@@ -263,7 +273,7 @@ test('synthetic CSV drives dashboard, forecast and a persistent manual event', a
   await navigate(page, '/risks');
   await page.setViewportSize({ width: 375, height: 812 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
-  for (const [route, heading] of [['/overview', /Финансовый прогноз/], ['/transactions', 'История операций'], ['/forecast', 'Денежный остаток'], ['/calendar', 'Платёжный календарь'], ['/scenarios', 'Базовый и негативный прогноз']]) {
+  for (const [route, heading] of [['/overview', /Финансовый прогноз/], ['/transactions', 'История операций'], ['/forecast', 'Денежный остаток'], ['/calendar', 'Платёжный календарь'], ['/scenarios', 'Сценарии']]) {
     await page.goto(route);
     await expect(page.getByRole('heading', { name: heading })).toBeVisible();
     await expect(page.getByText('Загружаем данные…', { exact: true })).toHaveCount(0);

@@ -28,11 +28,11 @@ export function PaymentEventForm({ draft, onChange, onSubmit, submitLabel, onCan
         <Input inputSize="lg" label="Дата" type="date" value={draft.date} onChange={(event) => update({ date: event.target.value })} required />
       </div>
       <div className="grid grid-cols-2 gap-3">
-        <Select size="lg" label="Направление" value={draft.direction} onChange={(event) => update({ direction: event.target.value as PaymentDraft["direction"] })} options={[{ value: "income", label: "Поступление" }, { value: "expense", label: "Списание" }]} />
-        <Select size="lg" label="Категория" value={draft.category} onChange={(event) => update({ category: event.target.value })} options={PAYMENT_CATEGORIES.map((category) => ({ value: category, label: category }))} />
+        <Select density="form" size="lg" label="Направление" value={draft.direction} onChange={(event) => update({ direction: event.target.value as PaymentDraft["direction"] })} options={[{ value: "income", label: "Поступление" }, { value: "expense", label: "Списание" }]} />
+        <Select density="form" size="lg" label="Категория" value={draft.category} onChange={(event) => update({ category: event.target.value })} options={PAYMENT_CATEGORIES.map((category) => ({ value: category, label: category }))} />
       </div>
       <div className="grid grid-cols-2 gap-3">
-        <Select size="lg" label="Статус" value={draft.status} onChange={(event) => update({ status: event.target.value as PaymentStatus })} options={statusOptions} />
+        <Select density="form" size="lg" label="Статус" value={draft.status} onChange={(event) => update({ status: event.target.value as PaymentStatus })} options={statusOptions} />
         {draft.direction === "income" ? <Input inputSize="lg" label="Вероятность, %" type="number" min="0" max="100" value={draft.probability ?? ""} onChange={(event) => update({ probability: event.target.value === "" ? undefined : Number(event.target.value) })} /> : <div />}
       </div>
       <div className="flex justify-end gap-2 border-t border-[color:var(--border)] pt-4">

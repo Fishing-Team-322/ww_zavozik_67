@@ -8,6 +8,7 @@ import {
   useState,
 } from "react";
 import { cn } from "@/src/shared/lib/cn";
+import { fieldSizeClasses, fieldEndPosition, fieldLabelClass, fieldHelpClass, fieldErrorClass } from "../field-contract";
 
 type SecretToggleLabels = {
   show: string;
@@ -74,16 +75,13 @@ export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   error?: string;
   containerClassName?: string;
   startAdornment?: ReactNode;
+  endAdornment?: ReactNode;
   startAdornmentClassName?: string;
   secretToggle?: boolean;
   secretToggleLabels?: SecretToggleLabels;
 }
 
-const sizeClasses: Record<NonNullable<InputProps["inputSize"]>, string> = {
-  sm: "h-8 px-2 text-sm font-medium leading-5 tabular-nums",
-  md: "h-10 px-3 text-sm font-medium leading-5 tabular-nums",
-  lg: "h-11 px-4 text-base font-medium leading-6 tabular-nums",
-};
+const sizeClasses = fieldSizeClasses;
 
 const sizeClassesWithStartAdornment: Record<
   NonNullable<InputProps["inputSize"]>,
@@ -208,6 +206,7 @@ function Input(
     id,
     disabled,
     startAdornment,
+    endAdornment,
     startAdornmentClassName,
     secretToggle = false,
     secretToggleLabels = {
@@ -248,7 +247,7 @@ function Input(
         <label
           htmlFor={inputId}
           className={cn(
-            "mb-1.5 block text-sm font-medium leading-5",
+            fieldLabelClass,
             hasError
               ? "text-[var(--status-danger-fg)]"
               : "text-[color:var(--input-label)]"
@@ -303,11 +302,17 @@ function Input(
             hasStartAdornment
               ? sizeClassesWithStartAdornment[inputSize]
               : undefined,
-            hasSecretToggle ? sizeClassesWithEndControl[inputSize] : undefined,
+            hasSecretToggle || endAdornment ? sizeClassesWithEndControl[inputSize] : undefined,
             className
           )}
           {...props}
         />
+
+        {endAdornment && !hasSecretToggle ? (
+          <span aria-hidden="true" className={cn("pointer-events-none absolute top-1/2 inline-flex -translate-y-1/2 items-center justify-center text-[color:var(--text-muted)]", fieldEndPosition[inputSize])}>
+            {endAdornment}
+          </span>
+        ) : null}
 
         {hasSecretToggle ? (
           <button
@@ -347,14 +352,14 @@ function Input(
       {error ? (
         <p
           id={`${inputId}-error`}
-          className="pt-1.5 text-sm text-[var(--status-danger-fg)]"
+          className={fieldErrorClass}
         >
           {error}
         </p>
       ) : helperText ? (
         <p
           id={`${inputId}-helper`}
-          className="pt-1.5 text-sm text-[color:var(--text-secondary)]"
+          className={fieldHelpClass}
         >
           {helperText}
         </p>

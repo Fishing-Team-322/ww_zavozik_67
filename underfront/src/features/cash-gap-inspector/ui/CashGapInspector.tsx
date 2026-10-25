@@ -1,4 +1,5 @@
 "use client";
+import { ContentHeading, contentTypography } from "@/src/shared/ui/content";
 
 import { useState } from "react";
 import { AlertCircle, CheckCircle2, RotateCcw, X } from "lucide-react";
@@ -29,7 +30,7 @@ export interface CashGapInspectorProps {
 
 export function CashGapInspector({ data, simulation, status, selectedActionIds, error, onToggleAction, onReset, onSaveScenario, onRetry }: CashGapInspectorProps) {
   const [eventId, setEventId] = useState<string | null>(null);
-  if (status === "loading") return <div role="status" aria-label="Загрузка анализа кассового разрыва" className="space-y-4"><Skeleton className="h-28 !rounded-[5px]" /><div className="grid gap-4 lg:grid-cols-2"><Skeleton className="h-64 !rounded-[5px]" /><Skeleton className="h-64 !rounded-[5px]" /></div><span className="sr-only">Загрузка анализа</span></div>;
+  if (status === "loading") return <div role="status" aria-label="Загрузка анализа кассового разрыва" className="space-y-4"><Skeleton className="h-28" /><div className="grid gap-4 lg:grid-cols-2"><Skeleton className="h-64" /><Skeleton className="h-64" /></div><span className="sr-only">Загрузка анализа</span></div>;
   if (status === "empty" || (status !== "error" && (!data || !simulation))) return <div className={`${gapPanel} flex flex-wrap items-center gap-3 p-4`}><CheckCircle2 size={18} className="text-[color:var(--nav-item-icon)]" /><div className="min-w-0 flex-1"><p className="text-[13px] font-medium">Нет данных о кассовом разрыве</p><p className={gapMuted}>Загрузите другой расчёт или обновите данные.</p></div><Button variant="outline" size="lg" onClick={onRetry}>Обновить</Button></div>;
   if (!data || !simulation) return <div role="alert" className={`${gapPanel} p-4`}><p className="text-[13px] font-medium">Не удалось получить расчёт</p><p className={`mt-1 ${gapMuted}`}>{error ?? "Повторите запрос."}</p><Button variant="outline" size="lg" className="mt-3" onClick={onRetry}>Повторить</Button></div>;
 
@@ -67,11 +68,18 @@ export function CashGapInspector({ data, simulation, status, selectedActionIds, 
         <header className="flex flex-wrap items-center justify-between gap-2 border-b border-[color:var(--border)] px-4 py-3"><h3 className={gapHeading}>До / После</h3><span role="status" aria-live="polite" className={`${gapMuted} tabular-nums`}>{busy ? "Пересчёт сценария…" : `Выбрано действий: ${simulation.actionIds.length}`}</span></header>
         <div className="px-4 py-3">
           <p className={gapMuted}>Нехватка после изменений</p>
-          <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1"><p className={`text-[24px] font-semibold leading-7 tabular-nums ${alternative.maximumShortfall ? "text-[color:var(--danger)]" : "text-[color:var(--accent)]"}`}>{formatRub(alternative.maximumShortfall)}</p><p className={`text-[12px] ${alternative.maximumShortfall ? "text-[color:var(--nav-item-text)]" : "text-[color:var(--accent)]"}`}>{!hasChanges ? "Исходный сценарий" : alternative.maximumShortfall === 0 ? "Разрыв устранён в выбранном периоде" : alternative.maximumShortfall < baseline.maximumShortfall ? "Нехватка уменьшилась" : "Разрыв сохраняется"}</p></div>
+          <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1"><p className={`${contentTypography.kpi} ${alternative.maximumShortfall ? "text-[color:var(--danger)]" : "text-[color:var(--accent)]"}`}>{formatRub(alternative.maximumShortfall)}</p><p className={`text-[12px] ${alternative.maximumShortfall ? "text-[color:var(--nav-item-text)]" : "text-[color:var(--accent)]"}`}>{!hasChanges ? "Исходный сценарий" : alternative.maximumShortfall === 0 ? "Разрыв устранён в выбранном периоде" : alternative.maximumShortfall < baseline.maximumShortfall ? "Нехватка уменьшилась" : "Разрыв сохраняется"}</p></div>
           <div className={`mt-3 flex flex-wrap gap-x-4 gap-y-1 ${gapMuted}`}><span className="inline-flex items-center gap-2"><i className="w-4 border-t border-dashed border-[color:var(--nav-item-icon)]" />До</span><span className="inline-flex items-center gap-2"><i className="w-4 border-t-2 border-[color:var(--accent)]" />После</span><span>Затенение — дни нехватки</span></div>
         </div>
         <div className="px-2"><CashGapComparisonChart baseline={baseline} alternative={alternative} /></div>
-        <div className="overflow-x-auto"><Table unstyled className="w-full min-w-[320px] border-collapse text-[12px] leading-4"><TableHeader unstyled className="bg-[color:var(--sidebar-bg)] text-[color:var(--nav-item-text)]"><TableRow unstyled><TableHead unstyled scope="col" className="px-4 py-2 text-left font-medium">Показатель</TableHead><TableHead unstyled scope="col" className="px-4 py-2 text-right font-medium">До</TableHead><TableHead unstyled scope="col" className="px-4 py-2 text-right font-medium">После</TableHead></TableRow></TableHeader><TableBody>{comparisonRows.map((row) => <TableRow unstyled key={row.title} className="border-t border-[color:var(--border-muted)]"><TableHead unstyled scope="row" className="px-4 py-2 text-left font-normal">{row.title}</TableHead><TableCell unstyled className="whitespace-nowrap px-4 py-2 text-right tabular-nums text-[color:var(--nav-item-text)]">{row.before}</TableCell><TableCell unstyled className={`whitespace-nowrap px-4 py-2 text-right font-medium tabular-nums ${row.negative ? "text-[color:var(--danger)]" : ""}`}>{row.after}</TableCell></TableRow>)}</TableBody></Table></div>
+        <Table density="compact" className="min-w-[320px]">
+          <TableHeader><TableRow><TableHead scope="col">Показатель</TableHead><TableHead scope="col" numeric>До</TableHead><TableHead scope="col" numeric>После</TableHead></TableRow></TableHeader>
+          <TableBody>{comparisonRows.map((row) => <TableRow key={row.title}>
+            <TableHead scope="row">{row.title}</TableHead>
+            <TableCell numeric tone="muted" className="whitespace-nowrap">{row.before}</TableCell>
+            <TableCell numeric tone={row.negative ? "danger" : "default"} className="whitespace-nowrap">{row.after}</TableCell>
+          </TableRow>)}</TableBody>
+        </Table>
         <div className="space-y-3 border-t border-[color:var(--border)] px-4 py-3">
           <p className={`${gapMuted} tabular-nums`}>Стоимость действий: {formatRub(simulation.totalCost)} · Остаток на {formatGapDate(data.scenario.endDate)}: {formatRub(alternative.closing)}.</p>
           <p className={gapMuted}>Отсрочки, комиссии и возврат финансирования учтены до конца периода. Вероятность альтернативы не рассчитывается на фронтенде.</p>
@@ -80,12 +88,12 @@ export function CashGapInspector({ data, simulation, status, selectedActionIds, 
       </section>
     </div>
 
-    <Dialog open={Boolean(event)} onClose={() => setEventId(null)} title={event?.title} description="Событие базового финансового прогноза" className="!fixed inset-y-0 right-0 !h-dvh !max-h-dvh max-w-[420px] !rounded-none !shadow-none" headerActions={<Button variant="ghost" size="icon" aria-label="Закрыть подробности" onClick={() => setEventId(null)}><X /></Button>}>
+    <Dialog open={Boolean(event)} onClose={() => setEventId(null)} title={event?.title} description="Событие базового финансового прогноза" variant="drawer" headerActions={<Button variant="ghost" size="icon" aria-label="Закрыть подробности" onClick={() => setEventId(null)}><X /></Button>}>
       {event ? <div className="space-y-4 text-[13px] text-[color:var(--nav-item-active-text)]">
-        <p className={`text-[24px] font-semibold leading-7 tabular-nums ${event.amount > 0 ? "text-[color:var(--accent)]" : ""}`}>{event.amount > 0 ? "+" : ""}{formatRub(event.amount)}</p>
+        <p className={`${contentTypography.kpi} ${event.amount > 0 ? "text-[color:var(--accent)]" : ""}`}>{event.amount > 0 ? "+" : ""}{formatRub(event.amount)}</p>
         <dl className="divide-y divide-[color:var(--border-muted)]">{[["Контрагент", event.counterparty], ["Дата", formatGapDate(event.date, true)], ["Направление", event.amount > 0 ? "Поступление" : "Списание"], ["Источник", sourceLabels[event.source]], ["Документ", event.document]].map(([label, value]) => <div key={label} className="grid grid-cols-[100px_minmax(0,1fr)] gap-3 py-2"><dt className={gapMuted}>{label}</dt><dd className="break-words">{value}</dd></div>)}</dl>
         {event.note ? <p className={gapMuted}>{event.note}</p> : null}
-        {hasChanges ? <div className="border-t border-[color:var(--border)] pt-3"><h4 className="font-medium">В текущей симуляции</h4>{eventVariants.map((variant) => <p key={variant.id} className="mt-2 flex justify-between gap-3 text-[12px] tabular-nums"><span>{formatGapDate(variant.date)}</span><span>{formatRub(variant.amount)}</span></p>)}</div> : null}
+        {hasChanges ? <div className="border-t border-[color:var(--border)] pt-3"><ContentHeading level={4}>В текущей симуляции</ContentHeading>{eventVariants.map((variant) => <p key={variant.id} className="mt-2 flex justify-between gap-3 text-[12px] tabular-nums"><span>{formatGapDate(variant.date)}</span><span>{formatRub(variant.amount)}</span></p>)}</div> : null}
         <Button variant="outline" size="lg" onClick={() => setEventId(null)}>Закрыть</Button>
       </div> : null}
     </Dialog>

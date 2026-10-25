@@ -7,5 +7,6 @@ underfront
 cashflow_dataset_participants
 cashflow_dataset_participants.zip
 .env
+.local
 integrations/.env
 **/*.log
