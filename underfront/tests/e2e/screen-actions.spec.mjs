@@ -165,11 +165,11 @@ test('all four negative presets and a combined scenario compare, save, edit and 
   // Saving must wait, rather than silently ignoring a click during that refresh.
   let blockNextPreview = true, releasePreview;
   const released = new Promise(resolve => { releasePreview = resolve; });
-  await page.route('**/scenarios/preview', async route => {
+  await page.route(/\/scenarios\/preview(?:\?|$)/, async route => {
     if (blockNextPreview) { blockNextPreview = false; await released; }
     await route.continue();
   });
-  const refreshing = page.waitForRequest(request => request.url().endsWith('/scenarios/preview') && request.method() === 'POST');
+  const refreshing = page.waitForRequest(request => new URL(request.url()).pathname.endsWith('/scenarios/preview') && request.method() === 'POST');
   await w.post('/events', { title: 'Audit background refresh', date: due, amount: 123, direction: 'out', additional: true });
   await refreshing;
   await expect(dialog.getByRole('button', { name: 'Сохранить', exact: true })).toBeDisabled();
