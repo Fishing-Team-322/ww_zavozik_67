@@ -204,6 +204,9 @@ test('all four negative presets and a combined scenario compare, save, edit and 
 test('tax preview splits kopecks, calendar links to the tax source, cancellation preserves bank facts', async ({ page, request }) => {
   const w = await workspace(page, request, true);
   await page.goto('/taxes');
+  // The asynchronously loaded calendar changes the form's vertical position.
+  // Open the picker after those rows exist, so scrolling does not close it.
+  await expect(page.getByRole('link', { name: 'Сроки ФНС', exact: true }).first()).toBeVisible();
   await choose(page, 'Вид платежа', 'НДС за квартал: три платежа');
   await page.getByLabel('Название обязательства', { exact: true }).fill('AUDIT-VAT');
   await page.getByLabel('Налоговый год', { exact: true }).fill('2026');
@@ -244,7 +247,7 @@ test('risk action preview does not save, apply changes the real plan and recurri
   await expect(page.getByText('AUDIT-GAP-EXPENSE', { exact: false }).first()).toBeVisible({ timeout: 60000 });
   await page.getByRole('checkbox', { name: /Перенести «AUDIT-GAP-EXPENSE»/ }).press('Space');
   await page.getByRole('button', { name: 'Посмотреть эффект', exact: true }).click();
-  await expect(page.getByText('После изменений', { exact: true })).toBeVisible({ timeout: 60000 });
+  await expect(page.getByText('Нехватка после изменений', { exact: true })).toBeVisible({ timeout: 60000 });
   expect((await w.get('/events')).find(event => event.id === expense.id).date).toBe(expense.date);
   const action = page.locator('div').filter({ has: page.getByRole('checkbox', { name: /Перенести «AUDIT-GAP-EXPENSE»/ }) }).filter({ has: page.getByRole('button', { name: 'Применить к плану', exact: true }) }).last();
   await action.getByRole('button', { name: 'Применить к плану', exact: true }).click();
