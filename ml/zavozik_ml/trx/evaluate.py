@@ -134,6 +134,10 @@ def backtest(model, vocab, shard: Shard, flows: dict, seqs: list[tuple[int, str]
                 "naive_bal": start_balance + np.cumsum(naive_paths(f, o, horizon, paths, rng), axis=1),
                 "act_in": float(future["inflow"].sum()), "act_out": float(future["outflow"].sum()),
                 "gen_in": float(np.median(g.business_in.sum(1))), "gen_out": float(np.median(g.business_out.sum(1))),
+                # Бизнес-потоки компании за 90 дней до прогноза — темп для подгонки (tune_gen).
+                "hist_in90": float(f["inflow"].iloc[max(0, o - 89) : o + 1].sum()),
+                "hist_out90": float(f["outflow"].iloc[max(0, o - 89) : o + 1].sum()),
+                "hist_days": int(min(90, o + 1)),
                 "act_ops": int(np.searchsorted(tok["day"], origin_day + horizon, side="right") - upto),
                 "trx_ops_per_path": float(g.n_ops.mean()),
             })
@@ -174,6 +178,7 @@ def main() -> None:
     p.add_argument("--amount-temp", type=float, default=0, help="температура суммы (0 — как --temperature)")
     p.add_argument("--amount-top-p", type=float, default=1.0)
     p.add_argument("--cap-mult", type=float, default=0, help="потолок суммы: × крупнейшая операция истории (0 — нет)")
+    p.add_argument("--history-days", type=int, default=0, help="суммы из истории компании за N дней (0 — модели)")
     p.add_argument("--gap-threshold", type=float, default=0.3)
     p.add_argument("--max-companies", type=int, default=0)
     p.add_argument("--device", default="auto")
@@ -188,7 +193,8 @@ def main() -> None:
     buckets = tuple(int(x) for x in args.buckets.split("-")) if args.buckets else None
     seqs = select_companies(shard, flows, set(args.roles.split(",")), buckets, args.max_companies)
     gen_kw = {"temperature": args.temperature, "amount_temperature": args.amount_temp or None,
-              "amount_top_p": args.amount_top_p, "cap_mult": args.cap_mult}
+              "amount_top_p": args.amount_top_p, "cap_mult": args.cap_mult,
+              "history_days": args.history_days}
     rows = backtest(model, vocab, shard, flows, seqs, int(np.datetime64(args.min_origin, "D").astype(np.int64)),
                     args.horizon, args.step, args.origins, args.paths, device, gen_kw)
     if not rows:

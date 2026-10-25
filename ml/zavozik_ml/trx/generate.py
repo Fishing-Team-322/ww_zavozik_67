@@ -11,7 +11,11 @@
   * сумма (по желанию): своя температура и top-p — без редких огромных сумм из
     хвоста распределения, — и потолок cap_mult × крупнейшая разовая операция
     компании того же направления в истории. Одна случайная выплата на десятки
-    миллионов иначе уводит весь путь остатка (подбор — tune_gen.py).
+    миллионов иначе уводит весь путь остатка (подбор — tune_gen.py);
+  * суммы из истории (history_days > 0): модель решает, когда, что и в какую
+    сторону, а сумма берётся случайно из реальных операций компании того же
+    типа за последние history_days дней (нет таких — того же направления, нет
+    и их — сумма модели). Частота крупных платежей — как у самой компании.
 
 Результат — дневные приходы и расходы бизнеса по каждому пути (внутренние
 переводы владельца отдельно) — то же, что отдаёт ML-сервис для Go.
@@ -61,6 +65,8 @@ def context_tokens(tokens: dict[str, np.ndarray], remap: np.ndarray | None, sour
         out["type"] = remap[out["type"]]
     out["src"] = np.full(len(out["delta"]), SOURCE_IDS.get(source, 1), dtype=np.int64)
     out["day"] = np.asarray(tokens["day"], dtype=np.int64)
+    if "amount" in tokens:  # точные суммы — для сумм «из истории» при генерации
+        out["amount"] = np.abs(np.asarray(tokens["amount"], dtype=np.float64))
     return out
 
 
@@ -91,7 +97,7 @@ def amount_caps(context: dict[str, np.ndarray], cap_mult: float) -> dict[int, in
 def generate(model: TrxGPT, context: dict[str, np.ndarray], vocab: TypeVocab, origin_day: int, horizon: int,
              n_paths: int, source: str = "case", temperature: float = 1.0, seed: int = 0,
              max_ops_per_day: int = 40, device: torch.device | str = "cpu", amount_temperature: float | None = None,
-             amount_top_p: float = 1.0, cap_mult: float = 0.0) -> GeneratedPaths:
+             amount_top_p: float = 1.0, cap_mult: float = 0.0, history_days: int = 0) -> GeneratedPaths:
     if len(context["delta"]) == 0:
         raise ValueError("пустая история: нечего продолжать")
     device = torch.device(device)
@@ -108,11 +114,22 @@ def generate(model: TrxGPT, context: dict[str, np.ndarray], vocab: TypeVocab, or
     type_mask[allowed_types] = 0.0
     internal = np.array([n in INTERNAL_TYPES for n in vocab.names])
     caps = amount_caps(context, cap_mult)
+    pools_type, pools_dir = {}, {}
+    if history_days > 0:
+        if "amount" not in context:
+            raise ValueError("для сумм из истории в context нужно поле amount (context_tokens из шарда)")
+        recent = context["day"] > origin_day - history_days
+        if recent.sum() < 8:  # мало свежих операций — вся история
+            recent = np.ones_like(recent)
+        for t in np.unique(context["type"][recent]):
+            pools_type[int(t)] = context["amount"][recent & (context["type"] == t)]
+        for d in np.unique(context["dir"][recent]):
+            pools_dir[int(d)] = context["amount"][recent & (context["dir"] == d)]
     cap_mask = {d: torch.where(torch.arange(N_AMOUNT) > b, float("-inf"), 0.0) for d, b in caps.items()}
 
     # Состояние: последовательность каждого пути (общая история + сгенерированное).
     seq = {k: torch.as_tensor(np.asarray(v)[-(max_len - 1):]).unsqueeze(0).repeat(n_paths, *([1] * (np.ndim(v)))) for k, v in context.items()
-           if k != "day"}
+           if k not in ("day", "amount")}
     last_day = np.full(n_paths, int(hist_days[-1]), dtype=np.int64)
     # Лимит операций в день — по самой компании (1,5 × максимум в истории, не меньше 3):
     # иначе в последний день горизонта модель может бесконечно добавлять операции в тот же день.
@@ -165,6 +182,14 @@ def generate(model: TrxGPT, context: dict[str, np.ndarray], vocab: TypeVocab, or
             la[sel] = la[sel] + m
         abin = _sample(la, gen, amount_temperature or temperature, amount_top_p).numpy()
         amount = amount_from_bin(abin, rng)
+        if history_days > 0:
+            types_np, dirs_np = typ.numpy(), direction.numpy()
+            for i in np.flatnonzero(active):
+                pool = pools_type.get(int(types_np[i]))
+                if pool is None or len(pool) < 2:
+                    pool = pools_dir.get(int(dirs_np[i]))
+                if pool is not None and len(pool):
+                    amount[i] = pool[rng.integers(len(pool))]
 
         # Записать операцию в дневные потоки активных путей.
         idx = np.flatnonzero(active)

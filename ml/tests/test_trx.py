@@ -235,3 +235,20 @@ def test_amount_cap_and_top_p_limit_generated_sums(shard):
     assert g.n_ops.sum() > 0
     # Потолок — по интервалу суммы: не больше верхней границы интервала максимума истории (×1,18) на операцию.
     assert day_max <= hist_max * 1.2 * g.n_ops.max()
+
+
+def test_history_amounts_come_from_company_history(shard):
+    src = Source(shard)
+    vocab = build_vocab([src])
+    model = tiny_model(len(vocab))
+    tok = shard.slice(1)
+    origin = day_number(date(2025, 9, 30))
+    upto = int(np.searchsorted(tok["day"], origin, side="right"))
+    ctx = context_tokens({k: v[:upto] for k, v in tok.items()}, src.remap, "case")
+    g = generate(model, ctx, vocab, origin, horizon=10, n_paths=4, seed=3, history_days=90)
+    allowed = set(np.round(ctx["amount"], 2))
+    daily = np.concatenate([g.business_in[g.business_in > 0], g.business_out[g.business_out > 0]])
+    assert g.n_ops.sum() > 0
+    # Дневная сумма — сумма операций из истории; одиночные операции в день — точно из истории.
+    singles = [v for v in daily if round(v, 2) in allowed]
+    assert len(singles) > 0
