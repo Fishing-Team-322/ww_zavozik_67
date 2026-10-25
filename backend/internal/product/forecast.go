@@ -137,14 +137,8 @@ func (s *Service) build(ctx context.Context, uid, cid string, h int, model strin
 		from = asOf.AddDate(-2, 0, 0)
 	}
 	flows := ingest.DailyFlows(ops, from, asOf, dataset.NotInternal)
-	transactions := []forecast.HistoryTransaction{}
-	for _, op := range ops {
-		if op.Date.Before(from) {
-			continue
-		}
-		ref := cpRef(cid, Doc{"counterparty_inn": string(op.CounterpartyINN), "counterparty_name": string(op.CounterpartyName)})
-		transactions = append(transactions, forecast.HistoryTransaction{ID: op.ID, Date: op.Date, Amount: op.Amount, Direction: op.Direction, Category: op.Category, CounterpartyID: text(ref, "id"), Purpose: op.Purpose})
-	}
+	transactions := observedTransactions(cid, ops, flows)
+
 	dataset.FillBalance(flows)
 	if len(flows) == 0 || flows[len(flows)-1].Balance == nil {
 		return nil, empty, platform.Fail(422, "balance_required", "Для прогноза нужен известный остаток на последнюю дату выписки")
@@ -225,8 +219,8 @@ func (s *Service) build(ctx context.Context, uid, cid string, h int, model strin
 		}
 		components = append(components, forecast.ComponentFlow{Date: dt, Key: "event:" + text(event, "id"), Title: text(event, "title"), Amount: domain.Money(amount * number(event, "probability")), Source: domain.SourceKind(text(event, "source_kind"))})
 	}
-	if model == "" {
-		model = "auto"
+	if model == "" || model == "auto" {
+		model = defaultServingModel()
 	}
 	fallback := s.Fallback
 	if fallback == nil {

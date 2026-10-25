@@ -1,0 +1,8 @@
+{
+  "release_sha256": "9b0b719580829bf46fba208e155e364ddfa69843315b5dd47182e0ceae373c99",
+  "taxonomy_version": "qwen-taxonomy-662916ee5582908044b4",
+  "payload_bytes": 1219114697,
+  "server_directory": "/opt/puls/models/qwen/9b0b719580829bf46fba208e155e364ddfa69843315b5dd47182e0ceae373c99",
+  "independent_accuracy": null,
+  "status": "research_weak_supervision"
+}

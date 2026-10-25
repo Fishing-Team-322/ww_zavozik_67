@@ -43,6 +43,9 @@ class History:
     # Когда нарушение сверки стало известно. Маска истории на дату прогноза
     # не должна зависеть от более поздней банковской выписки.
     missing_known_on: np.ndarray | None = None
+    # Операции бизнеса (HistoryTransaction из запроса): dict с ключами id, date (YYYY-MM-DD), amount,
+    # direction (in|out), category, counterparty_id, purpose. Пусто — модели работают по дневным потокам.
+    transactions: tuple[dict, ...] = ()
 
     def __len__(self) -> int:
         return len(self.dates)
@@ -76,6 +79,8 @@ class History:
             industry=self.industry,
             categories={k: v[:n] for k, v in self.categories.items()},
             missing_known_on=known,
+            # операции после последнего дня истории — это будущее: в «историю на момент n-1» не попадают
+            transactions=tuple(t for t in self.transactions if n and t["date"] <= self.dates[n - 1].isoformat()),
         )
 
 
@@ -86,6 +91,7 @@ class Paths:
     inflow: np.ndarray  # shape (n_paths, horizon)
     outflow: np.ndarray  # shape (n_paths, horizon)
     low_confidence: bool = False
+    warnings: tuple[str, ...] = ()
 
 
 class NotTrainedError(RuntimeError):

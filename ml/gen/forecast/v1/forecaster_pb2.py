@@ -24,7 +24,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1c\x66orecast/v1/forecaster.proto\x12\x0b\x66orecast.v1\"\xbb\x01\n\tDailyFlow\x12\x0c\n\x04\x64\x61te\x18\x01 \x01(\t\x12\x0e\n\x06inflow\x18\x02 \x01(\x01\x12\x0f\n\x07outflow\x18\x03 \x01(\x01\x12\x0f\n\x07missing\x18\x04 \x01(\x08\x12;\n\x0b\x62y_category\x18\x05 \x03(\x0b\x32&.forecast.v1.DailyFlow.ByCategoryEntry\x1a\x31\n\x0f\x42yCategoryEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\x01:\x02\x38\x01\"\xb8\x01\n\x0f\x46orecastRequest\x12\r\n\x05model\x18\x01 \x01(\t\x12\x12\n\ncompany_id\x18\x02 \x01(\t\x12\x10\n\x08industry\x18\x03 \x01(\t\x12\'\n\x07history\x18\x04 \x03(\x0b\x32\x16.forecast.v1.DailyFlow\x12\x14\n\x0chorizon_days\x18\x05 \x01(\x05\x12\x0f\n\x07n_paths\x18\x06 \x01(\x05\x12\x0c\n\x04seed\x18\x07 \x01(\x03\x12\x12\n\nflow_scope\x18\x08 \x01(\t\"\'\n\x04Path\x12\x0e\n\x06inflow\x18\x01 \x03(\x01\x12\x0f\n\x07outflow\x18\x02 \x03(\x01\"C\n\x0cNetQuantiles\x12\x0c\n\x04\x64\x61te\x18\x01 \x01(\t\x12\x0b\n\x03p10\x18\x02 \x01(\x01\x12\x0b\n\x03p50\x18\x03 \x01(\x01\x12\x0b\n\x03p90\x18\x04 \x01(\x01\"\xf5\x01\n\x10\x46orecastResponse\x12\x12\n\nmodel_used\x18\x01 \x01(\t\x12\r\n\x05\x64\x61tes\x18\x02 \x03(\t\x12 \n\x05paths\x18\x03 \x03(\x0b\x32\x11.forecast.v1.Path\x12\x30\n\rnet_quantiles\x18\x04 \x03(\x0b\x32\x19.forecast.v1.NetQuantiles\x12\x16\n\x0elow_confidence\x18\x05 \x01(\x08\x12\x15\n\rmodel_version\x18\x06 \x01(\t\x12\x12\n\nflow_scope\x18\x07 \x01(\t\x12\x10\n\x08warnings\x18\x08 \x03(\t\x12\x15\n\rfallback_used\x18\t \x01(\x08\"\x13\n\x11ListModelsRequest\"B\n\tModelInfo\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\x13\n\x0b\x64\x65scription\x18\x02 \x01(\t\x12\x12\n\nis_default\x18\x03 \x01(\x08\"<\n\x12ListModelsResponse\x12&\n\x06models\x18\x01 \x03(\x0b\x32\x16.forecast.v1.ModelInfo2\xab\x01\n\x11\x46orecasterService\x12G\n\x08\x46orecast\x12\x1c.forecast.v1.ForecastRequest\x1a\x1d.forecast.v1.ForecastResponse\x12M\n\nListModels\x12\x1e.forecast.v1.ListModelsRequest\x1a\x1f.forecast.v1.ListModelsResponseBNZLgithub.com/Fishing-Team-322/ww_zavozik_67/backend/gen/forecast/v1;forecastv1b\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1c\x66orecast/v1/forecaster.proto\x12\x0b\x66orecast.v1\"\xbb\x01\n\tDailyFlow\x12\x0c\n\x04\x64\x61te\x18\x01 \x01(\t\x12\x0e\n\x06inflow\x18\x02 \x01(\x01\x12\x0f\n\x07outflow\x18\x03 \x01(\x01\x12\x0f\n\x07missing\x18\x04 \x01(\x08\x12;\n\x0b\x62y_category\x18\x05 \x03(\x0b\x32&.forecast.v1.DailyFlow.ByCategoryEntry\x1a\x31\n\x0f\x42yCategoryEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\x01:\x02\x38\x01\"\xef\x01\n\x0f\x46orecastRequest\x12\r\n\x05model\x18\x01 \x01(\t\x12\x12\n\ncompany_id\x18\x02 \x01(\t\x12\x10\n\x08industry\x18\x03 \x01(\t\x12\'\n\x07history\x18\x04 \x03(\x0b\x32\x16.forecast.v1.DailyFlow\x12\x14\n\x0chorizon_days\x18\x05 \x01(\x05\x12\x0f\n\x07n_paths\x18\x06 \x01(\x05\x12\x0c\n\x04seed\x18\x07 \x01(\x03\x12\x12\n\nflow_scope\x18\x08 \x01(\t\x12\x35\n\x0ctransactions\x18\t \x03(\x0b\x32\x1f.forecast.v1.HistoryTransaction\"\x8d\x01\n\x12HistoryTransaction\x12\n\n\x02id\x18\x01 \x01(\t\x12\x0c\n\x04\x64\x61te\x18\x02 \x01(\t\x12\x0e\n\x06\x61mount\x18\x03 \x01(\x01\x12\x11\n\tdirection\x18\x04 \x01(\t\x12\x10\n\x08\x63\x61tegory\x18\x05 \x01(\t\x12\x17\n\x0f\x63ounterparty_id\x18\x06 \x01(\t\x12\x0f\n\x07purpose\x18\x07 \x01(\t\"\'\n\x04Path\x12\x0e\n\x06inflow\x18\x01 \x03(\x01\x12\x0f\n\x07outflow\x18\x02 \x03(\x01\"C\n\x0cNetQuantiles\x12\x0c\n\x04\x64\x61te\x18\x01 \x01(\t\x12\x0b\n\x03p10\x18\x02 \x01(\x01\x12\x0b\n\x03p50\x18\x03 \x01(\x01\x12\x0b\n\x03p90\x18\x04 \x01(\x01\"\xf5\x01\n\x10\x46orecastResponse\x12\x12\n\nmodel_used\x18\x01 \x01(\t\x12\r\n\x05\x64\x61tes\x18\x02 \x03(\t\x12 \n\x05paths\x18\x03 \x03(\x0b\x32\x11.forecast.v1.Path\x12\x30\n\rnet_quantiles\x18\x04 \x03(\x0b\x32\x19.forecast.v1.NetQuantiles\x12\x16\n\x0elow_confidence\x18\x05 \x01(\x08\x12\x15\n\rmodel_version\x18\x06 \x01(\t\x12\x12\n\nflow_scope\x18\x07 \x01(\t\x12\x10\n\x08warnings\x18\x08 \x03(\t\x12\x15\n\rfallback_used\x18\t \x01(\x08\"\x13\n\x11ListModelsRequest\"B\n\tModelInfo\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\x13\n\x0b\x64\x65scription\x18\x02 \x01(\t\x12\x12\n\nis_default\x18\x03 \x01(\x08\"<\n\x12ListModelsResponse\x12&\n\x06models\x18\x01 \x03(\x0b\x32\x16.forecast.v1.ModelInfo2\xab\x01\n\x11\x46orecasterService\x12G\n\x08\x46orecast\x12\x1c.forecast.v1.ForecastRequest\x1a\x1d.forecast.v1.ForecastResponse\x12M\n\nListModels\x12\x1e.forecast.v1.ListModelsRequest\x1a\x1f.forecast.v1.ListModelsResponseBNZLgithub.com/Fishing-Team-322/ww_zavozik_67/backend/gen/forecast/v1;forecastv1b\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -39,19 +39,21 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_DAILYFLOW_BYCATEGORYENTRY']._serialized_start=184
   _globals['_DAILYFLOW_BYCATEGORYENTRY']._serialized_end=233
   _globals['_FORECASTREQUEST']._serialized_start=236
-  _globals['_FORECASTREQUEST']._serialized_end=420
-  _globals['_PATH']._serialized_start=422
-  _globals['_PATH']._serialized_end=461
-  _globals['_NETQUANTILES']._serialized_start=463
-  _globals['_NETQUANTILES']._serialized_end=530
-  _globals['_FORECASTRESPONSE']._serialized_start=533
-  _globals['_FORECASTRESPONSE']._serialized_end=778
-  _globals['_LISTMODELSREQUEST']._serialized_start=780
-  _globals['_LISTMODELSREQUEST']._serialized_end=799
-  _globals['_MODELINFO']._serialized_start=801
-  _globals['_MODELINFO']._serialized_end=867
-  _globals['_LISTMODELSRESPONSE']._serialized_start=869
-  _globals['_LISTMODELSRESPONSE']._serialized_end=929
-  _globals['_FORECASTERSERVICE']._serialized_start=932
-  _globals['_FORECASTERSERVICE']._serialized_end=1103
+  _globals['_FORECASTREQUEST']._serialized_end=475
+  _globals['_HISTORYTRANSACTION']._serialized_start=478
+  _globals['_HISTORYTRANSACTION']._serialized_end=619
+  _globals['_PATH']._serialized_start=621
+  _globals['_PATH']._serialized_end=660
+  _globals['_NETQUANTILES']._serialized_start=662
+  _globals['_NETQUANTILES']._serialized_end=729
+  _globals['_FORECASTRESPONSE']._serialized_start=732
+  _globals['_FORECASTRESPONSE']._serialized_end=977
+  _globals['_LISTMODELSREQUEST']._serialized_start=979
+  _globals['_LISTMODELSREQUEST']._serialized_end=998
+  _globals['_MODELINFO']._serialized_start=1000
+  _globals['_MODELINFO']._serialized_end=1066
+  _globals['_LISTMODELSRESPONSE']._serialized_start=1068
+  _globals['_LISTMODELSRESPONSE']._serialized_end=1128
+  _globals['_FORECASTERSERVICE']._serialized_start=1131
+  _globals['_FORECASTERSERVICE']._serialized_end=1302
 # @@protoc_insertion_point(module_scope)

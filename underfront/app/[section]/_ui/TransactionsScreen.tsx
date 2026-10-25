@@ -12,6 +12,7 @@ import { Input, SearchInput, Select, Button, Badge, Dialog, Table, TableHeader, 
 import { SectionCard } from "@/src/widgets/cabinet-shell";
 import { rubles, displayDate } from "@/src/entities/forecast";
 import { FinanceState } from "./FinanceState";
+import { discoveryLabel } from "@/src/entities/company/model/discovery";
 
 export function TransactionsScreen() {
   const { company } = useSession();
@@ -216,6 +217,7 @@ export function TransactionsScreen() {
                       <div>
                         <p className="font-medium leading-6">{categories.data?.find(item => item.key === row.category)?.title ?? row.category}</p>
                         <ContentText variant="meta">{["manual", "user"].includes(row.category_method) ? "Указана вручную" : "Определена автоматически"}</ContentText>
+                        {discoveryLabel(row.discovery) && <ContentText variant="meta">{discoveryLabel(row.discovery)}</ContentText>}
                       </div>
                     </div>
                   </TableCell>

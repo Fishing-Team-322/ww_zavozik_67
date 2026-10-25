@@ -49,7 +49,7 @@ Rationale: one short sentence grounded only in these texts, without invented bus
 """
 
 
-def parse_response(text, row):
+def parse_response(text, row, *, reviewer=None, prompt_version=PROMPT_VERSION):
     clean = text.strip()
     if clean.startswith("```json") and clean.endswith("```"):
         clean = clean[7:-3].strip()
@@ -67,9 +67,9 @@ def parse_response(text, row):
         if not span and (value["coarse"] != "uncertain" or value["fine"] != "uncertain"):
             raise ValueError("economic decision without evidence")
     result = dict(row, coarse=value["coarse"], fine=value["fine"], rationale=value["rationale"],
-                  reviewer=MODEL + "@" + REVISION, reviewer_kind="local_model",
+                  reviewer=reviewer or MODEL + "@" + REVISION, reviewer_kind="local_model",
                   left_evidence=value["left_evidence"], right_evidence=value["right_evidence"],
-                  provenance="local_model_weak", prompt_version=PROMPT_VERSION,
+                  provenance="local_model_weak", prompt_version=prompt_version,
                   evidence_scope="encoder_semantic_text" if "semantic_text" in row["left"] else "raw_authored_diagnostic")
     validate_answer(result, row)
     return result

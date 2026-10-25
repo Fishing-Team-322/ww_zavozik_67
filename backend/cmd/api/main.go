@@ -75,7 +75,15 @@ func main() {
 		os.Exit(1)
 	}
 	srv.Products = products
-	if cfg.CategorizerMode == "hybrid" && cfg.MLAddr != "" {
+	if cfg.CategorizerMode == "qwen" {
+		classifier, e := categorize.DialDiscovery(os.Getenv("ML_QWEN_ADDR"))
+		if e != nil {
+			log.Error("Qwen categorizer configuration failed")
+			os.Exit(1)
+		}
+		defer classifier.Close()
+		products.Categorizer = classifier
+	} else if cfg.CategorizerMode == "hybrid" && cfg.MLAddr != "" {
 		classifier, err := categorize.DialMLCategorizer(cfg.MLAddr)
 		if err != nil {
 			log.Error("categorizer connection failed")
@@ -84,7 +92,7 @@ func main() {
 		defer classifier.Close()
 		products.Categorizer = categorize.Hybrid{Rules: categorize.DefaultRules, ML: classifier, MinMLConfidence: .8}
 	} else if cfg.CategorizerMode != "rules" {
-		log.Error("CATEGORIZER_MODE must be rules or hybrid")
+		log.Error("CATEGORIZER_MODE must be rules, hybrid or qwen")
 		os.Exit(1)
 	}
 

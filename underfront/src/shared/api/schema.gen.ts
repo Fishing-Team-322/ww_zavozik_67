@@ -1874,6 +1874,8 @@ export interface components {
             counterparty: components["schemas"]["CounterpartyRef"];
             purpose: string;
             category: components["schemas"]["Category"];
+            /** @description Versioned native hierarchy assignment; relation cosine is not a correctness probability. */
+            discovery?: components["schemas"]["Object"];
             category_method: string;
             is_internal: boolean;
             source: string;
@@ -4515,7 +4517,9 @@ export interface operations {
     };
     listCategories: {
         parameters: {
-            query?: never;
+            query?: {
+                view?: "compatibility" | "discovered";
+            };
             header?: never;
             path?: never;
             cookie?: never;

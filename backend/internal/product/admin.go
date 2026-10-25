@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/categorize"
 	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/platform"
 	"github.com/Fishing-Team-322/ww_zavozik_67/backend/internal/store"
 )
@@ -256,6 +257,9 @@ func (s *Service) admin(ctx context.Context, op string, p platform.Principal, r 
 		j, e := s.DB.ProductJob(ctx, uid, "", "retrain", Doc{"model": name})
 		return Result{Status: 202, Body: j}, e
 	case "getClassifierQuality":
+		if _, yes := s.Categorizer.(*categorize.Discovery); yes {
+			return s.discoveryQuality(ctx)
+		}
 		raw := store.Decode(s.reportFile("classifier_dropout_evaluation.json"))
 		hold, _ := raw["holdout"].(map[string]any)
 		model, _ := hold["model"].(map[string]any)
