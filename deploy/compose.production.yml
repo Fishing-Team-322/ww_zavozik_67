@@ -1,0 +1,121 @@
+name: puls-production
+
+x-logging: &logging
+  driver: json-file
+  options: { max-size: "10m", max-file: "3" }
+
+x-backend: &backend
+  HTTP_ADDR: :8080
+  DATABASE_URL: postgres://puls:${POSTGRES_PASSWORD:?required}@postgres:5432/puls?sslmode=disable
+  ML_ADDR: ml:50051
+  JWT_SECRET: ${JWT_SECRET:?required}
+  DATA_ENCRYPTION_KEY: ${DATA_ENCRYPTION_KEY:?required}
+  PUBLIC_URL: https://suck-and-see.net
+  FRONTEND_URL: https://suck-and-see.net
+  COOKIE_SECURE: "true"
+  TRUSTED_PROXY_CIDRS: 172.30.67.0/24
+  LOG_LEVEL: info
+  INTEGRATION_SANDBOX: "false"
+  CATEGORIZER_MODE: hybrid
+  SOURCE_ALLOWED_HOSTS: ${SOURCE_ALLOWED_HOSTS:-}
+  DADATA_API_TOKEN: ${DADATA_API_TOKEN:-}
+  FNS_HUB_URL: ${FNS_HUB_URL:-}
+  FNS_HUB_TOKEN: ${FNS_HUB_TOKEN:-}
+  FNS_HUB_COMPANY: ${FNS_HUB_COMPANY:-}
+  GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+  GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+  YANDEX_CLIENT_ID: ${YANDEX_CLIENT_ID:-}
+  YANDEX_CLIENT_SECRET: ${YANDEX_CLIENT_SECRET:-}
+  SMTP_ADDR: ${SMTP_ADDR:-}
+  SMTP_USER: ${SMTP_USER:-}
+  SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+  SMTP_FROM: ${SMTP_FROM:-}
+  TRAINING_URL: ${TRAINING_URL:-}
+  TRAINING_TOKEN: ${TRAINING_TOKEN:-}
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: puls
+      POSTGRES_USER: puls
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?required}
+    command: [postgres, -c, shared_buffers=64MB, -c, max_connections=30]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U puls -d puls"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+    mem_limit: 256m
+    cpus: 0.5
+    logging: *logging
+
+  migrate:
+    image: ghcr.io/fishing-team-322/puls-migrate:${PULS_RELEASE:?required}
+    environment: *backend
+    depends_on:
+      postgres: { condition: service_healthy }
+    mem_limit: 128m
+    cpus: 0.5
+    logging: *logging
+
+  ml:
+    image: ghcr.io/fishing-team-322/puls-ml:${PULS_RELEASE:?required}
+    restart: unless-stopped
+    environment:
+      ML_LISTEN: 0.0.0.0:50051
+      OMP_NUM_THREADS: "1"
+      OPENBLAS_NUM_THREADS: "1"
+    mem_limit: 512m
+    cpus: 1.0
+    logging: *logging
+
+  api:
+    image: ghcr.io/fishing-team-322/puls-api:${PULS_RELEASE:?required}
+    restart: unless-stopped
+    environment: *backend
+    ports: ["127.0.0.1:18080:8080"]
+    depends_on:
+      postgres: { condition: service_healthy }
+      ml: { condition: service_started }
+    mem_limit: 192m
+    cpus: 0.5
+    logging: *logging
+
+  worker:
+    image: ghcr.io/fishing-team-322/puls-worker:${PULS_RELEASE:?required}
+    restart: unless-stopped
+    environment: *backend
+    depends_on:
+      postgres: { condition: service_healthy }
+      ml: { condition: service_started }
+    mem_limit: 256m
+    cpus: 0.5
+    logging: *logging
+
+  frontend:
+    image: ghcr.io/fishing-team-322/puls-frontend:${PULS_RELEASE:?required}
+    restart: unless-stopped
+    environment: { BACKEND_ORIGIN: "http://api:8080" }
+    ports: ["127.0.0.1:13000:3000"]
+    networks:
+      default: {}
+      edge: { aliases: [puls-production-web] }
+    depends_on:
+      api: { condition: service_started }
+    mem_limit: 256m
+    cpus: 0.5
+    logging: *logging
+
+networks:
+  default:
+    ipam:
+      config: [{ subnet: 172.30.67.0/24 }]
+  edge:
+    external: true
+    name: puls-edge
+
+volumes:
+  pgdata:

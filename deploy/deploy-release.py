@@ -1,0 +1,143 @@
+#!/usr/bin/env python3
+"""Restricted server-side entry point: immutable PULS images, fixed Compose only.
+
+Installed root-owned at /opt/puls/bin/deploy-release.py. The SSH authorized key
+forces this command and disables forwarding/PTY. Read one JSON request on stdin;
+never print registry credentials or runtime environment values.
+"""
+import fcntl
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import subprocess
+import sys
+import tempfile
+import time
+from urllib.request import urlopen
+
+ROOT = Path('/opt/puls')
+SERVICES = ('api', 'worker', 'frontend', 'ml', 'migrate')
+PREFIX = 'ghcr.io/fishing-team-322/puls-'
+
+
+def run(args, *, environment=None, input_data=None, timeout=300, quiet=False):
+    result = subprocess.run(args, env=environment, input=input_data, stdout=subprocess.PIPE if quiet else None,
+                            stderr=subprocess.PIPE if quiet else None, timeout=timeout)
+    if result.returncode:
+        # Captured output can include client configuration; report only the command.
+        raise RuntimeError(f'{args[0]} {args[1] if len(args) > 1 else ""} failed ({result.returncode})')
+    return result.stdout
+
+
+def compose(tag, *args, quiet=False):
+    environment = {**os.environ, 'PULS_RELEASE': tag}
+    return run(['docker', 'compose', '--project-name', 'puls-production', '--env-file', str(ROOT/'runtime.env'),
+                '-f', str(ROOT/'compose.yml'), *args], environment=environment, quiet=quiet)
+
+
+def wait_ready(tag, seconds=120):
+    stop = time.monotonic() + seconds
+    while time.monotonic() < stop:
+        try:
+            with urlopen('http://127.0.0.1:18080/readyz', timeout=5) as response:
+                ready = json.load(response)
+            with urlopen('http://127.0.0.1:13000/build-info.json', timeout=5) as response:
+                build = json.load(response)
+            with urlopen('http://127.0.0.1:13000/v1/auth/providers', timeout=5) as response:
+                json.load(response)
+            if ready.get('status') == 'ok' and ready.get('ml') == 'ok' and build.get('revision') == tag:
+                return
+        except Exception:
+            pass
+        time.sleep(2)
+    raise RuntimeError('New API/ML/frontend did not become ready at the requested revision')
+
+
+def activate(tag):
+    compose(tag, 'up', '-d', '--no-build', 'postgres')
+    # The default health condition is also applied to this one-off migration.
+    compose(tag, 'run', '--rm', '--no-deps', 'migrate')
+    compose(tag, 'up', '-d', '--no-build', '--no-deps', 'ml', 'api', 'worker', 'frontend')
+    wait_ready(tag)
+
+
+def main():
+    os.umask(0o077)
+    request = json.loads(sys.stdin.buffer.read(32769))
+    tag = request.get('release', '')
+    if not re.fullmatch(r'[0-9a-f]{40}', tag):
+        raise ValueError('release must be a full Git commit SHA')
+    expected = request.get('compose_sha256')
+    actual = hashlib.sha256((ROOT/'compose.yml').read_bytes()).hexdigest()
+    if expected != actual:
+        raise ValueError('Production Compose differs from the reviewed infrastructure; update it explicitly')
+    token = request.get('registry_token', '')
+    if not isinstance(token, str) or '\n' in token or len(token) > 16384:
+        raise ValueError('Invalid registry token')
+    registry_user = request.get('registry_user', 'github-actions')
+    if not isinstance(registry_user, str) or not re.fullmatch(r'[A-Za-z0-9_.\[\]-]{1,100}', registry_user):
+        raise ValueError('Invalid registry username')
+    with (ROOT/'deployment.lock').open('a') as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        previous_file = ROOT/'current-release'
+        previous = previous_file.read_text().strip() if previous_file.exists() else None
+        print(f'Preparing PULS {tag}', flush=True)
+        if token:
+            with tempfile.TemporaryDirectory(prefix='puls-registry-', dir=ROOT) as auth:
+                env = {**os.environ, 'DOCKER_CONFIG': auth}
+                run(['docker', 'login', 'ghcr.io', '--username', registry_user, '--password-stdin'],
+                    environment=env, input_data=token.encode(), quiet=True)
+                for service in SERVICES:
+                    run(['docker', 'pull', PREFIX+service+':'+tag], environment=env, quiet=True)
+        for service in SERVICES:
+            run(['docker', 'image', 'inspect', PREFIX+service+':'+tag], quiet=True)
+        free = os.statvfs(ROOT).f_bavail * os.statvfs(ROOT).f_frsize
+        if free < 2 * 1024**3:
+            raise RuntimeError('Less than 2 GiB free; refusing deployment without touching other projects')
+        compose(tag, 'config', '--quiet')
+        compose(tag, 'up', '-d', '--no-build', 'postgres')
+        for _ in range(60):
+            try:
+                compose(tag, 'exec', '-T', 'postgres', 'pg_isready', '-U', 'puls', '-d', 'puls', quiet=True)
+                break
+            except RuntimeError:
+                time.sleep(2)
+        else:
+            raise RuntimeError('Production PostgreSQL is not ready')
+        backup_dir = ROOT/'backups'
+        backup_dir.mkdir(exist_ok=True)
+        backup = backup_dir/(time.strftime('%Y%m%dT%H%M%SZ', time.gmtime())+'-'+tag[:12]+'.dump')
+        with backup.open('wb') as output:
+            env = {**os.environ, 'PULS_RELEASE': tag}
+            result = subprocess.run(['docker', 'compose', '--project-name', 'puls-production', '--env-file', str(ROOT/'runtime.env'),
+                '-f', str(ROOT/'compose.yml'), 'exec', '-T', 'postgres', 'pg_dump', '-U', 'puls', '-d', 'puls', '-Fc'],
+                env=env, stdout=output, timeout=120)
+            if result.returncode:
+                raise RuntimeError('Database backup failed')
+        try:
+            activate(tag)
+        except Exception:
+            if previous and re.fullmatch(r'[0-9a-f]{40}', previous):
+                print(f'Health check failed; restoring PULS containers {previous}', flush=True)
+                compose(previous, 'up', '-d', '--no-build', '--no-deps', 'ml', 'api', 'worker', 'frontend')
+                wait_ready(previous)
+            raise
+        if previous and previous != tag:
+            (ROOT/'previous-release').write_text(previous+'\n')
+        temporary = ROOT/'current-release.tmp'
+        temporary.write_text(tag+'\n')
+        temporary.replace(previous_file)
+        # Only this application's old database dumps; no global Docker cleanup.
+        for stale in sorted(backup_dir.glob('*.dump'), reverse=True)[10:]:
+            stale.unlink()
+        print(f'PULS deployed and healthy: {tag}', flush=True)
+
+
+if __name__ == '__main__':
+    try:
+        main()
+    except Exception as error:
+        print(f'Deploy failed: {error}', file=sys.stderr)
+        sys.exit(1)

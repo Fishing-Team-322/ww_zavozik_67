@@ -138,6 +138,12 @@ jobs:
           echo "POSTGRES_PASSWORD=$(openssl rand -hex 24)" >> "$GITHUB_ENV"
       - name: Build and start all services from the clean checkout
         run: docker compose -f compose.yaml up -d --build
+      - name: Validate production manifest and restricted deployment recovery
+        env:
+          PULS_RELEASE: ${{ github.sha }}
+        run: |
+          docker compose -f deploy/compose.production.yml config --quiet
+          python -m unittest discover -s deploy/tests -p 'test_*.py' -v
       - name: Wait for API and frontend
         run: |
           for i in $(seq 1 90); do
