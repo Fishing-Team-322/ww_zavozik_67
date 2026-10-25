@@ -261,7 +261,7 @@ def main():
                    help="explicit origin dates; default is month-ends in [origin-start, origin-end]")
     p.add_argument("--origin-start", default="2025-07-31")
     p.add_argument("--origin-end", default="2026-05-31")
-    p.add_argument("--calibration-origins", nargs="+", default=["2025-06-30", "2025-07-31"])
+    p.add_argument("--calibration-origins", nargs="+", default=["2025-05-31", "2025-06-30"])
     p.add_argument("--threads", type=int, default=8)
     args = p.parse_args()
     if args.threads < 1:
