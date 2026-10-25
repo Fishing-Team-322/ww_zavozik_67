@@ -117,6 +117,7 @@ jobs:
         env:
           E2E_PUBLIC_URL: https://suck-and-see.net
           E2E_PUBLIC_FALLBACK_URL: https://puls-85-159-231-68.sslip.io
+          E2E_DISABLE_QUIC: '1'
         run: |
           npm ci
           npx playwright install --with-deps chromium

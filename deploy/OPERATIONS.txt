@@ -94,3 +94,7 @@ release pointers, removal of temporary registry credentials on pull failure,
 and the distinct /readyz and /healthz contracts.
 After deployment, real browser tests check anonymous redirection, login and
 cookie-backed restoration on the canonical domain and direct HTTPS fallback.
+The public CI browser uses TCP (E2E_DISABLE_QUIC=1), because the hosted runner's
+Cloudflare HTTP/3 requests failed with ERR_QUIC_PROTOCOL_ERROR. This does not
+change application/browser settings or resolve ISP-specific Cloudflare access;
+the direct HTTPS fallback remains available for affected networks.
