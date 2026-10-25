@@ -9,6 +9,7 @@ import { useApiResource } from "@/src/shared/api/use-api-resource";
 import type { Schemas } from "@/src/shared/api";
 import { Button, Dialog } from "@/src/shared/ui";
 import { ForecastDayDetails } from "@/src/widgets/finance-panels";
+import { overviewDelayStep, overviewForecastPoints } from "@/src/entities/forecast/model/overview-adapters";
 
 // The dashboard adds payer_habit at runtime; it is not yet in the generated schema.
 type DashboardResponse = Omit<Schemas["Dashboard"], "upcoming_in" | "upcoming_out"> & {
@@ -29,6 +30,11 @@ export function PulsOverviewHome() {
   const forecast = horizon === 30 ? dashboard?.forecast : extended.data;
   const start = forecast?.as_of;
   const topGap = horizon === 30 ? dashboard?.top_gap : forecast?.gaps[0];
+  const delayStep = forecast && dashboard ? overviewDelayStep(dashboard.upcoming_in, forecast.as_of, forecast.points.at(-1)?.date ?? forecast.as_of) : null;
+  const scenarioPath = company && forecast ? `/v1/companies/${company.id}/scenarios/preview?horizon=${horizon}` : null;
+  const delay = useApiResource<Schemas["ScenarioComparison"]>(delayStep ? scenarioPath : null, { method: "POST", json: { steps: delayStep ? [delayStep] : [] } });
+  const downturn = useApiResource<Schemas["ScenarioComparison"]>(scenarioPath, { method: "POST", json: { steps: [{ kind: "scale_revenue", factor: 0.8 }] } });
+  const scenarioError = delay.error || downturn.error;
   const data: PulsOverviewData | null =
     forecast && dashboard && dashboard.balance_now !== null
       ? {
@@ -43,11 +49,7 @@ export function PulsOverviewHome() {
           history: forecast.history.filter(p => p.date < forecast.as_of).map(p => ({ date: p.date, actual: p.balance })),
           isDemo: false,
           updatedAt: dashboard.data_as_of || undefined,
-          forecast: [{ date: forecast.as_of, base: dashboard.balance_now, actual: dashboard.balance_now, p10: dashboard.balance_now, p50: dashboard.balance_now, p90: dashboard.balance_now }, ...forecast.points.map((point) => ({
-            date: point.date,
-            base: point.p50,
-            p10: point.p10, p50: point.p50, p90: point.p90,
-          }))],
+          forecast: overviewForecastPoints(forecast, delay.data, downturn.data),
           shortfallProbability: topGap?.probability ?? null,
           events: [...dashboard.upcoming_in, ...dashboard.upcoming_out].map(
             (event) => ({
@@ -84,10 +86,10 @@ export function PulsOverviewHome() {
           Загружаем прогноз…
         </p>
       )}
-      {(resource.error || extended.error) && (
+      {(resource.error || extended.error || scenarioError) && (
         <p role="alert" className="mb-4 text-sm text-[color:var(--danger)]">
-          {resource.error || extended.error}{" "}
-          <Button variant="ghost" onClick={() => { resource.refresh(); extended.refresh(); }}>
+          {resource.error || extended.error || scenarioError}{" "}
+          <Button variant="ghost" onClick={() => { resource.refresh(); extended.refresh(); delay.refresh(); downturn.refresh(); }}>
             Повторить
           </Button>
         </p>

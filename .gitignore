@@ -21,6 +21,7 @@ backend/backtest.csv
 
 # env
 .env
+.local/
 
 # Локальные прогоны обучения трансформера (веса и логи)
 ml/runs/

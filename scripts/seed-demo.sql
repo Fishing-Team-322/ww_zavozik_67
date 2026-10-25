@@ -1,3 +1,5 @@
+-- Legacy SQL fixture. For the current application use scripts/seed-demo.py:
+-- it imports through the real API and keeps document/calendar projections consistent.
 -- Run with: docker compose exec -T postgres psql -U zavozik -d zavozik -v company_id=<uuid> -f /dev/stdin < scripts/seed-demo.sql
 -- Idempotent demo data for one existing company. Never run against production data.
 \set ON_ERROR_STOP on

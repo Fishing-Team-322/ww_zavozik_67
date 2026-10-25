@@ -198,6 +198,11 @@ test('synthetic CSV drives dashboard, forecast and a persistent manual event', a
   const dashboard = await dashboardResponse.json();
   expect(dashboard.points).toHaveLength(60);
   expect(dashboard.warnings).not.toContain('ml_service_fallback');
+  const downturnTab = page.getByRole('tab', { name: 'Выручка −20%', exact: true });
+  await expect(downturnTab).toBeEnabled({ timeout: 60_000 });
+  await downturnTab.click();
+  await expect(page.getByText('Снижение выручки', { exact: true })).toBeVisible();
+  await page.getByRole('tab', { name: 'Базовый', exact: true }).click();
   await navigate(page, '/forecast');
   await expect(page.getByRole('heading', { name: 'Денежный остаток' })).toBeVisible();
   await page.getByRole('combobox', { name: 'Горизонт прогноза' }).click();

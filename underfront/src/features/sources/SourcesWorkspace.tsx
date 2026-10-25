@@ -22,7 +22,7 @@ import { Input } from "@/src/shared/ui/input";
 import { Select } from "@/src/shared/ui/select";
 
 const sourceNames: Record<SourceKind, string> = {
-  upload: "Загрузка файла", onec_bank_file: "Выписка 1С", excel: "Excel", gsheets: "Google Sheets", onec_odata: "1С OData", fns: "DaData · сведения об организации", wb: "Wildberries · финансовый отчёт", ozon: "Ozon · финансовый отчёт", manual: "Ручной ввод",
+  upload: "Загрузка файла", onec_bank_file: "Выписка 1С", excel: "Excel", gsheets: "Google Sheets", onec_odata: "1С OData", bank_api: "Банк · будущие платежи", tax_api: "Учёт · налоговые обязательства", fns: "DaData · сведения об организации", wb: "Wildberries · финансовый отчёт", ozon: "Ozon · финансовый отчёт", manual: "Ручной ввод",
 };
 const mappingFields = [
   { key: "date", label: "Дата", required: true },
@@ -40,7 +40,7 @@ const paymentStatus = (status: string) => ({ expected: "Ожидает опла�
 const errorMessage = (cause: unknown) => cause instanceof Error ? cause.message : "Не удалось выполнить операцию";
 const sourceStatusNames: Record<string, string> = { ok: "Подключён", error: "Ошибка подключения", pending: "Ожидает проверки", syncing: "Синхронизируется", mapping_required: "Нужно сопоставить столбцы" };
 const importStatusNames: Record<string, string> = { done: "Завершён", failed: "Ошибка", error: "Ошибка", queued: "В очереди", running: "Обрабатывается" };
-const syncableKinds: SourceKind[] = ["gsheets", "onec_odata", "fns", "wb", "ozon"];
+const syncableKinds: SourceKind[] = ["gsheets", "onec_odata", "bank_api", "tax_api", "fns", "wb", "ozon"];
 
 export function SourcesWorkspace() {
   const { companyId } = useCompany();
@@ -278,7 +278,7 @@ function CompanySourcesWorkspace() {
     {notice && <ContentText variant="description" tone="muted" role="status" className="flex items-center gap-2"><CheckCircle2 size={15} className="text-[color:var(--accent)]"/>{notice}</ContentText>}
     <section className="space-y-3"><div className="flex items-center justify-between"><ContentHeading level={2}>Подключённые источники</ContentHeading><span className="text-xs text-[color:var(--text-secondary)]">{sources.length}</span></div>
       {loading ? <ContentText variant="description" tone="muted">Загружаем источники…</ContentText> : sources.length ? <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{sources.map(source => <article key={source.id} className="min-w-0 rounded-[6px] border border-[color:var(--border)] p-3">
-        <div className="flex items-start justify-between gap-2"><div className="min-w-0"><ContentHeading level={3} className="truncate">{source.title}</ContentHeading><ContentText variant="meta" className="mt-0.5">{sourceNames[source.kind] ?? source.kind}{source.data_mode === "mock" ? " · Демо" : ""}</ContentText></div><span className={`shrink-0 text-xs ${source.enabled && source.status === "error" ? "text-[color:var(--danger)]" : source.enabled && source.status === "ok" ? "text-[color:var(--success)]" : "text-[color:var(--text-secondary)]"}`}>{source.enabled ? sourceStatusNames[source.status] ?? source.status : "Отключён"}</span></div>
+        <div className="flex items-start justify-between gap-2"><div className="min-w-0"><ContentHeading level={3} className="truncate">{source.title}</ContentHeading><ContentText variant="meta" className="mt-0.5">{sourceNames[source.kind] ?? source.kind}{["mock", "demo"].includes(source.data_mode ?? "") ? " · Демо" : ""}</ContentText></div><span className={`shrink-0 text-xs ${source.enabled && source.status === "error" ? "text-[color:var(--danger)]" : source.enabled && source.status === "ok" ? "text-[color:var(--success)]" : "text-[color:var(--text-secondary)]"}`}>{source.enabled ? sourceStatusNames[source.status] ?? source.status : "Отключён"}</span></div>
         <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-[color:var(--text-secondary)]"><span>{["wb", "ozon"].includes(source.kind) ? "Строк отчёта" : "Операций"}: <b className="font-medium tabular-nums text-[color:var(--text-primary)]">{source.records}</b></span><span>Обновлён: {formatDate(source.last_synced_at)}</span></div>
         {source.error && <ContentText variant="meta" tone="danger" className="mt-2">{source.error}</ContentText>}
         <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t border-[color:var(--border)] pt-2">

@@ -18,6 +18,7 @@ test('invoice partial payment, recurring schedule, settings, export and theme pe
   await page.goto('/documents');
   await page.getByRole('button', { name: 'Добавить счёт', exact: true }).click();
   const dialog = page.getByRole('dialog');
+  await expect(dialog.getByRole('checkbox', { name: 'Добавить к прогнозу сверх обычного потока', exact: true })).toBeChecked();
   await dialog.getByLabel('Номер', { exact: true }).fill('SYNTHETIC-350');
   await dialog.getByLabel('Контрагент', { exact: true }).fill('Synthetic customer');
   await dialog.getByLabel('Сумма, ₽', { exact: true }).fill('350000');
@@ -28,7 +29,7 @@ test('invoice partial payment, recurring schedule, settings, export and theme pe
   await expect(dialog).toHaveCount(0);
   const row = page.getByRole('row').filter({ hasText: 'SYNTHETIC-350' }); await expect(row).toContainText('Частично оплачен');
   const invoices = await request.get(`${api}/v1/companies/${cid}/invoices`, { headers }); const invoice = (await invoices.json())[0];
-  expect(invoice.amount).toBe(350000); expect(invoice.paid_amount).toBe(100000);
+  expect(invoice.amount).toBe(350000); expect(invoice.paid_amount).toBe(100000); expect(invoice.additional).toBe(true);
   const events = await request.get(`${api}/v1/companies/${cid}/events`, { headers });
   expect((await events.json()).some(event => event.amount === 250000)).toBe(true);
   const facts = await request.get(`${api}/v1/companies/${cid}/operations`, { headers }); expect((await facts.json()).items).toHaveLength(0);

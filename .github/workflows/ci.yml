@@ -145,6 +145,10 @@ jobs:
           exit 1
       - name: Verify financial path with the trained ML service
         run: python scripts/acceptance-smoke.py --require-ml --state /tmp/case-private-state.json --output acceptance-results/financial-path.json
+      - name: Verify repeatable dataset seeding through the API
+        run: python -m unittest discover -s scripts/tests -p 'test_*.py' -v
+        env:
+          PULS_SEED_TEST_API_URL: http://localhost:8080
       - run: npm ci
         working-directory: underfront
       - run: npx playwright install --with-deps chromium
