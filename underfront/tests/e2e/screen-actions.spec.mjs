@@ -245,11 +245,11 @@ test('risk action preview does not save, apply changes the real plan and recurri
   const expense = await w.post('/events', { title: 'AUDIT-GAP-EXPENSE', date: dateAfter(today(), 2), amount: 500000, direction: 'out', additional: true });
   await page.goto('/risks');
   await expect(page.getByText('AUDIT-GAP-EXPENSE', { exact: false }).first()).toBeVisible({ timeout: 60000 });
-  await page.getByRole('checkbox', { name: /Перенести «AUDIT-GAP-EXPENSE»/ }).press('Space');
+  const action = page.getByRole('article', { name: /AUDIT-GAP-EXPENSE/ });
+  await action.getByRole('checkbox').press('Space');
   await page.getByRole('button', { name: 'Посмотреть эффект', exact: true }).click();
   await expect(page.getByText('Нехватка после изменений', { exact: true })).toBeVisible({ timeout: 60000 });
   expect((await w.get('/events')).find(event => event.id === expense.id).date).toBe(expense.date);
-  const action = page.locator('div').filter({ has: page.getByRole('checkbox', { name: /Перенести «AUDIT-GAP-EXPENSE»/ }) }).filter({ has: page.getByRole('button', { name: 'Применить к плану', exact: true }) }).last();
   await action.getByRole('button', { name: 'Применить к плану', exact: true }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Подтвердить', exact: true }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
