@@ -1,0 +1,12 @@
+{
+  "baseline": "ml/data/option_eval/baseline_origins.csv",
+  "variant": "ml/data/option_eval/variant_origins.csv",
+  "baseline_sha256": "f920fb1eb7eb9af3096864544c48f0cac3dfd263f90330969b8f7316f1cd48bf",
+  "variant_sha256": "5667edd4a9702aa555254a7abc92fd406d6ac2ac90bfe83895317943824f80ea",
+  "repeats": 5000,
+  "bootstrap": "companies, resampled with replacement",
+  "python": "3.14.7",
+  "pandas": "3.0.4",
+  "numpy": "2.5.2",
+  "note": "Protocol D: 9 unseen companies, 27 out-of-fit company-origins (2026-03-31/04-30/05-31), 300 paths, seeds 20261024/25/26. ratio < 1 means the variant has lower error."
+}
