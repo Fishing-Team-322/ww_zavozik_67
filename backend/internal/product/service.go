@@ -31,6 +31,8 @@ type Result struct {
 	Filename, MIME string
 }
 type Service struct {
+	// Now supplies the reference date for recurring schedules; nil uses wall time.
+	Now                                                 func() time.Time
 	IntegrationSandbox                                  bool
 	FNSHubURL, FNSHubToken, FNSHubCompany               string
 	DB                                                  *store.Postgres
@@ -83,6 +85,12 @@ func day(v string) (time.Time, error) {
 	return t, nil
 }
 func today() time.Time { return domain.Day(time.Now().UTC()) }
+func (s *Service) recurringDay() time.Time {
+	if s.Now != nil {
+		return domain.Day(s.Now().UTC())
+	}
+	return today()
+}
 func date(v any) string {
 	if v == nil {
 		return ""
@@ -607,11 +615,11 @@ func (s *Service) prepare(ctx context.Context, uid, cid, kind string, d Doc, cre
 		defaults("category", "other")
 		defaults("counterparty_name", "")
 		defaults("amount_spread", float64(0))
-		defaults("day_of_month", float64(today().Day()))
+		defaults("day_of_month", float64(s.recurringDay().Day()))
 		if !in(text(d, "period"), "weekly biweekly monthly quarterly") {
 			return bad("Неизвестный период")
 		}
-		d["next_date"] = nextOccurrence(today().AddDate(0, 0, -1), text(d, "period"), int(number(d, "day_of_month"))).Format(domain.DateLayout)
+		d["next_date"] = nextOccurrence(s.recurringDay().AddDate(0, 0, -1), text(d, "period"), int(number(d, "day_of_month"))).Format(domain.DateLayout)
 	case "source":
 		if create && in(text(d, "kind"), "wb ozon gsheets fns") {
 			if s.IntegrationSandbox {

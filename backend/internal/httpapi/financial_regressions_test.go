@@ -30,7 +30,7 @@ func (auditFlatML) Forecast(_ context.Context, r forecast.StochasticRequest) (fo
 func auditSetup(t *testing.T) (*harness, *product.Service, string, string) {
 	h := integration(t)
 	token, _ := h.register("audit@example.test")
-	s := &product.Service{DB: h.db, ML: auditFlatML{}, Fallback: forecast.SeasonalNaive{}}
+	s := &product.Service{DB: h.db, ML: auditFlatML{}, Fallback: forecast.SeasonalNaive{}, Now: func() time.Time { return time.Date(2026, 10, 24, 0, 0, 0, 0, time.UTC) }}
 	h.handler = (&httpapi.Server{Accounts: h.service, Products: s, Log: testLogger()}).Handler()
 	r := h.call("POST", "/v1/companies", `{"name":"Synthetic audit","legal_form":"ООО","industry":"services"}`, token)
 	status(t, r, 201)
