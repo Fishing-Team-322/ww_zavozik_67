@@ -232,7 +232,10 @@ test('tax preview splits kopecks, calendar links to the tax source, cancellation
   await expect(dialog).toHaveCount(0);
   await expect(page.getByText('Отменено', { exact: true })).toBeVisible();
   expect((await w.get('/operations?limit=1')).total).toBe(240);
+  const backtestLoaded = page.waitForResponse(response => new URL(response.url()).pathname.endsWith('/plan-fact/backtest'), { timeout: 60000 });
   await page.goto('/plan-fact');
+  await backtestLoaded;
+  await expect(page.getByText('Загружаем данные…', { exact: true })).toHaveCount(0);
   await choose(page, 'Группировка', 'По неделям');
   await choose(page, 'Показать на графике', 'Поступления');
   await page.getByRole('button', { name: 'Обновить', exact: true }).click();
