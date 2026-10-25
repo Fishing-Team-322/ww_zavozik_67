@@ -97,16 +97,30 @@ func cashflowEffect(base, changed forecast.Result, reserve float64, reliable boo
 	beforeMin, afterMin := minimum(base, .5), minimum(changed, .5)
 	before, after := money(math.Max(0, reserve-beforeMin)), money(math.Max(0, reserve-afterMin))
 	beforeP90, afterP90 := money(math.Max(0, reserve-minimum(base, .1))), money(math.Max(0, reserve-minimum(changed, .1)))
+	// The alert threshold in FindGaps must not round residual Monte Carlo
+	// risk down to zero. Count each path once across the entire horizon.
+	pathProbability := func(r forecast.Result) float64 {
+		if len(r.Balances) == 0 {
+			return 0
+		}
+		hits := 0
+		for _, path := range r.Balances {
+			for _, balance := range path {
+				if balance < reserve {
+					hits++
+					break
+				}
+			}
+		}
+		return float64(hits) / float64(len(r.Balances))
+	}
 	gs := risk.FindGaps(changed, domain.Money(reserve))
-	prob, originalProb := 0.0, 0.0
+	prob, originalProb := pathProbability(changed), pathProbability(base)
 	var next any
-	if original := risk.FindGaps(base, domain.Money(reserve)); len(original) > 0 {
-		originalProb = original[0].Probability
-	}
 	if len(gs) > 0 {
-		prob, next = gs[0].Probability, gs[0].Date.Format(domain.DateLayout)
+		next = gs[0].Date.Format(domain.DateLayout)
 	}
-	return Doc{"closes_gap": len(gs) == 0, "baseline_probability": originalProb, "new_probability": prob, "probability_reliable": reliable,
+	return Doc{"closes_gap": len(changed.Balances) > 0 && prob == 0, "baseline_probability": originalProb, "new_probability": prob, "probability_reliable": reliable,
 		"baseline_shortfall": before, "new_shortfall": after, "shortfall_reduction": money(before - after),
 		"baseline_shortfall_p90": beforeP90, "new_shortfall_p90": afterP90, "shortfall_p90_reduction": money(beforeP90 - afterP90),
 		"baseline_min_balance": beforeMin, "new_min_balance": afterMin, "new_gap_date": next}
@@ -127,8 +141,5 @@ func rankCashflowActions(actions []Doc) {
 }
 
 func cashflowProbabilityReliable(out Doc) bool {
-	if value, exists := out["probability_reliable"]; exists {
-		return value == true
-	}
-	return !flag(out, "fallback_used") && !flag(out, "low_confidence")
+	return reliableProbability(out)
 }

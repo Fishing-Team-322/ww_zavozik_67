@@ -35,7 +35,7 @@ message Assignment {
   // Empty when unassigned; no fallback to the old category enum.
   string category_id = 3;
   string category_title = 4;
-  // assigned, insufficient_text, no_category, outside_cluster or ambiguous
+  // assigned, coarse_only, unknown, insufficient_text or ambiguous (legacy implementations may use no_category/outside_cluster)
   string status = 5;
   repeated Candidate candidates = 6;
   optional float similarity = 7;
@@ -48,6 +48,10 @@ message Assignment {
   repeated string category_path = 12;
   string coarse_category_id = 13;
   string coarse_category_title = 14;
+  // Separate compatibility hint for forecast.v1; never a native category ID.
+  string forecast_category = 15;
+  string forecast_projection_version = 16;
+  string forecast_projection_source = 17;
 }
 
 message AssignResponse {

@@ -16,7 +16,7 @@ def main():
     if not re.fullmatch(r'[a-zA-Z0-9.-]+', host) or host.startswith('-') or not re.fullmatch(r'[a-zA-Z0-9_-]+', user):
         raise ValueError('Invalid SSH destination')
     compose = Path('deploy/compose.production.yml').read_bytes().replace(b'\r\n', b'\n')
-    body = json.dumps({'release': release, 'compose_sha256': hashlib.sha256(compose).hexdigest(),
+    body = json.dumps({'probe_only':os.environ.get('PULS_PROBE_ONLY')=='true','release': release, 'compose_sha256': hashlib.sha256(compose).hexdigest(),
                        'registry_user': os.environ['GITHUB_ACTOR'], 'registry_token': os.environ['GH_TOKEN']}).encode()
     with tempfile.TemporaryDirectory() as directory:
         key, known = Path(directory)/'key', Path(directory)/'known_hosts'

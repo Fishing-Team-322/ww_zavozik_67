@@ -24,7 +24,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1d\x63\x61tegorize/v3/discovery.proto\x12\rcategorize.v3\"^\n\tOperation\x12\n\n\x02id\x18\x01 \x01(\t\x12\x11\n\tdirection\x18\x02 \x01(\t\x12\x17\n\x0fpayment_purpose\x18\x03 \x01(\t\x12\x19\n\x11\x63ounterparty_name\x18\x04 \x01(\t\"=\n\rAssignRequest\x12,\n\noperations\x18\x01 \x03(\x0b\x32\x18.categorize.v3.Operation\"C\n\tCandidate\x12\x13\n\x0b\x63\x61tegory_id\x18\x01 \x01(\t\x12\r\n\x05title\x18\x02 \x01(\t\x12\x12\n\nsimilarity\x18\x03 \x01(\x02\"\xe9\x02\n\nAssignment\x12\n\n\x02id\x18\x01 \x01(\t\x12\x11\n\tembedding\x18\x02 \x03(\x02\x12\x13\n\x0b\x63\x61tegory_id\x18\x03 \x01(\t\x12\x16\n\x0e\x63\x61tegory_title\x18\x04 \x01(\t\x12\x0e\n\x06status\x18\x05 \x01(\t\x12,\n\ncandidates\x18\x06 \x03(\x0b\x32\x18.categorize.v3.Candidate\x12\x17\n\nsimilarity\x18\x07 \x01(\x02H\x00\x88\x01\x01\x12\x13\n\x06margin\x18\x08 \x01(\x02H\x01\x88\x01\x01\x12\x0f\n\x07\x63hannel\x18\t \x01(\t\x12\x0c\n\x04tags\x18\n \x03(\t\x12\x18\n\x10\x61uxiliary_source\x18\x0b \x01(\t\x12\x15\n\rcategory_path\x18\x0c \x03(\t\x12\x1a\n\x12\x63oarse_category_id\x18\r \x01(\t\x12\x1d\n\x15\x63oarse_category_title\x18\x0e \x01(\tB\r\n\x0b_similarityB\t\n\x07_margin\"\xb5\x01\n\x0e\x41ssignResponse\x12*\n\x07results\x18\x01 \x03(\x0b\x32\x19.categorize.v3.Assignment\x12\x17\n\x0f\x65ncoder_version\x18\x02 \x01(\t\x12\x18\n\x10taxonomy_version\x18\x03 \x01(\t\x12\x15\n\rembedding_dim\x18\x04 \x01(\r\x12\x12\n\nscore_kind\x18\x05 \x01(\t\x12\x19\n\x11hierarchy_version\x18\x06 \x01(\t\"\xe9\x01\n\x08\x43\x61tegory\x12\n\n\x02id\x18\x01 \x01(\t\x12\r\n\x05title\x18\x02 \x01(\t\x12\x14\n\x0ctitle_status\x18\x03 \x01(\t\x12\x11\n\tdirection\x18\x04 \x01(\t\x12\x1c\n\x14independent_families\x18\x05 \x01(\r\x12\x16\n\tcompanies\x18\x06 \x01(\rH\x00\x88\x01\x01\x12\x19\n\x11\x61ttributes_status\x18\x07 \x01(\t\x12\x11\n\tparent_id\x18\x08 \x01(\t\x12\x11\n\tnode_kind\x18\t \x01(\t\x12\x14\n\x0c\x63oarse_level\x18\n \x01(\x08\x42\x0c\n\n_companies\"\x14\n\x12GetTaxonomyRequest\"\x90\x01\n\x13GetTaxonomyResponse\x12+\n\ncategories\x18\x01 \x03(\x0b\x32\x17.categorize.v3.Category\x12\x17\n\x0f\x65ncoder_version\x18\x02 \x01(\t\x12\x18\n\x10taxonomy_version\x18\x03 \x01(\t\x12\x19\n\x11hierarchy_version\x18\x04 \x01(\t2\xaf\x01\n\x10\x44iscoveryService\x12\x45\n\x06\x41ssign\x12\x1c.categorize.v3.AssignRequest\x1a\x1d.categorize.v3.AssignResponse\x12T\n\x0bGetTaxonomy\x12!.categorize.v3.GetTaxonomyRequest\x1a\".categorize.v3.GetTaxonomyResponseBRZPgithub.com/Fishing-Team-322/ww_zavozik_67/backend/gen/categorize/v3;categorizev3b\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1d\x63\x61tegorize/v3/discovery.proto\x12\rcategorize.v3\"^\n\tOperation\x12\n\n\x02id\x18\x01 \x01(\t\x12\x11\n\tdirection\x18\x02 \x01(\t\x12\x17\n\x0fpayment_purpose\x18\x03 \x01(\t\x12\x19\n\x11\x63ounterparty_name\x18\x04 \x01(\t\"=\n\rAssignRequest\x12,\n\noperations\x18\x01 \x03(\x0b\x32\x18.categorize.v3.Operation\"C\n\tCandidate\x12\x13\n\x0b\x63\x61tegory_id\x18\x01 \x01(\t\x12\r\n\x05title\x18\x02 \x01(\t\x12\x12\n\nsimilarity\x18\x03 \x01(\x02\"\xcd\x03\n\nAssignment\x12\n\n\x02id\x18\x01 \x01(\t\x12\x11\n\tembedding\x18\x02 \x03(\x02\x12\x13\n\x0b\x63\x61tegory_id\x18\x03 \x01(\t\x12\x16\n\x0e\x63\x61tegory_title\x18\x04 \x01(\t\x12\x0e\n\x06status\x18\x05 \x01(\t\x12,\n\ncandidates\x18\x06 \x03(\x0b\x32\x18.categorize.v3.Candidate\x12\x17\n\nsimilarity\x18\x07 \x01(\x02H\x00\x88\x01\x01\x12\x13\n\x06margin\x18\x08 \x01(\x02H\x01\x88\x01\x01\x12\x0f\n\x07\x63hannel\x18\t \x01(\t\x12\x0c\n\x04tags\x18\n \x03(\t\x12\x18\n\x10\x61uxiliary_source\x18\x0b \x01(\t\x12\x15\n\rcategory_path\x18\x0c \x03(\t\x12\x1a\n\x12\x63oarse_category_id\x18\r \x01(\t\x12\x1d\n\x15\x63oarse_category_title\x18\x0e \x01(\t\x12\x19\n\x11\x66orecast_category\x18\x0f \x01(\t\x12#\n\x1b\x66orecast_projection_version\x18\x10 \x01(\t\x12\"\n\x1a\x66orecast_projection_source\x18\x11 \x01(\tB\r\n\x0b_similarityB\t\n\x07_margin\"\xb5\x01\n\x0e\x41ssignResponse\x12*\n\x07results\x18\x01 \x03(\x0b\x32\x19.categorize.v3.Assignment\x12\x17\n\x0f\x65ncoder_version\x18\x02 \x01(\t\x12\x18\n\x10taxonomy_version\x18\x03 \x01(\t\x12\x15\n\rembedding_dim\x18\x04 \x01(\r\x12\x12\n\nscore_kind\x18\x05 \x01(\t\x12\x19\n\x11hierarchy_version\x18\x06 \x01(\t\"\xe9\x01\n\x08\x43\x61tegory\x12\n\n\x02id\x18\x01 \x01(\t\x12\r\n\x05title\x18\x02 \x01(\t\x12\x14\n\x0ctitle_status\x18\x03 \x01(\t\x12\x11\n\tdirection\x18\x04 \x01(\t\x12\x1c\n\x14independent_families\x18\x05 \x01(\r\x12\x16\n\tcompanies\x18\x06 \x01(\rH\x00\x88\x01\x01\x12\x19\n\x11\x61ttributes_status\x18\x07 \x01(\t\x12\x11\n\tparent_id\x18\x08 \x01(\t\x12\x11\n\tnode_kind\x18\t \x01(\t\x12\x14\n\x0c\x63oarse_level\x18\n \x01(\x08\x42\x0c\n\n_companies\"\x14\n\x12GetTaxonomyRequest\"\x90\x01\n\x13GetTaxonomyResponse\x12+\n\ncategories\x18\x01 \x03(\x0b\x32\x17.categorize.v3.Category\x12\x17\n\x0f\x65ncoder_version\x18\x02 \x01(\t\x12\x18\n\x10taxonomy_version\x18\x03 \x01(\t\x12\x19\n\x11hierarchy_version\x18\x04 \x01(\t2\xaf\x01\n\x10\x44iscoveryService\x12\x45\n\x06\x41ssign\x12\x1c.categorize.v3.AssignRequest\x1a\x1d.categorize.v3.AssignResponse\x12T\n\x0bGetTaxonomy\x12!.categorize.v3.GetTaxonomyRequest\x1a\".categorize.v3.GetTaxonomyResponseBRZPgithub.com/Fishing-Team-322/ww_zavozik_67/backend/gen/categorize/v3;categorizev3b\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -39,15 +39,15 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_CANDIDATE']._serialized_start=207
   _globals['_CANDIDATE']._serialized_end=274
   _globals['_ASSIGNMENT']._serialized_start=277
-  _globals['_ASSIGNMENT']._serialized_end=638
-  _globals['_ASSIGNRESPONSE']._serialized_start=641
-  _globals['_ASSIGNRESPONSE']._serialized_end=822
-  _globals['_CATEGORY']._serialized_start=825
-  _globals['_CATEGORY']._serialized_end=1058
-  _globals['_GETTAXONOMYREQUEST']._serialized_start=1060
-  _globals['_GETTAXONOMYREQUEST']._serialized_end=1080
-  _globals['_GETTAXONOMYRESPONSE']._serialized_start=1083
-  _globals['_GETTAXONOMYRESPONSE']._serialized_end=1227
-  _globals['_DISCOVERYSERVICE']._serialized_start=1230
-  _globals['_DISCOVERYSERVICE']._serialized_end=1405
+  _globals['_ASSIGNMENT']._serialized_end=738
+  _globals['_ASSIGNRESPONSE']._serialized_start=741
+  _globals['_ASSIGNRESPONSE']._serialized_end=922
+  _globals['_CATEGORY']._serialized_start=925
+  _globals['_CATEGORY']._serialized_end=1158
+  _globals['_GETTAXONOMYREQUEST']._serialized_start=1160
+  _globals['_GETTAXONOMYREQUEST']._serialized_end=1180
+  _globals['_GETTAXONOMYRESPONSE']._serialized_start=1183
+  _globals['_GETTAXONOMYRESPONSE']._serialized_end=1327
+  _globals['_DISCOVERYSERVICE']._serialized_start=1330
+  _globals['_DISCOVERYSERVICE']._serialized_end=1505
 # @@protoc_insertion_point(module_scope)

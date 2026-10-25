@@ -6,6 +6,12 @@ on:
     types: [completed]
     branches: [main]
   workflow_dispatch:
+    inputs:
+      prepare_images_only:
+        description: Build immutable candidate images without deploying
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: read
@@ -32,7 +38,13 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE: ${{ github.event.workflow_run.head_sha || github.sha }}
+          PREPARE_ONLY: ${{ inputs.prepare_images_only || false }}
         run: |
+          if [ "$PREPARE_ONLY" = "true" ]; then
+            echo "sha=$RELEASE" >> "$GITHUB_OUTPUT"
+            echo 'current=true' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           current=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq .object.sha)
           if [ "$current" != "$RELEASE" ]; then
             echo 'A newer main commit exists; this run will not overwrite it.'
@@ -57,7 +69,8 @@ jobs:
           - { component: worker, context: ., file: backend/Dockerfile, command: worker }
           - { component: migrate, context: ., file: backend/Dockerfile, command: migrate }
           - { component: frontend, context: underfront, file: underfront/Dockerfile, command: unused }
-          - { component: ml, context: ml, file: ml/Dockerfile, command: unused }
+          - { component: ml, context: ml, file: ml/Dockerfile, command: unused, ml_extra: "" }
+          - { component: qwen, context: ml, file: ml/Dockerfile, command: unused, ml_extra: discovery }
     steps:
       - uses: actions/checkout@v4
         with: { ref: '${{ needs.release.outputs.sha }}' }
@@ -78,13 +91,34 @@ jobs:
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.revision=${{ needs.release.outputs.sha }}
           build-args: |
+            ML_EXTRA=${{ matrix.ml_extra || '' }}
             CMD=${{ matrix.command }}
             GIT_SHA=${{ needs.release.outputs.sha }}
             BACKEND_ORIGIN=http://api:8080
           cache-from: type=gha,scope=puls-${{ matrix.component }}
           cache-to: type=gha,mode=max,scope=puls-${{ matrix.component }}
 
+  probe:
+    if: inputs.prepare_images_only == true
+    needs: [release, images]
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with: { ref: '${{ needs.release.outputs.sha }}' }
+      - name: Probe private Qwen image without activating the application
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PULS_RELEASE: ${{ needs.release.outputs.sha }}
+          PULS_PROBE_ONLY: 'true'
+          PULS_DEPLOY_HOST: ${{ secrets.PULS_DEPLOY_HOST }}
+          PULS_DEPLOY_USER: ${{ secrets.PULS_DEPLOY_USER }}
+          PULS_DEPLOY_KEY: ${{ secrets.PULS_DEPLOY_KEY }}
+          PULS_DEPLOY_KNOWN_HOSTS: ${{ secrets.PULS_DEPLOY_KNOWN_HOSTS }}
+        run: python deploy/dispatch.py
+
   deploy:
+    if: inputs.prepare_images_only != true
     needs: [release, images]
     runs-on: ubuntu-latest
     timeout-minutes: 25

@@ -53,7 +53,7 @@ test('invoice refines one calendar payment and risk wording stays consistent',as
   await page.goto('/forecast');await expect(page.getByText('Возможен кассовый разрыв',{exact:true})).toBeVisible();await expect(page.getByText('Точная вероятность недоступна',{exact:true})).toBeVisible();
   await expect(page.getByText('100%',{exact:true})).toHaveCount(0);
   await page.goto('/risks');await expect(page.getByText('Точная вероятность недоступна',{exact:true})).toBeVisible();
-  await expect(page.getByText('Нехватка по базовому прогнозу',{exact:true})).toBeVisible();
+  await expect(page.getByText('Нехватка по базовому прогнозу',{exact:true}).first()).toBeVisible();
   const shots=process.env.E2E_SCREENSHOTS_DIR||path.resolve('test-results/screenshots');mkdirSync(shots,{recursive:true});await page.screenshot({path:path.join(shots,'business-risk-fixed.png')});
   await page.goto('/plan-fact');await expect(page.getByText('План отсутствовал',{exact:true}).first()).toBeVisible();
 });

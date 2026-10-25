@@ -81,7 +81,7 @@ def load_part(corpus, cache, labels, part, allow_weak, minimum_support):
 
 
 def fit(corpus: Path, cache: Path, train_labels: Path, calibration_labels: Path, out: Path, *,
-        allow_weak=False, seed=42, epochs=6, patience=2, minimum_support=20):
+        allow_weak=False, seed=42, epochs=6, patience=2, minimum_support=20, rank=None):
     if out.exists() or not 1 <= epochs <= 6 or not 1 <= patience <= 2 or minimum_support < 1:
         raise ValueError("immutable output, <=6 epochs, <=2 patience and positive support required")
     tx, train, train_prov, train_counts = load_part(corpus, cache, train_labels, "train", allow_weak, minimum_support)
@@ -94,12 +94,22 @@ def fit(corpus: Path, cache: Path, train_labels: Path, calibration_labels: Path,
     torch.set_num_threads(2)
     torch.manual_seed(seed)
     dim = tx.shape[1]
-    heads = nn.ModuleDict({level: nn.Linear(dim, dim) for level in LEVELS})
+    if rank is not None and not 1<=rank<=min(64,dim):raise ValueError("invalid residual adaptation rank")
+    class Residual(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.down=nn.Parameter(torch.randn(rank,dim)*.02)
+            self.up=nn.Parameter(torch.zeros(dim,rank))
+            self.bias=nn.Parameter(-torch.from_numpy(tx.mean(0)).clone())
+        def forward(self,x):
+            return x+F.linear(F.linear(x,self.down),self.up)+self.bias
+    heads = nn.ModuleDict({level: Residual() if rank is not None else nn.Linear(dim, dim) for level in LEVELS})
     with torch.no_grad():
         for head in heads.values():
-            head.weight.copy_(torch.eye(dim))
-            head.weight.add_(torch.randn_like(head.weight) * .0001)
-            head.bias.copy_(-torch.from_numpy(tx.mean(0)))
+            if rank is None:
+                head.weight.copy_(torch.eye(dim))
+                head.weight.add_(torch.randn_like(head.weight) * .0001)
+                head.bias.copy_(-torch.from_numpy(tx.mean(0)))
     train_x, cal_x = torch.from_numpy(tx), torch.from_numpy(cx)
     optimizer = torch.optim.AdamW(heads.parameters(), lr=1e-3, weight_decay=1e-4)
     out.mkdir(parents=True)
@@ -113,6 +123,7 @@ def fit(corpus: Path, cache: Path, train_labels: Path, calibration_labels: Path,
         train_labels_sha256=sha256_file(train_labels), calibration_labels_sha256=sha256_file(calibration_labels),
         feature_normalization="L2 pretrained; train-only mean centering at head initialization",
         loss="explicit pair cosine contrastive, balanced known relations per level, negative margin0.15; uncertain masked; no in-batch negatives")
+    recipe.update(residual_rank=rank,trainable_parameters=sum(p.numel() for p in heads.parameters()))
     (out / "started.json").write_text(json.dumps(recipe, indent=2)+"\n")
     shutil.copyfile(Path(__file__), out / "fit_source.py.txt")
     def loss_for(x, pairs):
@@ -137,7 +148,14 @@ def fit(corpus: Path, cache: Path, train_labels: Path, calibration_labels: Path,
         with torch.no_grad():
             return float(loss_for(cal_x, cal))
     def save(target):
-        np.savez(target, **{k: v.detach().numpy() for k, v in heads.state_dict().items()})
+        if rank is None:
+            values={k:v.detach().numpy() for k,v in heads.state_dict().items()}
+        else:
+            values={}
+            for level,head in heads.items():
+                values[level+'.weight']=(torch.eye(dim)+head.up@head.down).detach().numpy()
+                values[level+'.bias']=head.bias.detach().numpy()
+        np.savez(target,**values)
     baseline_loss = evaluate()
     best_loss, best_epoch, stale = baseline_loss, 0, 0
     save(out / "best_heads.npz")
@@ -184,9 +202,10 @@ def main():
     p.add_argument("--out", type=Path, required=True)
     p.add_argument("--allow-weak-supervision", action="store_true")
     p.add_argument("--seed", type=int, default=42)
+    p.add_argument("--rank",type=int)
     a = p.parse_args()
     print(json.dumps(fit(a.corpus, a.cache, a.train_labels, a.calibration_labels, a.out,
-                         allow_weak=a.allow_weak_supervision, seed=a.seed), indent=2))
+                         allow_weak=a.allow_weak_supervision, seed=a.seed,rank=a.rank), indent=2))
 
 
 if __name__ == "__main__":

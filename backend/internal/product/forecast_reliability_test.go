@@ -45,3 +45,54 @@ func TestCaseDatasetHeadersAreRecognizedWithoutManualMapping(t *testing.T) {
 		t.Fatal(m)
 	}
 }
+
+func TestIncompleteHistoryOverridesOtherwiseReliableForecast(t *testing.T) {
+	now := time.Date(2026, 10, 25, 0, 0, 0, 0, time.UTC)
+	for _, warnings := range []any{
+		[]string{"lite_mode_no_purposes", "incomplete_history"},
+		[]any{"lite_mode_no_purposes", "incomplete_history"},
+	} {
+		out := Doc{"as_of": "2026-10-24", "status": "ok", "safe_to_spend": 1000.0,
+			"fallback_used": false, "low_confidence": false, "probability_reliable": true,
+			"spending_available": true, "warnings": warnings,
+			"gaps": []Doc{{"date": "2026-11-01", "probability": 0.7}}}
+		annotateForecast(out, now, 0)
+		if flag(out, "spending_available") || flag(out, "probability_reliable") || number(out, "safe_to_spend") != 0 {
+			t.Fatal("incomplete history advertised reliable spending or probability", out)
+		}
+		if text(out, "status") != "warning" || flag(docs(out["gaps"])[0], "probability_reliable") {
+			t.Fatal("restriction did not reach forecast and gap presentation", out)
+		}
+		restrictions := stringsList(out["spending_restrictions"])
+		found := false
+		for _, reason := range restrictions {
+			found = found || reason == "incomplete_history"
+		}
+		if !found {
+			t.Fatal("missing restriction reason", out)
+		}
+	}
+}
+
+func TestWarningOnlySnapshotsDoNotExposeIncompleteHistoryProbability(t *testing.T) {
+	for _, warnings := range []any{[]string{"incomplete_history"}, []any{"incomplete_history"}} {
+		for _, explicitFlag := range []bool{false, true} {
+			out := Doc{"warnings": warnings, "fallback_used": false, "low_confidence": false}
+			if explicitFlag {
+				out["probability_reliable"] = true
+			}
+			if reliableProbability(out) || cashflowProbabilityReliable(out) {
+				t.Fatal("legacy warning-only snapshot advertised reliable probability", out)
+			}
+		}
+	}
+}
+
+func TestLiteModeWarningAloneDoesNotRestrictForecast(t *testing.T) {
+	out := Doc{"as_of": "2026-10-24", "status": "ok", "safe_to_spend": 1000.0,
+		"fallback_used": false, "low_confidence": false, "warnings": []string{"lite_mode_no_purposes"}}
+	annotateForecast(out, time.Date(2026, 10, 25, 0, 0, 0, 0, time.UTC), 0)
+	if !flag(out, "spending_available") || !flag(out, "probability_reliable") || number(out, "safe_to_spend") != 1000 || !reliableProbability(out) || !cashflowProbabilityReliable(out) {
+		t.Fatal("informational lite-mode warning blocked the forecast", out)
+	}
+}

@@ -52,13 +52,29 @@ def to_history(req: pb.ForecastRequest) -> forecasters.History:
         raise ValueError("unknown category in history")
     if any(not np.isfinite(v) or abs(v) > MAX_FLOW for f in h for v in f.by_category.values()):
         raise ValueError(f"category flows must be finite and within +/-{MAX_FLOW:g}")
+    dates=[date.fromisoformat(f.date) for f in h]
+    seen=set()
+    if len(req.transactions)>100000:raise ValueError("too many transactions")
+    days={f.date:f for f in h}
+    for t in req.transactions:
+        if not t.id or t.id in seen or len(t.id)>256:raise ValueError("unique bounded transaction IDs required")
+        seen.add(t.id)
+        if t.date not in days or days[t.date].missing:raise ValueError("transaction outside observed daily history")
+        if t.direction not in ("in","out") or t.category not in CATEGORIES:raise ValueError("invalid transaction direction/category")
+        if not np.isfinite(t.amount) or not 0<=t.amount<=MAX_FLOW:raise ValueError("invalid transaction amount")
+        if len(t.purpose)>8192 or len(t.counterparty_id)>256:raise ValueError("transaction text exceeds contract limits")
     return forecasters.History(
-        dates=[date.fromisoformat(f.date) for f in h],
+        dates=dates,
         inflow=values[:, 0],
         outflow=values[:, 1],
         missing=np.fromiter((f.missing for f in h), dtype=bool, count=len(h)),
         industry=req.industry,
         categories=categories_from(h),
+        transactions=tuple(
+            {"id": t.id, "date": t.date, "amount": t.amount, "direction": t.direction, "category": t.category,
+             "counterparty_id": t.counterparty_id, "purpose": t.purpose}
+            for t in req.transactions
+        ),
     )
 
 
@@ -78,7 +94,7 @@ def net_quantiles(dates: list[str], paths: forecasters.Paths) -> list[pb.NetQuan
 
 class ForecasterService(pb_grpc.ForecasterServiceServicer):
     def ListModels(self, request, context):
-        default = forecasters.default_model()
+        default = os.environ.get("ML_DEFAULT_MODEL") or forecasters.default_model()
         return pb.ListModelsResponse(
             models=[
                 pb.ModelInfo(name=m.name, description=m.description, is_default=m.name == default)
@@ -100,7 +116,8 @@ class ForecasterService(pb_grpc.ForecasterServiceServicer):
             context.abort(grpc.StatusCode.INVALID_ARGUMENT, "unsupported flow_scope")
         try:
             history = to_history(request)
-            model = select_model(request.model, history)
+            requested_model = os.environ.get("ML_DEFAULT_MODEL", "auto") if request.model in ("", "auto") else request.model
+            model = select_model(requested_model, history)
             if any((b - a).days != 1 for a, b in zip(history.dates, history.dates[1:])):
                 raise ValueError("history must contain consecutive calendar days")
             if (date.max - history.dates[-1]).days < request.horizon_days:
@@ -123,7 +140,7 @@ class ForecasterService(pb_grpc.ForecasterServiceServicer):
                 or (paths.inflow < 0).any() or (paths.outflow < 0).any()):
             context.abort(grpc.StatusCode.INTERNAL, "model produced invalid paths")
 
-        warnings = domain_warnings(history)
+        warnings = list(dict.fromkeys(domain_warnings(history) + list(paths.warnings)))
         if history.valid_days < 28:
             warnings.append("insufficient_history")
         if history.missing.any():
@@ -168,7 +185,7 @@ DEFAULT_ARTIFACTS = Path(__file__).resolve().parents[2] / "artifacts"
 def model_version(name: str) -> str:
     if name == "ensemble":
         return f"ensemble-50-50:{model_version('gbm_global')}:{model_version('seasonal_naive')}"
-    return f"{VERSIONS.get(name, name)}:code-{SOURCE_VERSION}"
+    return f"{VERSIONS.get(name, name)}:code-{SOURCE_VERSION}:release-{os.environ.get("ML_RELEASE_REVISION", "local")}"
 
 
 def load_artifacts(directory: Path) -> list[str]:

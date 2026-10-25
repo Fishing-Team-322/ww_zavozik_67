@@ -27,6 +27,7 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install -c ml/requirements.lock -e 'ml[dev]'
+      - run: pip install -c ml/requirements.lock ml/vendor/cashradar-*.whl
       - run: python -m pytest ml/tests -q
       - run: cd backend && go test -race ./... && go vet ./...
       - run: docker build -t zavozik-ml:ci ml

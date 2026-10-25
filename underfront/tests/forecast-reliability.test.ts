@@ -25,3 +25,28 @@ test("missing plan stays a gap while actual bank flows remain visible",()=>{
   const rows=[{period:"2026-10-24",plan_in:null,plan_out:null,fact_in:100,fact_out:20,observed:true,deviation:null,plan_available:false}];
   assert.deepEqual(planFactSeries(rows,"net"),[{date:"2026-10-24",plan:null,fact:80,deviation:null}]);
 });
+
+test("incomplete history blocks spending and probability in warning-only legacy snapshots", () => {
+  for (const explicitFlags of [false, true]) {
+    const incomplete: Forecast = {
+      ...forecast,
+      as_of: new Date().toISOString().slice(0, 10),
+      warnings: ["lite_mode_no_purposes", "incomplete_history"],
+      ...(explicitFlags ? { spending_available: true, probability_reliable: true } : {}),
+    };
+    const reliability = forecastReliability(incomplete);
+    assert.equal(reliability.limited, true);
+    assert.equal(reliability.spendingAvailable, false);
+    assert.equal(reliability.probabilityAvailable, false);
+    assert.equal(riskProbability({ probability: 0.7, probability_reliable: true } as Gap, incomplete), null);
+  }
+});
+
+test("lite mode without missing history remains eligible for model estimates", () => {
+  const lite: Forecast = { ...forecast, as_of: new Date().toISOString().slice(0, 10), warnings: ["lite_mode_no_purposes"] };
+  const reliability = forecastReliability(lite);
+  assert.equal(reliability.limited, false);
+  assert.equal(reliability.spendingAvailable, true);
+  assert.equal(reliability.probabilityAvailable, true);
+  assert.equal(riskProbability({ probability: 0.05 } as Gap, lite), 0.05);
+});

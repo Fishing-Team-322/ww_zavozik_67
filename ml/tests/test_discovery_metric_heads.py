@@ -89,3 +89,18 @@ assert report['label_provenance'] == {'local_model_weak':6}
     assert not np.array_equal(weights["coarse.weight"], weights["fine.weight"])
     assert not (corpus / "test_unique.jsonl").exists()  # absent on purpose; fitting never reads it
     assert (out / "fit_source.py.txt").is_file()
+
+
+@pytest.mark.skipif(importlib.util.find_spec("torch") is None, reason="optional training runtime")
+def test_low_rank_adaptation_keeps_full_embedding_dimension(tmp_path):
+    corpus,cache,labels=fixture(tmp_path)
+    code="""from pathlib import Path
+import sys,numpy as np
+from zavozik_ml.category_discovery.train_metric_heads import fit
+c,cache,tr,ca,out=map(Path,sys.argv[1:]);r=fit(c,cache,tr,ca,out,allow_weak=True,minimum_support=1,rank=1)
+assert r['residual_rank']==1 and r['trainable_parameters']==24
+with np.load(out/'best_heads.npz',allow_pickle=False) as w:
+ assert w['coarse.weight'].shape==(4,4) and w['fine.weight'].shape==(4,4)
+"""
+    r=subprocess.run([sys.executable,'-c',code,str(corpus),str(cache),str(labels['train']),str(labels['calibration']),str(tmp_path/'rank')],capture_output=True,text=True,timeout=60)
+    assert r.returncode==0,r.stdout+r.stderr
