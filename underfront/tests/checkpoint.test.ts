@@ -60,7 +60,7 @@ test("reconciliation excludes unknown intervals instead of fabricating zero bala
   const days = actualBalances(rows);
   assert.equal(days[0].balance, 100);
   assert.deepEqual(days.slice(1, 4).map(day => [day.balance, day.observed]), [[null, false], [null, false], [null, false]]);
-  assert.equal(days[4].balance, 500); assert.equal(days[5].balance, 510);
+  assert.equal(days[4].balance, null); assert.equal(days[5].balance, 510);
   const conflict = actualBalances([op("a", "2026-01-01", 10, 100), op("b", "2026-01-01", 20, 101)]);
   assert.equal(conflict[0].observed, false); assert.equal(conflict[0].balance, null);
 });
@@ -131,4 +131,14 @@ test("report persistence merges concurrent workspace changes rather than overwri
   } };
   await saveCheckpointReport(fake, "workspace", { version: 1, id: "report" } as CheckpointReport, new AbortController().signal);
   assert.equal(puts, 2); assert.equal(gets, 2);
+});
+
+
+test("one explicit EOD never becomes thirty confirmed days by carrying the balance", () => {
+  const rows = [op("first", "2026-01-15", 10, 100), op("last", "2026-02-13", 10, null)];
+  const forecast = { points: Array.from({ length: 30 }, (_, index) => ({ date: new Date(Date.UTC(2026, 0, 15 + index)).toISOString().slice(0, 10), p10: 90, p50: 100, p90: 110 })) } as Forecast;
+  const metrics = evaluateForecast(forecast, actualBalances(rows), 0, true);
+  assert.equal(metrics.samples, 1); assert.equal(metrics.excluded, 29);
+  assert.equal(metrics.truthBasis, "explicit_nonconflicting_eod");
+  assert.equal(metrics.points.filter(point => point.actual === null).length, 29);
 });

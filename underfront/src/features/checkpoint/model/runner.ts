@@ -41,10 +41,12 @@ export async function runCheckpoint(client: Client, source: ControlSource, data:
   callbacks.stage("Фиксируем входные данные и период проверки…");
   const [fileHash, trainingHash, withheldHash] = await Promise.all([sha256(source.file), sha256(split.trainingCSV), sha256(split.withheldCSV)]);
   log("input_prepared", "Файл прочитан, компания выбрана, точные повторы исключены.", { file_sha256: fileHash, selected_company: data.company.key, rows: data.operations.length, duplicates: data.duplicates });
-  log("protocol_frozen", options.mode === "holdout" ? "История и отложенный период разделены до отправки в API. Будущие строки в импорт не входят." : "В API отправляется вся история; будущий факт не предоставлен.", { as_of: split.asOf, horizon: options.horizon, training_rows: split.training.length, withheld_rows: split.withheld.length, training_sha256: trainingHash, withheld_sha256: withheldHash, reserve: options.reserve });
-  const companyName = `Контроль · ${data.company.name} · ${new Date().toISOString().slice(0, 19)}`.slice(0, 200);
+  if (source.directory) log("directory_verified", "Основной файл, реквизиты и зеркальные выписки проверены. Зеркала не добавлены в импорт.", { canonical_source: source.directory.canonical_source, metadata_source: source.directory.metadata_source, manifest: source.directory.manifest, mirrors: source.directory.mirrors, metadata_companies: source.directory.metadata.length, unique_selected_operations: data.operations.length, raw_files_modified: false, raw_files_uploaded: false });
+  log("protocol_frozen", options.mode === "holdout" ? "История и отложенный период разделены до отправки в API. Будущие строки в импорт не входят." : "В API отправляется вся история; будущий факт не предоставлен.", { requested_cutoff: options.mode === "holdout" ? options.cutoff : data.to, as_of: split.asOf, horizon: options.horizon, training_rows: split.training.length, withheld_rows: split.withheld.length, training_sha256: trainingHash, withheld_sha256: withheldHash, reserve: options.reserve });
+  let companyName = `Контроль · ${data.company.name} · ${new Date().toISOString().slice(0, 19)}`.slice(0, 200);
+  while (new TextEncoder().encode(companyName).byteLength > 300) companyName = companyName.slice(0, -1);
   callbacks.stage("Создаём отдельную контрольную компанию…");
-  const company = await client.request<Company>("/v1/companies", { method: "POST", signal, json: { name: companyName, legal_form: data.company.legalForm, industry: data.company.industry.slice(0, 100) || "Контрольный набор", reserve: options.reserve } });
+  const company = await client.request<Company>("/v1/companies", { method: "POST", signal, json: { name: companyName, legal_form: data.company.legalForm, inn: data.company.inn ?? null, industry: data.company.industry.slice(0, 120) || "Контрольный набор", reserve: options.reserve } });
   callbacks.created(company);
   const base = `/v1/companies/${company.id}`;
   log("workspace_created", "Создана отдельная компания. Платежи рабочей компании не изменяются.", { company_id: company.id });
@@ -90,9 +92,9 @@ export async function runCheckpoint(client: Client, source: ControlSource, data:
   } while (cursor);
   log("classification_observed", "Считаны фактические результаты категоризации. Независимой эталонной разметки в выписке нет.", { operations: total, by_method: byMethod });
   const metrics = evaluateForecast(forecast, actualBalances(data.operations), options.reserve, options.mode === "holdout");
-  log("metrics_calculated", options.mode === "holdout" ? "Оценки рассчитаны по датам, где факт подтверждён сверкой остатков. Неизвестные дни исключены." : "Метрики ошибки не рассчитаны: будущий факт отсутствует.", { samples: metrics.samples, excluded: metrics.excluded, risk_decision: "p50 < reserve", category_ground_truth: false });
-  const report: CheckpointReport = { version: 1, id: crypto.randomUUID(), created_at: new Date().toISOString(), company_id: company.id, company_name: company.name, dataset_company: data.company.key, mode: options.mode, horizon: options.horizon, reserve: options.reserve, cutoff: split.asOf,
-    input: { filename: source.file.name, file_sha256: fileHash, training_sha256: trainingHash, withheld_sha256: withheldHash, training_rows: split.training.length, withheld_rows: split.withheld.length, duplicates: data.duplicates, from: data.from, to: data.to }, forecast, metrics, logs,
+  log("metrics_calculated", options.mode === "holdout" ? "Оценки рассчитаны только по явным непротиворечивым остаткам. Дни без явного EOD исключены." : "Метрики ошибки не рассчитаны: будущий факт отсутствует.", { samples: metrics.samples, excluded: metrics.excluded, risk_decision: "p50 < reserve", category_ground_truth: false });
+  const report: CheckpointReport = { version: 1, id: crypto.randomUUID(), created_at: new Date().toISOString(), company_id: company.id, company_name: company.name, dataset_company: data.company.key, mode: options.mode, horizon: options.horizon, reserve: options.reserve, cutoff: split.asOf, requested_cutoff: options.mode === "holdout" ? options.cutoff : data.to,
+    input: { filename: source.file.name, file_sha256: fileHash, training_sha256: trainingHash, withheld_sha256: withheldHash, training_rows: split.training.length, withheld_rows: split.withheld.length, duplicates: data.duplicates, from: data.from, to: data.to, ...(source.directory ? { directory: source.directory } : {}) }, forecast, metrics, logs,
     classification: { total, by_method: byMethod, reason: "Нет независимых эталонных категорий для сопоставления с каждой операцией. Категории модели не используются как собственный эталон." } };
   callbacks.stage("Расчёт завершён.");
   return { report, trainingCSV: split.trainingCSV, withheldCSV: split.withheldCSV };
