@@ -39,3 +39,46 @@ def test_mixture_takes_whole_paths_in_fixed_shares():
     assert (mixed == 1.).all(axis=(1, 2)).sum() == 100
     with pytest.raises(ValueError):
         m.mixture_paths(parts, 2)
+
+
+def test_mixture_rejects_members_that_return_too_few_paths():
+    parts = {"blocks": np.zeros((10, 30, 2)), "hybrid": np.zeros((10, 30, 2)),
+             "gbm_global": np.zeros((10, 30, 2))}
+    with pytest.raises(ValueError, match="produced"):
+        m.mixture_paths(parts, 300)
+
+
+def test_fit_spread_uses_calibration_companies_only():
+    class Stub(m.Runner):
+        def __init__(self, calibration):
+            self.meta = {"calibration_ids": calibration, "test_ids": ["T1"]}
+            company = lambda: type("C", (), {
+                "origin": staticmethod(lambda origin: 0),
+                "dates": np.zeros(m.reference.HORIZON + 2, dtype="datetime64[D]"),
+                "missing": np.zeros(m.reference.HORIZON + 2, dtype=bool),
+                "detected": np.full(m.reference.HORIZON + 2, np.datetime64("NaT", "D")),
+            })()
+            self.by_id = {cid: company() for cid in calibration}
+            self.n_paths = 30
+            self.seen, self.calibration_pairs, self.calibration_skips = [], 0, []
+
+        def sample(self, cid, origin, models):
+            if cid not in self.meta["calibration_ids"]:
+                raise AssertionError(f"sampled non-calibration company {cid}")
+            self.seen.append(cid)
+            flows = np.zeros((30, m.reference.HORIZON, 2))
+            flows[:, :, 0] = np.arange(30)[:, None] + 1.0
+            daily = np.zeros((m.reference.HORIZON + 2, 2))
+            daily[:, 0] = 1.0
+            company = type("C", (), {"flows": daily})()
+            return (company, 0, None,
+                    {"blocks": (flows, None), "hybrid": (flows, None), "gbm_global": (flows, None)})
+
+    runner = Stub(["C1", "C2"])
+    factors, curves = m.Runner.fit_spread(runner, ["2025-06-30"])
+    assert set(runner.seen) == {"C1", "C2"}
+    assert runner.calibration_pairs == 2
+    assert set(factors) == {"blocks", "hybrid", "mixture"}
+    for values in curves.values():
+        assert len(values) == len(m.SPREAD_GRID)
+        assert all(0 <= v <= 1 for v in values.values())
