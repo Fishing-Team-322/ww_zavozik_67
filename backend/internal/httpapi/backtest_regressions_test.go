@@ -49,3 +49,30 @@ func TestHistoricalBacktestWithholdsFutureOperationsAndDoesNotBackdateSnapshots(
 		t.Fatal("retrospective check forged a previously issued forecast")
 	}
 }
+
+func TestHistoricalBacktestScoresOnlyExplicitNonConflictingDailyBalances(t *testing.T) {
+	h, s, token, cid := auditSetup(t)
+	s.ML = &backtestHistorySpy{}
+	ctx := context.Background()
+	if _, err := h.db.Pool.Exec(ctx, "UPDATE operations SET balance_eod=NULL WHERE company_id=$1 AND op_date>'2026-09-23' AND op_date<'2026-10-23'", cid); err != nil {
+		t.Fatal(err)
+	}
+	path := "/v1/companies/" + cid + "/plan-fact/backtest"
+	report := auditCall(t, h, token, "GET", path, nil, 200)
+	if report["samples"] != float64(1) || report["excluded_days"] != float64(29) {
+		t.Fatal("carried empty days became observed truth", report)
+	}
+	for _, item := range report["points"].([]any) {
+		p := item.(map[string]any)
+		if p["date"] != "2026-10-23" && (p["actual"] != nil || p["absolute_error"] != nil) {
+			t.Fatal("unknown truth invented", p)
+		}
+	}
+	if _, err := h.db.Pool.Exec(ctx, "UPDATE operations SET balance_eod=CASE WHEN direction='in' THEN 100000 ELSE 200000 END WHERE company_id=$1 AND op_date='2026-10-23'", cid); err != nil {
+		t.Fatal(err)
+	}
+	report = auditCall(t, h, token, "GET", path, nil, 200)
+	if report["samples"] != float64(0) || report["excluded_days"] != float64(30) || report["mean_absolute_error"] != nil {
+		t.Fatal("conflicting anchors were scored", report)
+	}
+}

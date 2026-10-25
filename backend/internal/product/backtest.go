@@ -56,7 +56,14 @@ func (s *Service) historicalBacktest(ctx context.Context, uid, cid string) (Resu
 		return Result{}, platform.Fail(503, "model_unavailable", "Модель не смогла выполнить проверку; повторите расчёт позже")
 	}
 	actual := ingest.DailyFlows(ops, ops[0].Date, end, dataset.NotInternal)
-	dataset.FillBalance(actual)
+	// A carried balance is a forecast input convenience, not observed holdout
+	// truth. Only explicit, non-conflicting EOD anchors can be scored.
+	anchored := map[string]bool{}
+	for _, op := range withheld {
+		if op.BalanceEOD != nil {
+			anchored[op.Date.Format(domain.DateLayout)] = true
+		}
+	}
 	truth := map[string]domain.DailyFlow{}
 	for _, flow := range actual {
 		truth[flow.Date.Format(domain.DateLayout)] = flow
@@ -67,7 +74,7 @@ func (s *Service) historicalBacktest(ctx context.Context, uid, cid string) (Resu
 	for i, dt := range res.Dates {
 		date := dt.Format(domain.DateLayout)
 		point := Doc{"date": date, "forecast": money(q50[i]), "lower": money(q10[i]), "upper": money(q90[i]), "actual": nil, "absolute_error": nil}
-		if flow, ok := truth[date]; ok && !flow.Missing && flow.Balance != nil {
+		if flow, ok := truth[date]; ok && anchored[date] && !flow.Missing && flow.Balance != nil {
 			value := flow.Balance.Float()
 			error := math.Abs(q50[i] - value)
 			point["actual"], point["absolute_error"] = money(value), money(error)
