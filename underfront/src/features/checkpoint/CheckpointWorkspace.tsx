@@ -61,7 +61,7 @@ export function CheckpointWorkspace() {
       const progress = (rows: number) => { if (fileGeneration.current === generation) setStage(`Проверено строк: ${rows.toLocaleString("ru-RU")}…`); };
       const next = Array.isArray(file) ? await inspectDirectory(file, progress) : await inspectDataset(file, progress);
       if (fileGeneration.current !== generation) return;
-      setSource(next); await loadCompany(next, next.companies[0].key, horizon); setStage("");
+      setMode(next.kind === "directory" ? "forecast" : "holdout"); setSource(next); await loadCompany(next, next.companies[0].key, horizon); setStage("");
     } catch (cause) { if (fileGeneration.current === generation) setError(message(cause)); }
     finally { if (fileGeneration.current === generation) setInspecting(false); }
   }

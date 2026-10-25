@@ -138,6 +138,8 @@ test('folder picker verifies mirrors once, uses source metadata and exports the 
     await expect(page.getByText('Уникальных операций: 180. Зеркальная выписка не добавлена.', { exact: true })).toBeVisible();
     await expect(page.getByText('Проверено файлов: 4.', { exact: false })).toBeVisible();
     await expect(page.getByText('Synthetic folder company · ИНН 0012345673 · ООО · Tests', { exact: true })).toBeVisible();
+    await page.getByRole('combobox', { name: 'Режим проверки', exact: true }).click();
+    await page.getByRole('option', { name: 'Проверить на отложенном периоде', exact: true }).click();
     await page.getByRole('button', { name: 'Запустить проверку', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Результат расчёта', exact: true })).toBeVisible({ timeout: 120000 });
     const report = await w.report();
@@ -169,3 +171,19 @@ for (const kind of ['mirror', 'metadata_id', 'metadata_count']) {
     } finally { await rm(fixture.root, { recursive: true, force: true }); }
   });
 }
+
+
+test('folder defaults to a full-history forecast and keeps future truth metrics unavailable', async ({ page, request }) => {
+  const w = await workspace(page, request), fixture = await folderFixture();
+  try {
+    await page.getByLabel('Папка контрольного датасета', { exact: true }).setInputFiles(fixture.root);
+    await expect(page.getByText('Уникальных операций: 180. Зеркальная выписка не добавлена.', { exact: true })).toBeVisible();
+    await expect(page.getByRole('combobox', { name: 'Режим проверки', exact: true })).toContainText('Построить прогноз после конца файла');
+    await page.getByRole('button', { name: 'Запустить проверку', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Результат расчёта', exact: true })).toBeVisible({ timeout: 120000 });
+    const report = await w.report();
+    expect(report.mode).toBe('forecast'); expect(report.input.training_rows).toBe(180); expect(report.input.withheld_rows).toBe(0);
+    expect(report.cutoff).toBe(dayAt(-1)); expect(report.requested_cutoff).toBe(dayAt(-1));
+    expect(report.metrics.samples).toBe(0); expect(report.metrics.mae).toBeNull(); expect(report.metrics.confusion).toBeNull();
+  } finally { await rm(fixture.root, { recursive: true, force: true }); }
+});
