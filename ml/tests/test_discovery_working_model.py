@@ -77,3 +77,17 @@ def test_inference_retains_known_cannot_links_for_exact_source_inputs(tmp_path):
     model=WorkingModel(tmp_path,load_encoder=False)
     result=model.assign_vectors([dict(id='query',direction='out')],[SimpleNamespace(usable=True,semantic_text=rows[0]['semantic_text'])],x[:1])
     assert result[0]['status']=='unknown' and result[0]['coarse_category_id'] is None
+
+
+def test_normalized_purpose_cache_avoids_reencoding_repeated_statement_rows():
+    from collections import OrderedDict
+    model=WorkingModel.__new__(WorkingModel);model.embedding_cache=OrderedDict();model.document={'embedding_dimension':2}
+    calls=[]
+    def encoder(texts):
+        calls.append(list(texts));return np.array([[len(t),1] for t in texts],dtype=np.float32)
+    model.encoder=encoder
+    first=model.encode_texts(['аренда','зарплата','аренда'])
+    second=model.encode_texts(['зарплата','аренда'])
+    assert calls==[['аренда','зарплата']]
+    np.testing.assert_array_equal(first[[1,0]],second)
+    assert model.encode_texts([]).shape==(0,2)

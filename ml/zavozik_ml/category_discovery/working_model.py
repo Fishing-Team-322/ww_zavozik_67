@@ -4,7 +4,7 @@ Category count/names arise from source training vectors. Complete linkage is
 cut separately in learned coarse/fine spaces, with explicit source conflicts.
 Scores/thresholds use weak calibration, never a correctness probability.
 """
-from collections import Counter
+from collections import Counter, OrderedDict
 import hashlib
 import itertools
 import os
@@ -200,6 +200,7 @@ class WorkingModel:
         with np.load(self.directory/'heads.npz',allow_pickle=False) as data:self.weights={k:data[k].copy() for k in data.files}
         self.vectors={level:np.load(self.directory/(level+'.npy'),allow_pickle=False) for level in ('coarse','fine')}
         self.encoder=CandidateEncoder('qwen3-embedding-0.6b',self.directory/'encoder',device='cpu',batch_size=max(1,min(8,int(os.getenv('QWEN_BATCH_SIZE','1')))),threads=max(1,min(4,int(os.getenv('QWEN_THREADS','1'))))) if load_encoder else None
+        self.embedding_cache=OrderedDict()
         self.nodes=self.document['nodes'];self.version=self.document['taxonomy_version']
         self.cannot_links={level:{tuple(k) for k in self.document.get('cannot_link_pairs',{}).get(level,[])} for level in ('coarse','fine')}
         dim=self.document['embedding_dimension']
@@ -240,6 +241,20 @@ class WorkingModel:
                 leaf,score=fine[0];base.update(category_id=leaf['id'],category_title=leaf['title'],category_path=[parent['id'],leaf['id']],status='assigned',similarity=score)
             results.append(base)
         return results
+    def encode_texts(self,texts):
+        # Encoder output depends on normalized purpose, not operation ID or money.
+        # Keep only bounded in-process vectors; no persistent payment-text cache.
+        values={};missing=[]
+        for text in dict.fromkeys(texts):
+            if text in self.embedding_cache:
+                values[text]=self.embedding_cache[text];self.embedding_cache.move_to_end(text)
+            else:missing.append(text)
+        if missing:
+            for text,vector in zip(missing,self.encoder(missing)):
+                values[text]=vector;self.embedding_cache[text]=vector.copy()
+                while len(self.embedding_cache)>1024:self.embedding_cache.popitem(last=False)
+        return np.stack([values[text] for text in texts]) if texts else np.empty((0,self.document['embedding_dimension']),np.float32)
+
     def assign(self,operations):
         from .forecast_evidence import hint
         from .classify_compat import auxiliary
@@ -249,7 +264,7 @@ class WorkingModel:
         if any(not isinstance(i,str) or not i or len(i)>256 for i in ids) or len(set(ids))!=len(ids):raise ValueError('unique nonempty operation ids required')
         from .public_corpus import analyze as public_analyze
         views=[(public_analyze if o.get('source_domain')=='public' or re.search(r'[іїєґ]|\b(?:сплата|кошти|послуг|фінансув|пдфо|єсв)\b',o.get('purpose','').lower()) else analyze)(o.get('purpose','')) for o in operations]
-        x=self.encoder([v.semantic_text for v in views]);results=self.assign_vectors(operations,views,x)
+        x=self.encode_texts([v.semantic_text for v in views]);results=self.assign_vectors(operations,views,x)
         for op,result in zip(operations,results):
             result.update(auxiliary(op));result['forecast_category']=hint(op.get('purpose',''),op['direction']);result['forecast_projection_source']='source_text_evidence_v1'
             if result['forecast_category']=='other':

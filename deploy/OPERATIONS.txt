@@ -114,8 +114,8 @@ resolves the default before forming the incremental forecast cache key. Its dail
 calendar and original transaction purposes/counterparty pseudonyms reach field9.
 M6 vendor warnings survive the RPC; missing trained hybrid weights fail readiness.
 
-Qwen runs separately from LightGBM, on the private Docker network, with one CPU
-thread, batch1 and a2GiB container limit. Native economic IDs/paths/status/version
+Qwen runs separately from LightGBM, on the private Docker network, with two CPU
+threads, batch1 and a2GiB container limit. Native economic IDs/paths/status/version
 are independent from forecast compatibility categories. Rules and manual overrides
 retain priority for money scope. No cosine is reported as category probability.
 Native responses are stored in operations.extra.discovery and exposed on operations;
@@ -144,3 +144,7 @@ independent operation-level human accuracy is available. Deployment is a real
 service integration, not evidence of production prediction accuracy. All provider
 sandbox settings remain off; unconfigured provider credentials produce explicit
 unavailability, not fabricated production records.
+
+Qwen memoizes up to1024 normalized-purpose vectors in process and encodes each
+unique purpose once per batch. Native import/sync jobs have a4minute bound, still
+below the existing5minute reclaim lease; other jobs retain their2minute bound.

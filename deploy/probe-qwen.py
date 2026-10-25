@@ -9,9 +9,9 @@ meta=json.loads(Path('/opt/puls/qwen-artifact.json').read_text())
 model=meta['server_directory']
 if model!='/opt/puls/models/qwen/'+meta['release_sha256']:raise SystemExit('invalid reviewed model path')
 def run(args,timeout=60):return subprocess.run(args,check=True,text=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=timeout).stdout
-report={'candidate':sha,'memory_limit_mib':2048,'cpu_limit':1,'network':'none','tests':'synthetic contract/resource probe, not model accuracy'}
+report={'candidate':sha,'memory_limit_mib':2048,'cpu_limit':2,'network':'none','tests':'synthetic contract/resource probe, not model accuracy'}
 try:
- run(['docker','run','-d','--name',name,'--memory','2g','--memory-swap','2g','--cpus','1','--network','none','--mount','type=bind,src='+model+',dst=/app/qwen-model,readonly','-e','HF_HUB_OFFLINE=1','-e','TRANSFORMERS_OFFLINE=1','-e','QWEN_THREADS=1','-e','QWEN_BATCH_SIZE=1','-e','OMP_NUM_THREADS=1','-e','OPENBLAS_NUM_THREADS=1','-e','TOKENIZERS_PARALLELISM=false',image,'python','-m','zavozik_ml.category_discovery.working_server','--model','/app/qwen-model','--listen','127.0.0.1:50054'])
+ run(['docker','run','-d','--name',name,'--memory','2g','--memory-swap','2g','--cpus','2','--network','none','--mount','type=bind,src='+model+',dst=/app/qwen-model,readonly','-e','HF_HUB_OFFLINE=1','-e','TRANSFORMERS_OFFLINE=1','-e','QWEN_THREADS=2','-e','QWEN_BATCH_SIZE=1','-e','OMP_NUM_THREADS=1','-e','OPENBLAS_NUM_THREADS=1','-e','TOKENIZERS_PARALLELISM=false',image,'python','-m','zavozik_ml.category_discovery.working_server','--model','/app/qwen-model','--listen','127.0.0.1:50054'])
  stop=time.monotonic()+180
  while True:
   state=json.loads(run(['docker','inspect','--format','{{json .State}}',name]))

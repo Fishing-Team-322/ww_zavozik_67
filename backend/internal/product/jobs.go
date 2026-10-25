@@ -36,7 +36,11 @@ func (s *Service) ProcessOne(ctx context.Context) (bool, error) {
 	if e != nil {
 		return false, e
 	}
-	run, cancel := context.WithTimeout(ctx, 2*time.Minute)
+	timeout := 2 * time.Minute
+	if _, ok := s.Categorizer.(*categorize.Discovery); ok && (j.Kind == "import" || j.Kind == "sync") {
+		timeout = 4 * time.Minute
+	}
+	run, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	var result Doc
 	if j.Kind != "retrain" {
