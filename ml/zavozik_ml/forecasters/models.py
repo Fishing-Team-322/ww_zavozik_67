@@ -1,3 +1,3 @@
 """Импортирует все модели, чтобы они попали в реестр."""
 
-from . import ensemble, ets, gbm, naive, structural  # noqa: F401
+from . import ensemble, ets, event_hybrid, gbm, naive, structural  # noqa: F401
