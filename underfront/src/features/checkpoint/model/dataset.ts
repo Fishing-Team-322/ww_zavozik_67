@@ -117,7 +117,7 @@ export async function readControlCompany(source: ControlSource, key: string): Pr
   let map: Record<string, number> | undefined, index = 0, duplicates = 0;
   for await (const row of csvRecords(blob)) {
     if (!map) { map = columns(row); continue; }
-    const op = operation(row, map, company.key, ++index);
+    const op = operation(row, map, "single", ++index);
     if (op.company !== company.key) continue;
     const signature = JSON.stringify(op), previous = seen.get(op.id);
     if (previous !== undefined) { if (previous !== signature) throw new Error(`Разные операции имеют одинаковый operation_id: строка ${index}.`); duplicates++; continue; }

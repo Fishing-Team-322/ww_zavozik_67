@@ -46,6 +46,15 @@ test("CSV validation rejects broken amounts, invalid dates and non-CSV inputs", 
   await assert.rejects(inspectDataset(new File([Uint8Array.from(bytes).buffer], "unsafe.zip")), /выберите CSV/);
 });
 
+test("empty company IDs cannot be reassigned to whichever explicit company is selected", async () => {
+  const source = await inspectDataset(new File(["company_id;operation_id;operation_date;amount;direction;balance_eod\nC001;a;2026-01-01;10;in;100\nC002;b;2026-01-02;20;out;200\n;unassigned;2026-01-03;30;in;300\n"], "mixed.csv"));
+  assert.deepEqual(source.companies.map(company => company.key).sort(), ["C001", "C002", "single"]);
+  for (const [key, id] of [["C001", "a"], ["C002", "b"], ["single", "unassigned"]]) {
+    const selected = await readControlCompany(source, key);
+    assert.deepEqual(selected.operations.map(op => op.id), [id]);
+  }
+});
+
 test("reconciliation excludes unknown intervals instead of fabricating zero balances", () => {
   const rows = [op("a", "2026-01-01", 100, 100), op("b", "2026-01-04", 10, 500), op("c", "2026-01-06", 10, 510)];
   const days = actualBalances(rows);
